@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { canonicalRelationshipKey } from './relationship-semantics.js'
 
 const provenanceKindSchema = z.enum([
   'observed',
@@ -75,7 +76,7 @@ const studentSchema = z.object({
   notes: z.string().optional(),
 })
 
-const relationshipSchema = z.object({
+export const relationshipSchema = z.object({
   id: z.string().min(1),
   fromStudentId: z.string().min(1),
   toStudentId: z.string().min(1),
@@ -422,7 +423,28 @@ export const classGraphProjectSchema = z
       }
     }
 
+    const relationshipIds = new Set<string>()
+    const relationshipKeys = new Set<string>()
     for (const [index, relationship] of (project.relationships ?? []).entries()) {
+      if (relationshipIds.has(relationship.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['relationships', index, 'id'],
+          message: `duplicate relationship id: ${relationship.id}`,
+        })
+      }
+      relationshipIds.add(relationship.id)
+
+      const relationshipKey = canonicalRelationshipKey(relationship)
+      if (relationshipKeys.has(relationshipKey)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['relationships', index],
+          message: 'duplicate relationship semantics',
+        })
+      }
+      relationshipKeys.add(relationshipKey)
+
       if (!studentIds.has(relationship.fromStudentId)) {
         ctx.addIssue({
           code: 'custom',
