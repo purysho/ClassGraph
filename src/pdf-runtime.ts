@@ -69,7 +69,8 @@ function loadRuntime(): PdfLibAdapter {
 const runtime = loadRuntime()
 
 export const pdfStandardFonts = runtime.StandardFonts
-export const pdfRgb = runtime.rgb
+export const pdfRgb = (red: number, green: number, blue: number): PdfColor =>
+  runtime.rgb(red, green, blue)
 
 export function createPdfDocument(): Promise<PdfDocumentAdapter> {
   return runtime.PDFDocument.create()
