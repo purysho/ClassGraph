@@ -155,8 +155,7 @@ export function generateSyntheticProject(spec: SyntheticClassSpec): ClassGraphPr
     })
 
     provenance[`/students/${index}/id`] = syntheticProvenance('synthetic-class-spec')
-    provenance[`/students/${index}/displayName`] =
-      syntheticProvenance('synthetic-class-spec')
+    provenance[`/students/${index}/displayName`] = syntheticProvenance('synthetic-class-spec')
   }
 
   const now = spec.generatedAt ?? new Date().toISOString()
