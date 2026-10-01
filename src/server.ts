@@ -190,99 +190,99 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
     void (async () => {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1')
 
-    try {
-      if (request.method === 'GET' && url.pathname === '/api/health') {
-        sendJson(response, 200, {
-          ok: true,
-          service: 'ClassGraph',
-          schemaVersion: '1.0',
+      try {
+        if (request.method === 'GET' && url.pathname === '/api/health') {
+          sendJson(response, 200, {
+            ok: true,
+            service: 'ClassGraph',
+            schemaVersion: '1.0',
+          })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/project/create') {
+          const setup = parseProjectSetup(await readJsonBody(request, maxBodyBytes))
+          const project = createEmptyProject({
+            projectId: setup.projectId,
+            title: setup.title,
+            now: new Date().toISOString(),
+            classInfo: setup.classInfo,
+          })
+          sendJson(response, 200, { project })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/project/mutate') {
+          const mutation = parseProjectMutationRequest(await readJsonBody(request, maxBodyBytes))
+          const project = applyProjectMutation(
+            mutation.project,
+            mutation.command,
+            new Date().toISOString(),
+          )
+          sendJson(response, 200, { project })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/synthetic/generate') {
+          const specification = parseStructuredSyntheticRequest(
+            await readJsonBody(request, maxBodyBytes),
+          )
+          const project = generateSyntheticProject({
+            ...specification,
+            generatedAt: new Date().toISOString(),
+          })
+          sendJson(response, 200, { project })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/analysis/project') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const analysis = buildProjectAnalysis(parseProjectFromRequest(record))
+          sendJson(response, 200, { analysis })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/analysis/scatter') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const project = parseProjectFromRequest(record)
+          const xMetricKey = expectString(record, 'xMetricKey')
+          const yMetricKey = expectString(record, 'yMetricKey')
+          const scatter = buildScatterView(project, xMetricKey, yMetricKey)
+          sendJson(response, 200, { scatter })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/import') {
+          const body = await readBody(request, maxBodyBytes)
+          const project = parseProjectJson(body)
+          sendJson(response, 200, { project })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/export') {
+          const body = await readBody(request, maxBodyBytes)
+          const project = parseProjectJson(body)
+          response.writeHead(200, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Content-Disposition': 'attachment; filename="classgraph-project.json"',
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff',
+            'Referrer-Policy': 'no-referrer',
+          })
+          response.end(serializeProjectJson(project))
+          return
+        }
+
+        if (
+          request.method === 'GET' &&
+          (await serveStatic(response, appDirectory, buildDirectory, url.pathname))
+        ) {
+          return
+        }
+
+        sendJson(response, 404, {
+          error: { code: 'CG-1003', message: 'ClassGraph could not find that local route.' },
         })
-        return
-      }
-
-      if (request.method === 'POST' && url.pathname === '/api/project/create') {
-        const setup = parseProjectSetup(await readJsonBody(request, maxBodyBytes))
-        const project = createEmptyProject({
-          projectId: setup.projectId,
-          title: setup.title,
-          now: new Date().toISOString(),
-          classInfo: setup.classInfo,
-        })
-        sendJson(response, 200, { project })
-        return
-      }
-
-      if (request.method === 'POST' && url.pathname === '/api/project/mutate') {
-        const mutation = parseProjectMutationRequest(await readJsonBody(request, maxBodyBytes))
-        const project = applyProjectMutation(
-          mutation.project,
-          mutation.command,
-          new Date().toISOString(),
-        )
-        sendJson(response, 200, { project })
-        return
-      }
-
-      if (request.method === 'POST' && url.pathname === '/api/synthetic/generate') {
-        const specification = parseStructuredSyntheticRequest(
-          await readJsonBody(request, maxBodyBytes),
-        )
-        const project = generateSyntheticProject({
-          ...specification,
-          generatedAt: new Date().toISOString(),
-        })
-        sendJson(response, 200, { project })
-        return
-      }
-
-      if (request.method === 'POST' && url.pathname === '/api/analysis/project') {
-        const record = expectRecord(await readJsonBody(request, maxBodyBytes))
-        const analysis = buildProjectAnalysis(parseProjectFromRequest(record))
-        sendJson(response, 200, { analysis })
-        return
-      }
-
-      if (request.method === 'POST' && url.pathname === '/api/analysis/scatter') {
-        const record = expectRecord(await readJsonBody(request, maxBodyBytes))
-        const project = parseProjectFromRequest(record)
-        const xMetricKey = expectString(record, 'xMetricKey')
-        const yMetricKey = expectString(record, 'yMetricKey')
-        const scatter = buildScatterView(project, xMetricKey, yMetricKey)
-        sendJson(response, 200, { scatter })
-        return
-      }
-
-      if (request.method === 'POST' && url.pathname === '/api/import') {
-        const body = await readBody(request, maxBodyBytes)
-        const project = parseProjectJson(body)
-        sendJson(response, 200, { project })
-        return
-      }
-
-      if (request.method === 'POST' && url.pathname === '/api/export') {
-        const body = await readBody(request, maxBodyBytes)
-        const project = parseProjectJson(body)
-        response.writeHead(200, {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Content-Disposition': 'attachment; filename="classgraph-project.json"',
-          'Cache-Control': 'no-store',
-          'X-Content-Type-Options': 'nosniff',
-          'Referrer-Policy': 'no-referrer',
-        })
-        response.end(serializeProjectJson(project))
-        return
-      }
-
-      if (
-        request.method === 'GET' &&
-        (await serveStatic(response, appDirectory, buildDirectory, url.pathname))
-      ) {
-        return
-      }
-
-      sendJson(response, 404, {
-        error: { code: 'CG-1003', message: 'ClassGraph could not find that local route.' },
-      })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unexpected local server error.'
         const code = /^CG-\d{4}/.exec(message)?.[0] ?? 'CG-9001'
