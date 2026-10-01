@@ -4,7 +4,7 @@
 
 ## Project status
 
-**Phase 0 is merged. Phase 1 is complete on PR #3. Phase 2 is complete on PR #4 and passed Gate 2. Phase 3 is complete on PR #5 and passed Gate 3. Phase 4 is complete on PR #6. Phase 5 is implemented on `feat/phase-5-assistance` pending Gate 5 merge.**
+**Phase 0 is merged. Phase 1 is complete on PR #3. Phase 2 is complete on PR #4 and passed Gate 2. Phase 3 is complete on PR #5 and passed Gate 3. Phase 4 is complete on PR #6 and passed Gate 4. Phase 5 is complete on `feat/phase-5-assistance` and passed Gate 5.**
 
 ClassGraph remains a **standalone companion to EduBoard**. The apps do not share a live database. ClassGraph Exchange JSON v1 is the portable boundary between them.
 
