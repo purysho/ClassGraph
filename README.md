@@ -98,6 +98,16 @@ npm run dev
 
 `CLASSGRAPH_PORT` can change the local port. `CLASSGRAPH_HOST` can override the host, but using a non-loopback host may expose student data to other devices on the network and should only be done deliberately on a trusted network.
 
+Phase 5 network assistance is **off by default**. Optional provider configuration uses environment variables only:
+
+```text
+CLASSGRAPH_ASSISTANCE_URL=https://provider.example/assist
+CLASSGRAPH_ASSISTANCE_PROVIDER_LABEL=Provider name
+CLASSGRAPH_ASSISTANCE_TOKEN=optional-secret
+```
+
+The endpoint must be HTTPS. ClassGraph shows the exact context before transmission and requires a separate explicit send confirmation. The token is never stored in a ClassGraph project or exposed through the assistance status API.
+
 ### Optional network assistance provider
 
 No network provider is enabled by default. Offline assistance remains available without configuration.
@@ -135,6 +145,10 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Local DOCX descriptive report.
 - Local PDF descriptive report.
 - Landscape seating-plan PDF.
+- Explicit relationship table and local relationship graph.
+- Repeat-neighbour history and saved planning-scenario comparisons.
+- Offline assistance proposals for synthetic specs, descriptive explanations, report wording, and planning rules.
+- Optional network assistance with pre-send context disclosure and explicit confirmation.
 - Optional offline/network assistance proposals that remain outside canonical project data until explicitly accepted or copied.
 
 ## Product principles
@@ -144,7 +158,9 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - **Missing is not zero.** Explicitly missing and not-recorded values are distinct.
 - **No black-box student labels.** ClassGraph supports teacher judgement; it does not diagnose personality, ability, behaviour, or future achievement.
 - **Descriptive analysis before prediction.** Graphs show the data supplied; they do not claim causation or forecast student outcomes.
-- **Explain recommendations.** Future seating/grouping suggestions must show the constraints and objectives that produced them.
+- **Explain recommendations.** Seating/grouping suggestions show the constraints/objectives or explicit relationship records that produced them.
+- **Assistance never silently applies itself.** Drafts remain proposals until the teacher explicitly copies, validates, or applies them.
+- **Minimise network context.** Aggregate/redacted data is preferred; any student-level disclosure is visible before an optional send.
 - **Portable by design.** The canonical interchange format is versioned JSON.
 - **Quality gates before features.** Formatting, lint, strict typecheck, tests, build, schema validation, and dependency auditing are required before merge.
 - **Keep the app lean.** New frameworks/dependencies need a concrete product benefit rather than being added by default.
@@ -163,6 +179,8 @@ Integration is through explicit import/export contracts rather than hidden coupl
 - `docs/PHASE_2.md` — Phase 2 seating/grouping recovery and Gate 2 log.
 - `docs/PHASE_3.md` — Phase 3 exports/interchange recovery and Gate 3 log.
 - `docs/PHASE3_LOG.md` — recovery alias pointing to the authoritative Phase 3 log.
+- `docs/PHASE_4.md` — Phase 4 relationship/history/scenario recovery and Gate 4 log.
+- `docs/PHASE_5.md` — Phase 5 assistance/provider recovery and Gate 5 log.
 - `docs/PHASE_4.md` — Phase 4 relationship/history/scenario recovery log.
 - `docs/PHASE_5.md` — Phase 5 optional-assistance recovery and Gate 5 log.
 
