@@ -171,6 +171,6 @@ describe('relationship CRUD', () => {
       t1,
     )
 
-    expect(project.relationships).toBeUndefined()
+    expect(project.relationships).toEqual([])
   })
 })
