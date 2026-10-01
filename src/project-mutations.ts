@@ -176,6 +176,23 @@ const commandSchema = z.discriminatedUnion('type', [
     studentId: z.string().min(1),
     locked: z.boolean(),
   }),
+  z.object({
+    type: z.literal('record-seating-history'),
+    label: z.string().optional(),
+    neighbourMode: z.enum(['orthogonal', 'king']),
+  }),
+  z.object({
+    type: z.literal('remove-seating-history'),
+    historyId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal('save-planning-scenario'),
+    label: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal('remove-planning-scenario'),
+    scenarioId: z.string().min(1),
+  }),
 ])
 
 export type ProjectMutationCommand = z.infer<typeof commandSchema>
@@ -275,5 +292,17 @@ export function applyProjectMutation(
       return replacePlanningGroups(project, command.groups, command.source, now)
     case 'set-group-student-locked':
       return setGroupStudentLocked(project, command.groupId, command.studentId, command.locked, now)
+    case 'record-seating-history':
+      return recordApprovedSeatingHistory(
+        project,
+        { label: command.label, neighbourMode: command.neighbourMode },
+        now,
+      )
+    case 'remove-seating-history':
+      return removeApprovedSeatingHistory(project, command.historyId, now)
+    case 'save-planning-scenario':
+      return savePlanningScenario(project, command.label, now)
+    case 'remove-planning-scenario':
+      return removePlanningScenario(project, command.scenarioId, now)
   }
 }
