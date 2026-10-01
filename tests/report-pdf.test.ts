@@ -76,6 +76,7 @@ describe('PDF exports', () => {
   it('requires a grid room for seating-plan PDF export', async () => {
     const project = fixture()
     delete project.room
+    project.planning = { assignments: [], rules: [], groups: [] }
 
     try {
       await generateSeatingPlanPdf(project)
