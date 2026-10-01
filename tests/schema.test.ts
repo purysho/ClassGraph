@@ -101,5 +101,4 @@ describe('classGraphProjectSchema', () => {
       expect(result.error.issues[0]?.message).toContain('custom room seats require x and y')
     }
   })
-
 })

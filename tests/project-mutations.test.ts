@@ -143,5 +143,4 @@ describe('project mutations', () => {
       }),
     ).toThrow('CG-1001 invalid mutation command')
   })
-
 })

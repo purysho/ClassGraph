@@ -153,11 +153,7 @@ const roomSchema = z
           })
         }
 
-        if (
-          seat.row !== undefined &&
-          room.rows !== undefined &&
-          seat.row >= room.rows
-        ) {
+        if (seat.row !== undefined && room.rows !== undefined && seat.row >= room.rows) {
           ctx.addIssue({
             code: 'custom',
             path: ['seats', index, 'row'],
