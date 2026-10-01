@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { ClassGraphProject, MetricDefinition, MetricValue, StudentPatch } from './model.js'
+import type { ClassGraphProject, MetricDefinition, MetricValue } from './model.js'
 import {
   addMetricDefinition,
   removeMetricDefinition,
@@ -7,7 +7,7 @@ import {
   unsetStudentMetricValue,
 } from './metrics.js'
 import { classGraphProjectSchema } from './schema.js'
-import { addStudent, removeStudent, updateStudent } from './workspace.js'
+import { addStudent, removeStudent, updateStudent, type StudentPatch } from './workspace.js'
 
 const metricValueSchema = z.union([z.number().finite(), z.string(), z.boolean(), z.null()])
 
