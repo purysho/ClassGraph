@@ -1668,7 +1668,6 @@ select:focus {
   }
 }
 
-
 .relationship-stack {
   display: grid;
   gap: 16px;
@@ -1729,7 +1728,6 @@ select:focus {
   }
 }
 
-
 .relationship-graph-panel {
   overflow: hidden;
 }
@@ -1742,8 +1740,7 @@ select:focus {
   border-radius: 14px;
   background:
     linear-gradient(to right, rgba(89, 105, 116, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(89, 105, 116, 0.05) 1px, transparent 1px),
-    #f9fbfc;
+    linear-gradient(to bottom, rgba(89, 105, 116, 0.05) 1px, transparent 1px), #f9fbfc;
   background-size: 40px 40px;
 }
 
@@ -1803,7 +1800,6 @@ select:focus {
 .relationship-node.focused text {
   font-weight: 900;
 }
-
 
 .relationship-history-grid {
   display: grid;

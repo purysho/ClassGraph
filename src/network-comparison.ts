@@ -1,8 +1,4 @@
-import type {
-  PlanningGroup,
-  RelationshipRecord,
-  RelationshipType,
-} from './model.js'
+import type { PlanningGroup, RelationshipRecord, RelationshipType } from './model.js'
 
 export interface GroupNetworkSummary {
   groupCount: number
@@ -84,7 +80,12 @@ export function summarizeGroupNetwork(
   }
 }
 
-function comparison(key: string, label: string, left: number, right: number): NetworkCountComparison {
+function comparison(
+  key: string,
+  label: string,
+  left: number,
+  right: number,
+): NetworkCountComparison {
   return { key, label, left, right, delta: right - left }
 }
 

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildRepeatNeighbourHistory, recordApprovedSeatingHistory } from '../src/planning-history.js'
+import {
+  buildRepeatNeighbourHistory,
+  recordApprovedSeatingHistory,
+} from '../src/planning-history.js'
 import { addStudent, createEmptyProject } from '../src/workspace.js'
 import { setGridRoom } from '../src/room.js'
 import { assignStudentToSeat } from '../src/planning-state.js'
@@ -47,21 +50,21 @@ describe('approved seating history', () => {
   })
 
   it('counts repeat neighbours only across stored history snapshots', () => {
-    let project = recordApprovedSeatingHistory(
-      seatedProject(),
-      { neighbourMode: 'orthogonal' },
-      t1,
-    )
+    let project = recordApprovedSeatingHistory(seatedProject(), { neighbourMode: 'orthogonal' }, t1)
     project = recordApprovedSeatingHistory(project, { neighbourMode: 'orthogonal' }, t2)
 
     const summary = buildRepeatNeighbourHistory(project)
 
     expect(summary.historyRecordCount).toBe(2)
     expect(summary.usableRecordCount).toBe(2)
-    expect(summary.pairs.find((pair) => pair.studentAId === 's1' && pair.studentBId === 's2')).toMatchObject({
+    expect(
+      summary.pairs.find((pair) => pair.studentAId === 's1' && pair.studentBId === 's2'),
+    ).toMatchObject({
       count: 2,
     })
-    expect(summary.pairs.find((pair) => pair.studentAId === 's2' && pair.studentBId === 's3')).toMatchObject({
+    expect(
+      summary.pairs.find((pair) => pair.studentAId === 's2' && pair.studentBId === 's3'),
+    ).toMatchObject({
       count: 2,
     })
   })

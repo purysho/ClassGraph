@@ -1,8 +1,4 @@
-import type {
-  ClassGraphProject,
-  ProvenanceEntry,
-  RelationshipType,
-} from './model.js'
+import type { ClassGraphProject, ProvenanceEntry, RelationshipType } from './model.js'
 import { buildRelationshipTable } from './relationship-table.js'
 
 export interface RelationshipGraphNode {
@@ -48,7 +44,9 @@ export function buildRelationshipGraph(
   project: ClassGraphProject,
   focusStudentId?: string,
 ): RelationshipGraph {
-  const sortedStudents = [...project.students].sort((left, right) => left.id.localeCompare(right.id))
+  const sortedStudents = [...project.students].sort((left, right) =>
+    left.id.localeCompare(right.id),
+  )
   const validFocus = sortedStudents.some((student) => student.id === focusStudentId)
     ? focusStudentId
     : undefined
@@ -94,8 +92,7 @@ export function buildRelationshipGraph(
   const nodes: RelationshipGraphNode[] = [
     {
       studentId: validFocus,
-      label:
-        sortedStudents.find((student) => student.id === validFocus)?.displayName ?? validFocus,
+      label: sortedStudents.find((student) => student.id === validFocus)?.displayName ?? validFocus,
       x: 0.5,
       y: 0.5,
       focused: true,

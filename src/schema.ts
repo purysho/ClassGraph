@@ -653,7 +653,6 @@ export const classGraphProjectSchema = z
       }
     }
 
-
     const historyIds = new Set<string>()
     for (const [index, entry] of (project.planning?.history ?? []).entries()) {
       if (historyIds.has(entry.id)) {

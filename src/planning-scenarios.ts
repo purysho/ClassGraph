@@ -1,8 +1,4 @@
-import type {
-  ClassGraphProject,
-  PlanningScenario,
-  ProvenanceEntry,
-} from './model.js'
+import type { ClassGraphProject, PlanningScenario, ProvenanceEntry } from './model.js'
 import { compareGroupNetworks, type GroupNetworkComparison } from './network-comparison.js'
 import { classGraphProjectSchema } from './schema.js'
 import { deterministicId } from './stable-id.js'
@@ -96,9 +92,7 @@ export function buildPlanningScenario(
     assignments: structuredClone(planning?.assignments ?? []),
     rules: structuredClone(planning?.rules ?? []),
     groups: structuredClone(planning?.groups ?? []),
-    ...(planning?.approvedCandidateId
-      ? { approvedCandidateId: planning.approvedCandidateId }
-      : {}),
+    ...(planning?.approvedCandidateId ? { approvedCandidateId: planning.approvedCandidateId } : {}),
   }
 
   return {
@@ -123,9 +117,8 @@ export function savePlanningScenario(
   }
 
   planning.scenarios.push(scenario)
-  next.provenance[`/planning/scenarios/${planning.scenarios.length - 1}`] = teacherEntered(
-    'saved-planning-scenario',
-  )
+  next.provenance[`/planning/scenarios/${planning.scenarios.length - 1}`] =
+    teacherEntered('saved-planning-scenario')
   next.updatedAt = now
   return validate(next)
 }
@@ -147,7 +140,9 @@ export function removePlanningScenario(
 }
 
 function assignmentMap(scenario: PlanningScenario): Map<string, string> {
-  return new Map(scenario.assignments.map((assignment) => [assignment.studentId, assignment.seatId]))
+  return new Map(
+    scenario.assignments.map((assignment) => [assignment.studentId, assignment.seatId]),
+  )
 }
 
 function groupMembership(scenario: PlanningScenario): Map<string, string> {

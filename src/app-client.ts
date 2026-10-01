@@ -32,11 +32,7 @@ interface StudentRecord {
 }
 
 type RelationshipType =
-  | 'works-well-with'
-  | 'avoid-pairing'
-  | 'support-pair'
-  | 'friendship'
-  | 'custom'
+  'works-well-with' | 'avoid-pairing' | 'support-pair' | 'friendship' | 'custom'
 
 interface RelationshipRecord {
   id: string
@@ -2961,9 +2957,7 @@ function relationshipTypeOptions(selected?: RelationshipType): string {
     { value: 'custom', label: 'Custom' },
   ]
 
-  return types
-    .map((item) => optionHtml(item.value, item.label, item.value === selected))
-    .join('')
+  return types.map((item) => optionHtml(item.value, item.label, item.value === selected)).join('')
 }
 
 function studentOptionLabel(student: StudentRecord): string {
@@ -3011,9 +3005,11 @@ function renderRelationshipRows(): string {
     return `
       <tr>
         <td colspan="8" class="empty-cell">
-          ${selectedRelationshipTypeFilter === 'all'
-            ? 'No explicit relationship records yet.'
-            : 'No relationship records match this type.'}
+          ${
+            selectedRelationshipTypeFilter === 'all'
+              ? 'No explicit relationship records yet.'
+              : 'No relationship records match this type.'
+          }
         </td>
       </tr>
     `
@@ -3383,11 +3379,7 @@ function renderRelationships(content: HTMLElement): void {
               <select id="scenario-left" ${(project.planning?.scenarios?.length ?? 0) < 2 ? 'disabled' : ''}>
                 ${(project.planning?.scenarios ?? [])
                   .map((scenario) =>
-                    optionHtml(
-                      scenario.id,
-                      scenario.label,
-                      scenario.id === selectedScenarioLeftId,
-                    ),
+                    optionHtml(scenario.id, scenario.label, scenario.id === selectedScenarioLeftId),
                   )
                   .join('')}
               </select>
@@ -3409,9 +3401,11 @@ function renderRelationships(content: HTMLElement): void {
           </div>
           <div id="scenario-comparison-stage" class="snapshot-analysis">
             <div class="empty-analysis">
-              ${(project.planning?.scenarios?.length ?? 0) >= 2
-                ? 'Comparing saved planning snapshots…'
-                : 'Save at least two planning scenarios to compare them.'}
+              ${
+                (project.planning?.scenarios?.length ?? 0) >= 2
+                  ? 'Comparing saved planning snapshots…'
+                  : 'Save at least two planning scenarios to compare them.'
+              }
             </div>
           </div>
         </article>
@@ -3575,9 +3569,11 @@ function renderRepeatNeighbourHistory(history: RepeatNeighbourHistoryView): stri
         </tbody>
       </table>
     </div>
-    ${history.skippedRecordIds.length
-      ? `<p class="report-note">Custom-layout history is preserved but not used for grid-neighbour counts: ${escapeHtml(history.skippedRecordIds.join(', '))}</p>`
-      : ''}
+    ${
+      history.skippedRecordIds.length
+        ? `<p class="report-note">Custom-layout history is preserved but not used for grid-neighbour counts: ${escapeHtml(history.skippedRecordIds.join(', '))}</p>`
+        : ''
+    }
   `
 }
 
@@ -3632,13 +3628,16 @@ function renderScenarioComparison(comparison: PlanningScenarioComparisonView): s
     },
   ]
 
-  const allRows = [...planningRows, ...comparison.network.counts.map((item) => ({
-    label: item.label,
-    left: item.left,
-    right: item.right,
-    delta: item.delta,
-    detail: 'Descriptive explicit-edge count',
-  }))]
+  const allRows = [
+    ...planningRows,
+    ...comparison.network.counts.map((item) => ({
+      label: item.label,
+      left: item.left,
+      right: item.right,
+      delta: item.delta,
+      detail: 'Descriptive explicit-edge count',
+    })),
+  ]
 
   const rows = allRows
     .map(
@@ -3750,18 +3749,20 @@ function bindRelationshipEvents(): void {
       void mutateProject({ type: 'save-planning-scenario', label })
     })
 
-  document.querySelector<HTMLSelectElement>('#scenario-left')?.addEventListener('change', (event) => {
-    selectedScenarioLeftId = (event.currentTarget as HTMLSelectElement).value || null
-    if (selectedScenarioLeftId === selectedScenarioRightId) {
-      selectedScenarioRightId =
-        (project?.planning?.scenarios ?? []).find(
-          (scenario) => scenario.id !== selectedScenarioLeftId,
-        )?.id ?? null
-      renderWorkspace()
-      return
-    }
-    void loadScenarioComparison()
-  })
+  document
+    .querySelector<HTMLSelectElement>('#scenario-left')
+    ?.addEventListener('change', (event) => {
+      selectedScenarioLeftId = (event.currentTarget as HTMLSelectElement).value || null
+      if (selectedScenarioLeftId === selectedScenarioRightId) {
+        selectedScenarioRightId =
+          (project?.planning?.scenarios ?? []).find(
+            (scenario) => scenario.id !== selectedScenarioLeftId,
+          )?.id ?? null
+        renderWorkspace()
+        return
+      }
+      void loadScenarioComparison()
+    })
 
   document
     .querySelector<HTMLSelectElement>('#scenario-right')
@@ -3808,8 +3809,7 @@ function bindRelationshipEvents(): void {
     .querySelector<HTMLSelectElement>('#relationship-type-filter')
     ?.addEventListener('change', (event) => {
       const value = (event.currentTarget as HTMLSelectElement).value
-      selectedRelationshipTypeFilter =
-        value === 'all' ? 'all' : (value as RelationshipType)
+      selectedRelationshipTypeFilter = value === 'all' ? 'all' : (value as RelationshipType)
       renderWorkspace()
     })
 

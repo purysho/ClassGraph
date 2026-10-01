@@ -6,10 +6,7 @@ import {
 } from '../src/planning-scenarios.js'
 import { addStudent, createEmptyProject } from '../src/workspace.js'
 import { setGridRoom } from '../src/room.js'
-import {
-  assignStudentToSeat,
-  replacePlanningGroups,
-} from '../src/planning-state.js'
+import { assignStudentToSeat, replacePlanningGroups } from '../src/planning-state.js'
 import { addRelationship } from '../src/relationships.js'
 
 const t0 = '2026-10-02T00:00:00.000Z'

@@ -1,8 +1,4 @@
-import type {
-  ApprovedSeatingHistoryEntry,
-  ClassGraphProject,
-  ProvenanceEntry,
-} from './model.js'
+import type { ApprovedSeatingHistoryEntry, ClassGraphProject, ProvenanceEntry } from './model.js'
 import { classGraphProjectSchema } from './schema.js'
 import { deterministicId } from './stable-id.js'
 
@@ -159,20 +155,15 @@ export function buildRepeatNeighbourHistory(project: ClassGraphProject): RepeatN
       const leftSeat = seats.get(leftAssignment.seatId)
       if (!leftSeat) continue
 
-      for (
-        let rightIndex = leftIndex + 1;
-        rightIndex < entry.assignments.length;
-        rightIndex += 1
-      ) {
+      for (let rightIndex = leftIndex + 1; rightIndex < entry.assignments.length; rightIndex += 1) {
         const rightAssignment = entry.assignments[rightIndex]
         if (!rightAssignment) continue
         const rightSeat = seats.get(rightAssignment.seatId)
         if (!rightSeat || !areNeighbours(leftSeat, rightSeat, entry.neighbourMode)) continue
 
-        const [studentAId, studentBId] = [
-          leftAssignment.studentId,
-          rightAssignment.studentId,
-        ].sort((left, right) => left.localeCompare(right))
+        const [studentAId, studentBId] = [leftAssignment.studentId, rightAssignment.studentId].sort(
+          (left, right) => left.localeCompare(right),
+        )
         if (!studentAId || !studentBId) continue
         const key = `${studentAId}\u0000${studentBId}`
         const current = pairs.get(key)
