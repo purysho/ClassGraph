@@ -38,7 +38,7 @@ export function draftAnalysisExplanation(
   ]
   if (analysis.completeness.explicitMissingCount > 0 || analysis.completeness.unrecordedCount > 0) {
     caveats.unshift(
-      'Missing and not-recorded values are excluded from metric summaries rather than imputed.',
+      'Missing and not-recorded values are not imputed; they are excluded from metric summaries.',
     )
   }
 
