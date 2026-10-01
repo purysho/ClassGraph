@@ -160,8 +160,13 @@ type SyntheticDraftMetric =
       value: string
     }
 
-const root = document.querySelector<HTMLElement>('#app')
-if (!root) throw new Error('ClassGraph could not find the application root.')
+function findAppRoot(): HTMLElement {
+  const element = document.querySelector<HTMLElement>('#app')
+  if (!element) throw new Error('ClassGraph could not find the application root.')
+  return element
+}
+
+const root = findAppRoot()
 
 let project: ClassGraphProject | null = null
 let activeView: WorkspaceView = 'overview'
@@ -585,17 +590,23 @@ function renderSyntheticBuilder(): void {
 function renderSyntheticDraftMetric(metric: SyntheticDraftMetric, index: number): string {
   let description = ''
 
-  if (metric.kind === 'number') {
-    description =
-      metric.distribution === 'normal'
-        ? `normal · mean ${metric.mean} · SD ${metric.standardDeviation} · ${metric.min}–${metric.max}`
-        : `uniform · ${metric.min}–${metric.max}`
-  } else if (metric.kind === 'category' || metric.kind === 'ordinal') {
-    description = metric.values.map((item) => `${item.value}×${item.weight}`).join(', ')
-  } else if (metric.kind === 'boolean') {
-    description = `true rate ${metric.trueRate}`
-  } else {
-    description = metric.value ? `fixed text: ${metric.value}` : 'empty text'
+  switch (metric.kind) {
+    case 'number':
+      description =
+        metric.distribution === 'normal'
+          ? `normal · mean ${metric.mean} · SD ${metric.standardDeviation} · ${metric.min}–${metric.max}`
+          : `uniform · ${metric.min}–${metric.max}`
+      break
+    case 'category':
+    case 'ordinal':
+      description = metric.values.map((item) => `${item.value}×${item.weight}`).join(', ')
+      break
+    case 'boolean':
+      description = `true rate ${metric.trueRate}`
+      break
+    case 'text':
+      description = metric.value ? `fixed text: ${metric.value}` : 'empty text'
+      break
   }
 
   return `
