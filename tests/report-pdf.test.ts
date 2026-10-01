@@ -1,4 +1,8 @@
-import { PDFDocument } from '@cantoo/pdf-lib'
+import { createRequire } from 'node:module'
+import type * as PdfLibTypes from '@cantoo/pdf-lib'
+
+const require = createRequire(import.meta.url)
+const { PDFDocument } = require('@cantoo/pdf-lib') as typeof PdfLibTypes
 import { describe, expect, it } from 'vitest'
 import { ClassGraphExportError } from '../src/export-errors.js'
 import { generatePdfReport, generateSeatingPlanPdf } from '../src/report-pdf.js'
