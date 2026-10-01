@@ -4,7 +4,7 @@
 
 ## Project status
 
-**Phase 0 is merged. Phase 1 is complete on PR #3. Phase 2 is complete on PR #4 and passed Gate 2. Phase 3 is complete on PR #5 and passed Gate 3.**
+**Phase 0 is merged. Phase 1 is complete on PR #3. Phase 2 is complete on PR #4 and passed Gate 2. Phase 3 is complete on PR #5 and passed Gate 3. Phase 4 is complete on PR #6. Phase 5 is implemented on `feat/phase-5-assistance` pending Gate 5 merge.**
 
 ClassGraph remains a **standalone companion to EduBoard**. The apps do not share a live database. ClassGraph Exchange JSON v1 is the portable boundary between them.
 
@@ -48,6 +48,26 @@ ClassGraph remains a **standalone companion to EduBoard**. The apps do not share
 
 The EduBoard adapter contract is validated on its own isolated EduBoard branch/PR; no live database coupling or automatic overwrite is part of Phase 3.
 
+### Phase 4 capabilities
+
+- Store only explicit teacher/imported/synthetic relationship edges.
+- Inspect deterministic relationship-network views with accessible table equivalents.
+- Track repeat-neighbour history from approved seating records.
+- Save and compare planning scenarios.
+- Compare relationship/network counts and planning changes without inventing social relationships.
+
+### Phase 5 capabilities
+
+- Draft editable synthetic-generation specifications from constrained teacher language without generating students automatically.
+- Draft plain-language explanations from existing descriptive analysis, with explicit missing-data and non-causation caveats.
+- Draft report wording from the canonical validated report snapshot.
+- Suggest soft planning rules only from explicit supported relationship records, with source paths and rationale.
+- Run the assistance layer fully offline with no provider configured.
+- Optionally configure a direct HTTPS provider without adding a provider SDK.
+- Preview the exact network context before transmission and require an explicit confirmation for every network request.
+- Keep assistance output as a proposal until the teacher explicitly copies, validates, or applies it.
+- Keep provider secrets in process environment only; they are not stored in ClassGraph projects or exports.
+
 ## Run locally
 
 Requirements:
@@ -78,12 +98,26 @@ npm run dev
 
 `CLASSGRAPH_PORT` can change the local port. `CLASSGRAPH_HOST` can override the host, but using a non-loopback host may expose student data to other devices on the network and should only be done deliberately on a trusted network.
 
+### Optional network assistance provider
+
+No network provider is enabled by default. Offline assistance remains available without configuration.
+
+To enable the generic HTTPS provider boundary, set these process environment variables before starting ClassGraph:
+
+```text
+CLASSGRAPH_ASSISTANCE_URL=https://provider.example/assist
+CLASSGRAPH_ASSISTANCE_PROVIDER_LABEL=Example Provider
+CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
+```
+
+`CLASSGRAPH_ASSISTANCE_URL` must use HTTPS. The token is read from the environment for the running process; ClassGraph does not write it to project JSON, exports, browser storage, or source files. Network assistance still requires a local context preview and an explicit send confirmation for each request.
+
 ## Input paths
 
 - Import a ClassGraph Exchange v1 `.json` file.
 - Enter/edit students and custom metrics manually.
 - Generate a fully synthetic class from an explicit structured specification.
-- Later: convert teacher-supplied aggregate constraints into an editable specification before generation.
+- Convert teacher-supplied synthetic-class intent into an editable proposed specification before any generation.
 
 ## Current outputs
 
@@ -101,6 +135,7 @@ npm run dev
 - Local DOCX descriptive report.
 - Local PDF descriptive report.
 - Landscape seating-plan PDF.
+- Optional offline/network assistance proposals that remain outside canonical project data until explicitly accepted or copied.
 
 ## Product principles
 
@@ -128,8 +163,10 @@ Integration is through explicit import/export contracts rather than hidden coupl
 - `docs/PHASE_2.md` — Phase 2 seating/grouping recovery and Gate 2 log.
 - `docs/PHASE_3.md` — Phase 3 exports/interchange recovery and Gate 3 log.
 - `docs/PHASE3_LOG.md` — recovery alias pointing to the authoritative Phase 3 log.
+- `docs/PHASE_4.md` — Phase 4 relationship/history/scenario recovery log.
+- `docs/PHASE_5.md` — Phase 5 optional-assistance recovery and Gate 5 log.
 
-For completed implementation history, see the phase logs above. After Gate 3, new work proceeds from Phase 4 in `DESIGN.md`.
+For completed implementation history, see the phase logs above. Phase 5 preserves the same local-first core and keeps network assistance optional.
 
 ## Repository
 
