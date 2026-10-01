@@ -35,15 +35,28 @@
 - [x] Verify earlier phase PRs remain unmerged.
 - [x] Create `feat/phase-4-relationships` from exact Phase 3 head.
 - [x] Create this recovery log.
-- [ ] Reconcile exact current relationship schema/model and mutation patterns before implementation.
+- [x] Reconcile exact current relationship schema/model and mutation patterns before implementation.
 
 ### P4.1 — Explicit relationship CRUD/schema/service
 
-- [ ] Add/edit/remove relationship records.
-- [ ] Validate student references, type, directedness, weight and provenance.
-- [ ] Define duplicate/self-edge behavior.
-- [ ] Add deterministic canonical edge semantics.
-- [ ] Add tests.
+- [x] Add/edit/remove relationship records.
+- [x] Validate student references, type, directedness, weight and provenance.
+- [x] Define duplicate/self-edge behavior.
+- [x] Add deterministic canonical edge semantics.
+- [x] Add tests.
+
+Decisions:
+
+- omitted `directed` means undirected;
+- undirected endpoint order is canonical, so A↔B and B↔A with the same type are duplicates;
+- directed A→B and B→A remain distinct;
+- custom relationship labels participate in semantic identity;
+- self-edges and duplicate relationship IDs are rejected;
+- add/edit operations are teacher-entered; surviving imported/synthetic provenance is preserved when indexes move;
+- removing a student removes only explicitly linked current relationships and remaps relationship provenance without inventing replacement edges;
+- existing `relationships: []` compatibility is retained.
+
+Verification: run `36911785277` — format, lint, strict typecheck, **106/106 tests across 20 files**, and build passed.
 
 ### P4.2 — Relationship table
 
