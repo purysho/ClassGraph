@@ -1,4 +1,5 @@
 name: Bootstrap lockfile
+# Temporary Phase 0 workflow; remove after package-lock.json is committed.
 
 on:
   push:
