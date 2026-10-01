@@ -195,13 +195,13 @@ const roomSchema = z
   })
 
 
-const planningAssignmentSchema = z.object({
+export const planningAssignmentSchema = z.object({
   studentId: z.string().min(1),
   seatId: z.string().min(1),
   locked: z.boolean(),
 })
 
-const planningGroupSchema = z.object({
+export const planningGroupSchema = z.object({
   id: z.string().min(1),
   label: z.string().optional(),
   studentIds: z.array(z.string().min(1)),
@@ -276,7 +276,7 @@ const softPlanningRuleSchema = z.discriminatedUnion('kind', [
   }),
 ])
 
-const planningRuleSchema = z.union([hardPlanningRuleSchema, softPlanningRuleSchema])
+export const planningRuleSchema = z.union([hardPlanningRuleSchema, softPlanningRuleSchema])
 
 const planningConfigurationSchema = z.object({
   ruleSchemaVersion: z.literal('1.0').optional(),
