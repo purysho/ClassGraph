@@ -57,6 +57,77 @@ interface ErrorResponse {
   }
 }
 
+interface ProjectCompleteness {
+  totalCells: number
+  recordedCount: number
+  explicitMissingCount: number
+  unrecordedCount: number
+}
+
+interface NumericSummaryView {
+  metricKey: string
+  recordedCount: number
+  missingCount: number
+  min: number | null
+  max: number | null
+  mean: number | null
+  median: number | null
+  q1: number | null
+  q3: number | null
+}
+
+interface CategorySummaryView {
+  metricKey: string
+  recordedCount: number
+  missingCount: number
+  counts: Record<string, number>
+}
+
+interface HistogramBucketView {
+  min: number
+  max: number
+  count: number
+}
+
+type MetricAnalysisView =
+  | {
+      kind: 'number'
+      key: string
+      label: string
+      summary: NumericSummaryView
+      histogram: HistogramBucketView[]
+    }
+  | {
+      kind: 'category'
+      key: string
+      label: string
+      sourceKind: 'category' | 'ordinal' | 'boolean' | 'text'
+      summary: CategorySummaryView
+    }
+
+interface ProjectAnalysisView {
+  studentCount: number
+  metricCount: number
+  completeness: ProjectCompleteness
+  metrics: MetricAnalysisView[]
+}
+
+interface ScatterPointView {
+  studentId: string
+  displayName?: string
+  x: number
+  y: number
+}
+
+interface ScatterView {
+  xMetricKey: string
+  yMetricKey: string
+  xLabel: string
+  yLabel: string
+  points: ScatterPointView[]
+  omittedCount: number
+}
+
 
 interface NumericSummary {
   metricKey: string
@@ -486,68 +557,409 @@ function renderWorkspaceContent(): void {
   renderGraphs(content)
 }
 
-function renderOverview(content: HTMLElement): void {
+function formatNumber(value: number | null): string {
+  if (value === null) return '—'
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value)
+}
+
+function formatRange(min: number, max: number): string {
+  if (min === max) return formatNumber(min)
+  return `${formatNumber(min)}–${formatNumber(max)}`
+}
+
+function completenessPercent(completeness: ProjectCompleteness): string {
+  if (completeness.totalCells === 0) return '—'
+  return `${Math.round((completeness.recordedCount / completeness.totalCells) * 100)}%`
+}
+
+async function loadProjectAnalysis(): Promise<ProjectAnalysisView> {
+  if (!project) throw new Error('No ClassGraph project is open.')
+  const response = await postJson<{ analysis: ProjectAnalysisView }>('/api/analysis/project', {
+    project,
+  })
+  return response.analysis
+}
+
+async function renderOverview(content: HTMLElement): Promise<void> {
   if (!project) return
-  const provenanceKinds = Object.values(project.provenance).reduce<Record<string, number>>(
-    (counts, entry) => {
-      counts[entry.kind] = (counts[entry.kind] ?? 0) + 1
-      return counts
-    },
-    {},
-  )
-
+  const sourceProject = project
   content.innerHTML = `
-    <div class="metric-cards">
-      <article class="metric-card">
-        <span>Students</span>
-        <strong>${project.students.length}</strong>
-        <small>Current roster size</small>
-      </article>
-      <article class="metric-card">
-        <span>Metrics</span>
-        <strong>${project.metricDefinitions.length}</strong>
-        <small>Explicitly defined fields</small>
-      </article>
-      <article class="metric-card">
-        <span>Provenance records</span>
-        <strong>${Object.keys(project.provenance).length}</strong>
-        <small>Tracked source paths</small>
-      </article>
-    </div>
+    <article class="panel analysis-loading">
+      <p class="eyebrow">Overview</p>
+      <h2>Calculating descriptive summaries…</h2>
+    </article>
+  `
 
-    <div class="content-grid">
-      <article class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Project state</p>
-            <h2>Ready for teacher input</h2>
+  try {
+    const analysis = await loadProjectAnalysis()
+    if (project !== sourceProject || activeView !== 'overview') return
+
+    const provenanceKinds = Object.values(project.provenance).reduce<Record<string, number>>(
+      (counts, entry) => {
+        counts[entry.kind] = (counts[entry.kind] ?? 0) + 1
+        return counts
+      },
+      {},
+    )
+
+    const metricRows = analysis.metrics
+      .map((metric) => {
+        const summary = metric.summary
+        const detail =
+          metric.kind === 'number'
+            ? `median ${formatNumber(metric.summary.median)} · mean ${formatNumber(metric.summary.mean)}`
+            : `${Object.keys(metric.summary.counts).length} recorded categories/values`
+        return `
+          <tr>
+            <td><strong>${escapeHtml(metric.label)}</strong><small>${escapeHtml(metric.key)}</small></td>
+            <td>${summary.recordedCount}</td>
+            <td>${summary.missingCount}</td>
+            <td>${escapeHtml(detail)}</td>
+          </tr>
+        `
+      })
+      .join('')
+
+    content.innerHTML = `
+      <div class="metric-cards overview-cards">
+        <article class="metric-card">
+          <span>Students</span>
+          <strong>${analysis.studentCount}</strong>
+          <small>Current roster size</small>
+        </article>
+        <article class="metric-card">
+          <span>Recorded cells</span>
+          <strong>${analysis.completeness.recordedCount}</strong>
+          <small>${completenessPercent(analysis.completeness)} of defined metric cells</small>
+        </article>
+        <article class="metric-card">
+          <span>Explicit missing</span>
+          <strong>${analysis.completeness.explicitMissingCount}</strong>
+          <small>Deliberately stored as missing</small>
+        </article>
+        <article class="metric-card">
+          <span>Unrecorded</span>
+          <strong>${analysis.completeness.unrecordedCount}</strong>
+          <small>No value stored</small>
+        </article>
+      </div>
+
+      <div class="content-grid analysis-overview-grid">
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Metric overview</p>
+              <h2>Descriptive only</h2>
+            </div>
+            <span class="schema-badge">Exchange ${escapeHtml(project.schemaVersion)}</span>
           </div>
-          <span class="schema-badge">Exchange ${escapeHtml(project.schemaVersion)}</span>
-        </div>
-        <p>
-          Phase 1 keeps the browser as a thin local client. Student information stays in this
-          workspace until you explicitly export it.
-        </p>
-        <div class="provenance-row">
-          ${Object.entries(provenanceKinds)
-            .map(
-              ([kind, count]) =>
-                `<span class="provenance-chip"><b>${count}</b> ${escapeHtml(kind)}</span>`,
-            )
-            .join('')}
-        </div>
-      </article>
+          <p>
+            These summaries describe recorded project data. Missing values are not replaced with
+            zero, averages, or inferred values.
+          </p>
+          <div class="data-table-wrap">
+            <table class="source-table metric-summary-table">
+              <thead>
+                <tr><th>Metric</th><th>Recorded</th><th>Missing / unrecorded</th><th>Summary</th></tr>
+              </thead>
+              <tbody>
+                ${metricRows || '<tr><td colspan="4" class="empty-cell">Add a metric to begin descriptive analysis.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </article>
 
-      <article class="panel quiet">
-        <p class="eyebrow">Data discipline</p>
-        <h2>Source remains visible</h2>
-        <p>
-          Manual edits, imported fields, derived values and synthetic data remain distinguishable.
-          Open Students → Sources to inspect field-level provenance.
-        </p>
+        <article class="panel quiet">
+          <p class="eyebrow">Provenance</p>
+          <h2>Source remains visible</h2>
+          <p>
+            Manual edits, imported fields, derived values and synthetic data remain distinguishable.
+            Open Students → Sources to inspect field-level provenance.
+          </p>
+          <div class="provenance-row">
+            ${Object.entries(provenanceKinds)
+              .map(
+                ([kind, count]) =>
+                  `<span class="provenance-chip"><b>${count}</b> ${escapeHtml(kind)}</span>`,
+              )
+              .join('')}
+          </div>
+        </article>
+      </div>
+    `
+  } catch (error) {
+    if (project !== sourceProject || activeView !== 'overview') return
+    content.innerHTML = `
+      <article class="panel empty-state">
+        <p class="eyebrow">Overview unavailable</p>
+        <h2>ClassGraph could not build the descriptive summary</h2>
+        <p>${escapeHtml(error instanceof Error ? error.message : 'Unknown analysis error.')}</p>
       </article>
+    `
+  }
+}
+
+function renderBars(items: Array<{ label: string; count: number }>): string {
+  const max = Math.max(1, ...items.map((item) => item.count))
+  return `
+    <div class="bar-chart" role="img" aria-label="Distribution chart">
+      ${items
+        .map(
+          (item) => `
+            <div class="bar-row">
+              <span class="bar-label">${escapeHtml(item.label)}</span>
+              <span class="bar-track">
+                <span class="bar-fill" style="width: ${(item.count / max) * 100}%"></span>
+              </span>
+              <strong>${item.count}</strong>
+            </div>
+          `,
+        )
+        .join('')}
     </div>
   `
+}
+
+function renderMetricAnalysis(metric: MetricAnalysisView): string {
+  if (metric.kind === 'number') {
+    const bars = metric.histogram.map((bucket) => ({
+      label: formatRange(bucket.min, bucket.max),
+      count: bucket.count,
+    }))
+    return `
+      <article class="panel graph-card">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Numeric distribution</p>
+            <h2>${escapeHtml(metric.label)}</h2>
+          </div>
+          <span class="schema-badge">${metric.summary.recordedCount} recorded</span>
+        </div>
+        ${bars.length ? renderBars(bars) : '<p class="muted">No recorded numeric values.</p>'}
+        <div class="data-table-wrap">
+          <table class="source-table compact-stats-table">
+            <thead><tr><th>Min</th><th>Q1</th><th>Median</th><th>Mean</th><th>Q3</th><th>Max</th><th>Missing</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>${formatNumber(metric.summary.min)}</td>
+                <td>${formatNumber(metric.summary.q1)}</td>
+                <td>${formatNumber(metric.summary.median)}</td>
+                <td>${formatNumber(metric.summary.mean)}</td>
+                <td>${formatNumber(metric.summary.q3)}</td>
+                <td>${formatNumber(metric.summary.max)}</td>
+                <td>${metric.summary.missingCount}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+    `
+  }
+
+  const buckets = Object.entries(metric.summary.counts)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([label, count]) => ({ label, count }))
+
+  return `
+    <article class="panel graph-card">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">${escapeHtml(metric.sourceKind)} distribution</p>
+          <h2>${escapeHtml(metric.label)}</h2>
+        </div>
+        <span class="schema-badge">${metric.summary.recordedCount} recorded</span>
+      </div>
+      ${buckets.length ? renderBars(buckets) : '<p class="muted">No recorded values.</p>'}
+      <div class="data-table-wrap">
+        <table class="source-table">
+          <thead><tr><th>Value</th><th>Count</th></tr></thead>
+          <tbody>
+            ${buckets
+              .map(
+                (bucket) =>
+                  `<tr><td>${escapeHtml(bucket.label)}</td><td>${bucket.count}</td></tr>`,
+              )
+              .join('') || '<tr><td colspan="2" class="empty-cell">No recorded values.</td></tr>'}
+            <tr><td><strong>Missing / unrecorded</strong></td><td>${metric.summary.missingCount}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  `
+}
+
+async function renderGraphs(content: HTMLElement): Promise<void> {
+  if (!project) return
+  const sourceProject = project
+  content.innerHTML = `
+    <article class="panel analysis-loading">
+      <p class="eyebrow">Graphs</p>
+      <h2>Building descriptive views…</h2>
+    </article>
+  `
+
+  try {
+    const analysis = await loadProjectAnalysis()
+    if (project !== sourceProject || activeView !== 'graphs') return
+
+    const numeric = analysis.metrics.filter(
+      (metric): metric is Extract<MetricAnalysisView, { kind: 'number' }> =>
+        metric.kind === 'number',
+    )
+    const scatterControls =
+      numeric.length >= 2
+        ? `
+          <article class="panel scatter-controls">
+            <div>
+              <p class="eyebrow">Numeric comparison</p>
+              <h2>Compare two recorded metrics</h2>
+              <p>Points are shown only where both numeric values are recorded. Association is not causation.</p>
+            </div>
+            <form id="scatter-form" class="scatter-form">
+              <label>
+                X axis
+                <select name="xMetricKey">
+                  ${numeric.map((metric) => `<option value="${escapeHtml(metric.key)}">${escapeHtml(metric.label)}</option>`).join('')}
+                </select>
+              </label>
+              <label>
+                Y axis
+                <select name="yMetricKey">
+                  ${numeric
+                    .map(
+                      (metric, index) =>
+                        `<option value="${escapeHtml(metric.key)}"${index === 1 ? ' selected' : ''}>${escapeHtml(metric.label)}</option>`,
+                    )
+                    .join('')}
+                </select>
+              </label>
+              <button class="secondary compact" type="submit">Plot comparison</button>
+            </form>
+            <div id="scatter-result"></div>
+          </article>
+        `
+        : `
+          <article class="panel quiet">
+            <p class="eyebrow">Numeric comparison</p>
+            <h2>Add two numeric metrics to compare</h2>
+            <p>Scatter comparison becomes available when two numeric fields are defined.</p>
+          </article>
+        `
+
+    content.innerHTML = `
+      <div class="graph-page-heading">
+        <div>
+          <p class="eyebrow">Descriptive analysis</p>
+          <h2>Distributions and comparisons</h2>
+        </div>
+        <p>
+          Every graph below is backed by a table. ClassGraph does not fill missing data or infer
+          hidden student traits.
+        </p>
+      </div>
+      <div class="graphs-grid">
+        ${analysis.metrics.map(renderMetricAnalysis).join('') || '<article class="panel empty-state"><h2>No metrics yet</h2><p>Add metrics in Students to create graphs.</p></article>'}
+      </div>
+      ${scatterControls}
+    `
+
+    document.querySelector<HTMLFormElement>('#scatter-form')?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const form = event.currentTarget as HTMLFormElement
+      const data = new FormData(form)
+      void renderScatter(asString(data, 'xMetricKey'), asString(data, 'yMetricKey'))
+    })
+  } catch (error) {
+    if (project !== sourceProject || activeView !== 'graphs') return
+    content.innerHTML = `
+      <article class="panel empty-state">
+        <p class="eyebrow">Graphs unavailable</p>
+        <h2>ClassGraph could not build the descriptive views</h2>
+        <p>${escapeHtml(error instanceof Error ? error.message : 'Unknown analysis error.')}</p>
+      </article>
+    `
+  }
+}
+
+function scatterSvg(scatter: ScatterView): string {
+  if (scatter.points.length === 0) {
+    return '<p class="muted">No students have both selected numeric values recorded.</p>'
+  }
+
+  const width = 720
+  const height = 340
+  const padding = 42
+  const xs = scatter.points.map((point) => point.x)
+  const ys = scatter.points.map((point) => point.y)
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  const xSpan = maxX - minX || 1
+  const ySpan = maxY - minY || 1
+
+  const circles = scatter.points
+    .map((point) => {
+      const cx = padding + ((point.x - minX) / xSpan) * (width - padding * 2)
+      const cy = height - padding - ((point.y - minY) / ySpan) * (height - padding * 2)
+      const label = point.displayName ?? point.studentId
+      return `<circle cx="${cx}" cy="${cy}" r="5"><title>${escapeHtml(label)}: ${point.x}, ${point.y}</title></circle>`
+    })
+    .join('')
+
+  return `
+    <svg class="scatter-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(scatter.xLabel)} compared with ${escapeHtml(scatter.yLabel)}">
+      <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}"></line>
+      <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}"></line>
+      <text x="${width / 2}" y="${height - 8}" text-anchor="middle">${escapeHtml(scatter.xLabel)}</text>
+      <text x="14" y="${height / 2}" text-anchor="middle" transform="rotate(-90 14 ${height / 2})">${escapeHtml(scatter.yLabel)}</text>
+      ${circles}
+    </svg>
+  `
+}
+
+async function renderScatter(xMetricKey: string, yMetricKey: string): Promise<void> {
+  if (!project) return
+  const target = document.querySelector<HTMLElement>('#scatter-result')
+  if (!target) return
+  target.innerHTML = '<p class="muted">Building comparison…</p>'
+
+  try {
+    const response = await postJson<{ scatter: ScatterView }>('/api/analysis/scatter', {
+      project,
+      xMetricKey,
+      yMetricKey,
+    })
+    if (activeView !== 'graphs') return
+    const scatter = response.scatter
+    const rows = scatter.points
+      .map(
+        (point) => `
+          <tr>
+            <td>${escapeHtml(point.displayName ?? point.studentId)}</td>
+            <td>${formatNumber(point.x)}</td>
+            <td>${formatNumber(point.y)}</td>
+          </tr>
+        `,
+      )
+      .join('')
+
+    target.innerHTML = `
+      <div class="scatter-summary">
+        <span>${scatter.points.length} plotted</span>
+        <span>${scatter.omittedCount} omitted because one/both values were not recorded</span>
+      </div>
+      ${scatterSvg(scatter)}
+      <div class="data-table-wrap">
+        <table class="source-table scatter-table">
+          <thead><tr><th>Student</th><th>${escapeHtml(scatter.xLabel)}</th><th>${escapeHtml(scatter.yLabel)}</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="3" class="empty-cell">No paired values.</td></tr>'}</tbody>
+        </table>
+      </div>
+    `
+  } catch (error) {
+    target.innerHTML = `<p class="status" data-tone="error">${escapeHtml(error instanceof Error ? error.message : 'Could not build comparison.')}</p>`
+  }
 }
 
 function metricDefinitionForm(): string {
