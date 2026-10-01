@@ -191,13 +191,18 @@ function optionalBoolean(record: Record<string, unknown>, key: string): boolean 
 
 function requiredIndexArray(record: Record<string, unknown>, key: string): number[] {
   const value = record[key]
-  if (
-    !Array.isArray(value) ||
-    value.some((item) => typeof item !== 'number' || !Number.isInteger(item) || item < 0)
-  ) {
+  if (!Array.isArray(value)) {
     throw new Error(`CG-6001 ${key} must be an array of non-negative integer indexes`)
   }
-  return value
+
+  const indexes: number[] = []
+  for (const item of value) {
+    if (typeof item !== 'number' || !Number.isInteger(item) || item < 0) {
+      throw new Error(`CG-6001 ${key} must be an array of non-negative integer indexes`)
+    }
+    indexes.push(item)
+  }
+  return indexes
 }
 
 function parseProjectSetup(value: unknown): ProjectSetupRequest {
