@@ -110,7 +110,7 @@ describe('Phase 3 portable exports', () => {
 
   it('creates safe cross-platform export filename stems while preserving Unicode', () => {
     expect(safeExportStem('Grade 5 / 英语: A*')).toBe('Grade 5 - 英语- A-')
-    expect(safeExportStem('../secret\\report')).toBe('..-secret-report')
+    expect(safeExportStem('../secret\\report')).toBe('secret-report')
     expect(safeExportStem('CON')).toBe('classgraph-CON')
     expect(safeExportStem('   ')).toBe('classgraph')
     expect([...safeExportStem('x'.repeat(120))]).toHaveLength(80)
