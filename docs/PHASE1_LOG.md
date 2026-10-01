@@ -16,7 +16,7 @@ The existing UI-independent core remains authoritative for schema validation, pr
 - [x] P1.1 — Project workspace service: create, update metadata, add/remove/edit students
 - [x] P1.2 — Metric-definition editing and safe typed value editing
 - [x] P1.3 — Local app server + JSON import/export endpoints
-- [ ] P1.4 — Teacher-facing UI shell and project setup
+- [x] P1.4 — Teacher-facing UI shell and project setup
 - [ ] P1.5 — Editable student roster + provenance inspection
 - [ ] P1.6 — Overview statistics + distribution/comparison views
 - [ ] P1.7 — Synthetic class creation from structured parameters
@@ -90,6 +90,26 @@ Completed behaviour:
 - sends no CORS headers and uses `no-store`, `nosniff`, and no-referrer response headers;
 - adds `npm run dev` and `npm start` commands without introducing a new package dependency.
 
+### P1.4 — Teacher-facing UI shell and project setup
+
+**Status:** Complete.
+
+Implemented `src/app-client.ts`, `app/index.html`, and `app/styles.css`, plus local setup endpoints.
+
+Completed behaviour:
+
+- offline/manual class creation backed by `createEmptyProject`;
+- validated ClassGraph Exchange v1 JSON import;
+- basic seeded synthetic class generation backed by the deterministic core;
+- main workspace shell with Overview, Students, and Graphs navigation;
+- future Seating and Reports areas clearly disabled rather than pretending they are complete;
+- local-only status and Exchange schema visibility;
+- explicit JSON export from the current in-memory workspace;
+- imported project metadata is HTML-escaped before rendering;
+- browser remains a thin client: project creation/validation stays in the TypeScript core.
+
+**Verification note:** Earlier PR test runs reached Prettier and exposed formatting-only failures. Those three original formatter blockers were corrected. Subsequent API-written commits have not received new GitHub check runs yet; P1.8 will force a fresh pull-request event and run the complete gate before merge.
+
 ## Next exact step
 
-Implement **P1.4 — Teacher-facing UI shell and project setup** in the `app/` directory. The first usable screen must support: create a manual class, import a ClassGraph JSON file, create a structured synthetic class, and then enter the main workspace without requiring internet access.
+Implement **P1.5 — Editable student roster + provenance inspection**. Add local mutation endpoints backed by the workspace/metric services, then make the Students view support roster edits, metric definitions/values, explicit missingness, removal, and source/provenance inspection.
