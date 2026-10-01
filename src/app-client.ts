@@ -1,5 +1,8 @@
 interface ProvenanceEntry {
   kind: string
+  source?: string
+  note?: string
+  derivedFrom?: string[]
 }
 
 type MetricValue = number | string | boolean | null
@@ -7,12 +10,19 @@ type MetricValue = number | string | boolean | null
 interface MetricDefinition {
   key: string
   label: string
-  kind: string
+  kind: 'number' | 'ordinal' | 'category' | 'boolean' | 'text'
+  description?: string
+  numberScale?: { min?: number; max?: number; unit?: string }
+  ordinalScale?: string[]
+  categories?: string[]
+  missingAllowed?: boolean
 }
 
 interface StudentRecord {
   id: string
   displayName?: string
+  tags?: string[]
+  notes?: string
   metrics: Record<string, MetricValue>
 }
 
@@ -93,6 +103,23 @@ async function postText<T>(path: string, body: string): Promise<T> {
   const response = await fetch(path, { method: 'POST', body })
   if (!response.ok) throw await responseError(response)
   return (await response.json()) as T
+}
+
+async function mutateProject(command: unknown, successMessage: string): Promise<void> {
+  if (!project) return
+  clearStatus()
+
+  try {
+    const response = await postJson<ProjectResponse>('/api/project/mutate', {
+      project,
+      command,
+    })
+    project = response.project
+    renderWorkspace()
+    showStatus(successMessage, 'success')
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not update the project.')
+  }
 }
 
 function showStatus(message: string, tone: 'error' | 'success' = 'error'): void {
@@ -353,6 +380,377 @@ function workspaceMeta(current: ClassGraphProject): string {
   return parts.map(escapeHtml).join(' · ')
 }
 
+function hasMetricValue(student: StudentRecord, metricKey: string): boolean {
+  return Object.prototype.hasOwnProperty.call(student.metrics, metricKey)
+}
+
+function metricState(student: StudentRecord, metricKey: string): 'unrecorded' | 'missing' | 'value' {
+  if (!hasMetricValue(student, metricKey)) return 'unrecorded'
+  return student.metrics[metricKey] === null ? 'missing' : 'value'
+}
+
+function selected(value: string, current: string): string {
+  return value === current ? ' selected' : ''
+}
+
+function renderMetricValueControl(
+  definition: MetricDefinition,
+  value: MetricValue | undefined,
+  enabled: boolean,
+): string {
+  const disabled = enabled ? '' : ' disabled'
+  const stringValue = value === null || value === undefined ? '' : String(value)
+
+  if (definition.kind === 'boolean') {
+    return `
+      <select class="metric-value" aria-label="${escapeHtml(definition.label)} value"${disabled}>
+        <option value="true"${selected('true', stringValue)}>True</option>
+        <option value="false"${selected('false', stringValue)}>False</option>
+      </select>
+    `
+  }
+
+  if (definition.kind === 'category' || definition.kind === 'ordinal') {
+    const options =
+      definition.kind === 'category' ? (definition.categories ?? []) : (definition.ordinalScale ?? [])
+    return `
+      <select class="metric-value" aria-label="${escapeHtml(definition.label)} value"${disabled}>
+        ${options
+          .map(
+            (option) =>
+              `<option value="${escapeHtml(option)}"${selected(option, stringValue)}>${escapeHtml(option)}</option>`,
+          )
+          .join('')}
+      </select>
+    `
+  }
+
+  if (definition.kind === 'number') {
+    const min =
+      definition.numberScale?.min === undefined ? '' : ` min="${definition.numberScale.min}"`
+    const max =
+      definition.numberScale?.max === undefined ? '' : ` max="${definition.numberScale.max}"`
+    return `<input class="metric-value" type="number" step="any"${min}${max} value="${escapeHtml(stringValue)}"${disabled} />`
+  }
+
+  return `<input class="metric-value" type="text" value="${escapeHtml(stringValue)}"${disabled} />`
+}
+
+function renderMetricEditor(student: StudentRecord, definition: MetricDefinition): string {
+  const state = metricState(student, definition.key)
+  const value = student.metrics[definition.key]
+
+  return `
+    <div
+      class="metric-editor"
+      data-student-id="${escapeHtml(student.id)}"
+      data-metric-key="${escapeHtml(definition.key)}"
+      data-metric-kind="${definition.kind}"
+    >
+      <select class="metric-state" aria-label="${escapeHtml(definition.label)} state">
+        <option value="unrecorded"${selected('unrecorded', state)}>Unrecorded</option>
+        <option value="missing"${selected('missing', state)}>Missing</option>
+        <option value="value"${selected('value', state)}>Value</option>
+      </select>
+      ${renderMetricValueControl(definition, value, state === 'value')}
+      <button class="ghost compact save-metric" type="button">Save</button>
+    </div>
+  `
+}
+
+function renderStudentsView(content: HTMLElement): void {
+  if (!project) return
+
+  const metricHeaders = project.metricDefinitions
+    .map(
+      (definition) =>
+        `<th><span>${escapeHtml(definition.label)}</span><small>${escapeHtml(definition.kind)}</small></th>`,
+    )
+    .join('')
+
+  const rows = project.students
+    .map(
+      (student) => `
+        <tr>
+          <td class="student-id-cell">
+            <strong>${escapeHtml(student.id)}</strong>
+          </td>
+          <td>
+            <input
+              class="student-name"
+              data-student-id="${escapeHtml(student.id)}"
+              value="${escapeHtml(student.displayName ?? '')}"
+              placeholder="Optional name"
+            />
+          </td>
+          <td>
+            <input
+              class="student-tags"
+              data-student-id="${escapeHtml(student.id)}"
+              value="${escapeHtml((student.tags ?? []).join(', '))}"
+              placeholder="group-a, support"
+            />
+          </td>
+          <td>
+            <input
+              class="student-notes"
+              data-student-id="${escapeHtml(student.id)}"
+              value="${escapeHtml(student.notes ?? '')}"
+              placeholder="Optional note"
+            />
+          </td>
+          ${project?.metricDefinitions
+            .map((definition) => `<td>${renderMetricEditor(student, definition)}</td>`)
+            .join('')}
+          <td class="row-actions">
+            <button class="secondary compact save-student" data-student-id="${escapeHtml(student.id)}" type="button">
+              Save
+            </button>
+            <button class="danger compact remove-student" data-student-id="${escapeHtml(student.id)}" type="button">
+              Remove
+            </button>
+          </td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  content.innerHTML = `
+    <div class="roster-toolbar">
+      <article class="panel compact-panel">
+        <p class="eyebrow">Add student</p>
+        <form id="add-student-form" class="inline-form">
+          <input name="id" required placeholder="Student ID" />
+          <input name="displayName" placeholder="Display name (optional)" />
+          <button class="primary compact" type="submit">Add student</button>
+        </form>
+      </article>
+
+      <article class="panel compact-panel">
+        <p class="eyebrow">Add metric</p>
+        <form id="add-metric-form" class="metric-form">
+          <input name="key" required placeholder="key e.g. assessment" />
+          <input name="label" required placeholder="Label" />
+          <select name="kind">
+            <option value="number">Number</option>
+            <option value="ordinal">Ordinal</option>
+            <option value="category">Category</option>
+            <option value="boolean">Boolean</option>
+            <option value="text">Text</option>
+          </select>
+          <input name="options" placeholder="Category/ordinal values, comma-separated" />
+          <input name="min" type="number" step="any" placeholder="Min" />
+          <input name="max" type="number" step="any" placeholder="Max" />
+          <button class="secondary compact" type="submit">Add metric</button>
+        </form>
+      </article>
+    </div>
+
+    <article class="panel roster-panel">
+      <div class="panel-heading roster-heading">
+        <div>
+          <p class="eyebrow">Students</p>
+          <h2>Roster and recorded fields</h2>
+        </div>
+        <p class="table-note">
+          Missing means deliberately recorded as missing. Unrecorded means no value exists.
+        </p>
+      </div>
+
+      <div class="table-scroll">
+        <table class="roster-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Tags</th>
+              <th>Notes</th>
+              ${metricHeaders}
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || '<tr><td colspan="5" class="empty-table">No students yet. Add the first student above.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  `
+
+  document.querySelector<HTMLFormElement>('#add-student-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const form = event.currentTarget as HTMLFormElement
+    const data = new FormData(form)
+    void mutateProject(
+      {
+        type: 'add-student',
+        student: {
+          id: asString(data, 'id'),
+          displayName: asString(data, 'displayName') || undefined,
+        },
+      },
+      'Student added.',
+    )
+  })
+
+  document.querySelector<HTMLFormElement>('#add-metric-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const form = event.currentTarget as HTMLFormElement
+    const data = new FormData(form)
+    void addMetricFromForm(data)
+  })
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('.save-student')) {
+    button.addEventListener('click', () => {
+      const studentId = button.dataset.studentId
+      if (!studentId) return
+      void saveStudentDetails(studentId)
+    })
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('.remove-student')) {
+    button.addEventListener('click', () => {
+      const studentId = button.dataset.studentId
+      if (!studentId) return
+      if (!window.confirm(`Remove ${studentId} from this ClassGraph project?`)) return
+      void mutateProject({ type: 'remove-student', studentId }, 'Student removed.')
+    })
+  }
+
+  for (const editor of document.querySelectorAll<HTMLElement>('.metric-editor')) {
+    const state = editor.querySelector<HTMLSelectElement>('.metric-state')
+    const value = editor.querySelector<HTMLInputElement | HTMLSelectElement>('.metric-value')
+    state?.addEventListener('change', () => {
+      if (value) value.disabled = state.value !== 'value'
+    })
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('.save-metric')) {
+    button.addEventListener('click', () => {
+      const editor = button.closest<HTMLElement>('.metric-editor')
+      if (editor) void saveMetricEditor(editor)
+    })
+  }
+}
+
+async function addMetricFromForm(data: FormData): Promise<void> {
+  const kind = asString(data, 'kind') as MetricDefinition['kind']
+  const options = asString(data, 'options')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+  const minRaw = asString(data, 'min')
+  const maxRaw = asString(data, 'max')
+
+  const definition: MetricDefinition = {
+    key: asString(data, 'key'),
+    label: asString(data, 'label'),
+    kind,
+  }
+
+  if (kind === 'category') {
+    if (options.length === 0) {
+      showStatus('Category metrics need at least one comma-separated value.')
+      return
+    }
+    definition.categories = options
+  } else if (kind === 'ordinal') {
+    if (options.length === 0) {
+      showStatus('Ordinal metrics need at least one ordered comma-separated value.')
+      return
+    }
+    definition.ordinalScale = options
+  } else if (kind === 'number' && (minRaw || maxRaw)) {
+    definition.numberScale = {}
+    if (minRaw) definition.numberScale.min = Number(minRaw)
+    if (maxRaw) definition.numberScale.max = Number(maxRaw)
+  }
+
+  await mutateProject({ type: 'add-metric-definition', definition }, 'Metric added.')
+}
+
+async function saveStudentDetails(studentId: string): Promise<void> {
+  const name = document.querySelector<HTMLInputElement>(
+    `.student-name[data-student-id="${CSS.escape(studentId)}"]`,
+  )
+  const tags = document.querySelector<HTMLInputElement>(
+    `.student-tags[data-student-id="${CSS.escape(studentId)}"]`,
+  )
+  const notes = document.querySelector<HTMLInputElement>(
+    `.student-notes[data-student-id="${CSS.escape(studentId)}"]`,
+  )
+
+  const parsedTags = (tags?.value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  await mutateProject(
+    {
+      type: 'update-student',
+      studentId,
+      patch: {
+        displayName: name?.value.trim() || null,
+        tags: parsedTags,
+        notes: notes?.value.trim() || null,
+      },
+    },
+    'Student details saved.',
+  )
+}
+
+function parseMetricEditorValue(
+  editor: HTMLElement,
+  definition: MetricDefinition,
+): MetricValue | undefined {
+  const state = editor.querySelector<HTMLSelectElement>('.metric-state')
+  const input = editor.querySelector<HTMLInputElement | HTMLSelectElement>('.metric-value')
+  if (!state || !input) throw new Error('Metric editor controls are missing.')
+
+  if (state.value === 'unrecorded') return undefined
+  if (state.value === 'missing') return null
+
+  if (definition.kind === 'number') {
+    const parsed = Number(input.value)
+    if (!Number.isFinite(parsed)) throw new Error(`${definition.label} needs a numeric value.`)
+    return parsed
+  }
+
+  if (definition.kind === 'boolean') return input.value === 'true'
+  return input.value
+}
+
+async function saveMetricEditor(editor: HTMLElement): Promise<void> {
+  if (!project) return
+  const studentId = editor.dataset.studentId
+  const metricKey = editor.dataset.metricKey
+  if (!studentId || !metricKey) return
+
+  const definition = project.metricDefinitions.find((item) => item.key === metricKey)
+  if (!definition) {
+    showStatus(`Metric definition not found: ${metricKey}`)
+    return
+  }
+
+  try {
+    const value = parseMetricEditorValue(editor, definition)
+    if (value === undefined) {
+      await mutateProject(
+        { type: 'unset-metric-value', studentId, metricKey },
+        'Metric marked unrecorded.',
+      )
+      return
+    }
+
+    await mutateProject(
+      { type: 'set-metric-value', studentId, metricKey, value },
+      value === null ? 'Metric marked missing.' : 'Metric value saved.',
+    )
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not save the metric value.')
+  }
+}
+
 function renderWorkspaceContent(): void {
   const content = document.querySelector<HTMLElement>('#workspace-content')
   if (!content || !project) return
@@ -412,8 +810,8 @@ function renderWorkspaceContent(): void {
           <p class="eyebrow">Next in this branch</p>
           <h2>Roster editing and analytical views</h2>
           <p>
-            The Students and Graphs tabs are now part of the workspace shell. Their editing and
-            analysis tools are the next checkpoints.
+            The Students tab now edits the real Exchange v1 project. Graphs remain the next
+            analytical checkpoint.
           </p>
         </article>
       </div>
@@ -422,13 +820,7 @@ function renderWorkspaceContent(): void {
   }
 
   if (activeView === 'students') {
-    content.innerHTML = `
-      <article class="panel empty-state">
-        <p class="eyebrow">Students</p>
-        <h2>Roster editor checkpoint</h2>
-        <p>The workspace shell is ready. Direct roster editing is added in P1.5.</p>
-      </article>
-    `
+    renderStudentsView(content)
     return
   }
 
