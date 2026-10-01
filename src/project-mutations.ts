@@ -91,6 +91,7 @@ const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('set-grid-room'),
     rows: z.number().int().positive(),
     columns: z.number().int().positive(),
+    front: z.enum(['top', 'bottom', 'left', 'right']).optional(),
   }),
   z.object({
     type: z.literal('set-seat-enabled'),
@@ -211,7 +212,7 @@ export function applyProjectMutation(
     case 'unset-metric-value':
       return unsetStudentMetricValue(project, command.studentId, command.metricKey, now)
     case 'set-grid-room':
-      return setGridRoom(project, command.rows, command.columns, now)
+      return setGridRoom(project, command.rows, command.columns, now, command.front)
     case 'set-seat-enabled':
       return setSeatEnabled(project, command.seatId, command.enabled, now)
     case 'set-seat-tags':
