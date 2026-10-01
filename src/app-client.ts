@@ -3726,6 +3726,77 @@ async function loadScenarioComparison(): Promise<void> {
 
 function bindRelationshipEvents(): void {
   document
+    .querySelector<HTMLFormElement>('#record-history-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const data = new FormData(event.currentTarget as HTMLFormElement)
+      const label = asString(data, 'label')
+      const neighbourMode =
+        asString(data, 'neighbourMode') === 'king' ? ('king' as const) : ('orthogonal' as const)
+      void mutateProject({
+        type: 'record-seating-history',
+        ...(label ? { label } : {}),
+        neighbourMode,
+      })
+    })
+
+  document
+    .querySelector<HTMLFormElement>('#save-scenario-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const data = new FormData(event.currentTarget as HTMLFormElement)
+      const label = asString(data, 'label')
+      if (!label) return
+      void mutateProject({ type: 'save-planning-scenario', label })
+    })
+
+  document.querySelector<HTMLSelectElement>('#scenario-left')?.addEventListener('change', (event) => {
+    selectedScenarioLeftId = (event.currentTarget as HTMLSelectElement).value || null
+    if (selectedScenarioLeftId === selectedScenarioRightId) {
+      selectedScenarioRightId =
+        (project?.planning?.scenarios ?? []).find(
+          (scenario) => scenario.id !== selectedScenarioLeftId,
+        )?.id ?? null
+      renderWorkspace()
+      return
+    }
+    void loadScenarioComparison()
+  })
+
+  document
+    .querySelector<HTMLSelectElement>('#scenario-right')
+    ?.addEventListener('change', (event) => {
+      selectedScenarioRightId = (event.currentTarget as HTMLSelectElement).value || null
+      if (selectedScenarioRightId === selectedScenarioLeftId) {
+        selectedScenarioLeftId =
+          (project?.planning?.scenarios ?? []).find(
+            (scenario) => scenario.id !== selectedScenarioRightId,
+          )?.id ?? null
+        renderWorkspace()
+        return
+      }
+      void loadScenarioComparison()
+    })
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-remove-history]')) {
+    button.addEventListener('click', () => {
+      const historyId = button.dataset.removeHistory
+      if (!historyId || !window.confirm('Remove this approved seating history record?')) return
+      void mutateProject({ type: 'remove-seating-history', historyId })
+    })
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-remove-scenario]')) {
+    button.addEventListener('click', () => {
+      const scenarioId = button.dataset.removeScenario
+      if (!scenarioId || !window.confirm('Remove this saved planning scenario?')) return
+      if (scenarioId === selectedScenarioLeftId) selectedScenarioLeftId = null
+      if (scenarioId === selectedScenarioRightId) selectedScenarioRightId = null
+      void mutateProject({ type: 'remove-planning-scenario', scenarioId })
+    })
+  }
+
+  document
     .querySelector<HTMLSelectElement>('#relationship-focus')
     ?.addEventListener('change', (event) => {
       const value = (event.currentTarget as HTMLSelectElement).value
