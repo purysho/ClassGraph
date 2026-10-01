@@ -20,5 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Resolve dependency graph without running package scripts
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Known high/critical problems in shipped packages
         run: npm audit --omit=dev --audit-level=high
