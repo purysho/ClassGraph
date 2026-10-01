@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
-import { parseProjectJson, serializeProjectJson } from './json.js'
+import { ClassGraphImportError, parseProjectJson, serializeProjectJson } from './json.js'
 import { applyProjectMutation, parseProjectMutationRequest } from './project-mutations.js'
 import { classGraphProjectSchema } from './schema.js'
 import { parseStructuredSyntheticRequest } from './synthetic-request.js'
@@ -285,7 +285,10 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
         })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unexpected local server error.'
-        const code = /^CG-\d{4}/.exec(message)?.[0] ?? 'CG-9001'
+        const code =
+          error instanceof ClassGraphImportError
+            ? error.code
+            : (/^CG-\d{4}/.exec(message)?.[0] ?? 'CG-9001')
         const statusCode = code === 'CG-1002' ? 413 : 400
         sendJson(response, statusCode, { error: { code, message } })
       }
