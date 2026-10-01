@@ -79,6 +79,30 @@ interface PlanningGroup {
   lockedStudentIds?: string[]
 }
 
+interface ApprovedSeatingHistoryEntryView {
+  version: '1.0'
+  id: string
+  label?: string
+  approvedAt: string
+  neighbourMode: 'orthogonal' | 'king'
+  room: RoomRecord
+  assignments: PlanningSeatAssignment[]
+}
+
+interface PlanningScenarioView {
+  version: '1.0'
+  id: string
+  label: string
+  savedAt: string
+  room?: RoomRecord
+  seed?: string
+  selectedMetricKeys?: string[]
+  assignments: PlanningSeatAssignment[]
+  rules: PlanningRule[]
+  groups: PlanningGroup[]
+  approvedCandidateId?: string
+}
+
 type PlanningRule =
   | {
       id: string
@@ -140,6 +164,8 @@ interface PlanningRecord {
   rules?: PlanningRule[]
   groups?: PlanningGroup[]
   approvedCandidateId?: string
+  history?: ApprovedSeatingHistoryEntryView[]
+  scenarios?: PlanningScenarioView[]
 }
 
 interface HardConstraintView {
@@ -220,6 +246,57 @@ interface RelationshipGraphView {
   focusStudentId?: string
   nodes: RelationshipGraphNodeView[]
   edges: RelationshipGraphEdgeView[]
+}
+
+interface RepeatNeighbourHistoryView {
+  historyRecordCount: number
+  usableRecordCount: number
+  skippedRecordIds: string[]
+  pairs: Array<{
+    studentAId: string
+    studentBId: string
+    count: number
+    historyIds: string[]
+  }>
+}
+
+interface NetworkCountComparisonView {
+  key: string
+  label: string
+  left: number
+  right: number
+  delta: number
+}
+
+interface PlanningScenarioComparisonView {
+  leftScenarioId: string
+  rightScenarioId: string
+  assignments: {
+    leftCount: number
+    rightCount: number
+    unchangedStudents: string[]
+    movedStudents: string[]
+    addedStudents: string[]
+    removedStudents: string[]
+  }
+  groups: {
+    leftCount: number
+    rightCount: number
+    unchangedStudents: string[]
+    changedStudents: string[]
+    addedStudents: string[]
+    removedStudents: string[]
+  }
+  rules: {
+    leftCount: number
+    rightCount: number
+    addedRuleIds: string[]
+    removedRuleIds: string[]
+  }
+  network: {
+    counts: NetworkCountComparisonView[]
+    byType: NetworkCountComparisonView[]
+  }
 }
 
 interface ClassGraphProject {
@@ -370,6 +447,8 @@ let selectedScatterX: string | null = null
 let selectedScatterY: string | null = null
 let selectedRelationshipTypeFilter: RelationshipType | 'all' = 'all'
 let selectedRelationshipFocusStudentId: string | null = null
+let selectedScenarioLeftId: string | null = null
+let selectedScenarioRightId: string | null = null
 let seatingGeneration: SeatingGenerationView | null = null
 let groupingGeneration: GroupingGenerationView | null = null
 let syntheticDraftProjectId = ''
