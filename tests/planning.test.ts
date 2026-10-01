@@ -54,7 +54,7 @@ describe('seating candidate engine', () => {
   })
 
   it('reports insufficient capacity before search', () => {
-    let project = baseProject()
+    const project = baseProject()
     project.room!.seats[0]!.enabled = false
 
     const result = generateSeatingCandidates(project, { seed: 'capacity' })
@@ -156,7 +156,7 @@ describe('seating candidate engine', () => {
   })
 
   it('explains a hard tag requirement that cannot be satisfied', () => {
-    let project = addPlanningRule(
+    const project = addPlanningRule(
       baseProject(),
       {
         id: 'window',
