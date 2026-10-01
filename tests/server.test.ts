@@ -154,4 +154,35 @@ describe('local app server', () => {
     expect(firstBody.project.students).toEqual(secondBody.project.students)
   })
 
+
+  it('applies a validated project mutation through the local API', async () => {
+    const base = await startServer()
+    const project = createEmptyProject({
+      projectId: 'class-5a',
+      title: 'Grade 5A',
+      now: '2026-10-01T10:00:00.000Z',
+    })
+    const response = await fetch(`${base}/api/project/mutate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project,
+        command: {
+          type: 'add-student',
+          student: { id: 's-001', displayName: 'Student One' },
+        },
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      project: {
+        students: Array<{ id: string; displayName?: string }>
+        provenance: Record<string, { kind: string }>
+      }
+    }
+    expect(body.project.students).toEqual([{ id: 's-001', displayName: 'Student One', metrics: {} }])
+    expect(body.project.provenance['/students/0/displayName']?.kind).toBe('teacher-entered')
+  })
+
 })
