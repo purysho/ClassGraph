@@ -243,4 +243,77 @@ describe('local app server', () => {
     expect(scatterBody.scatter.omittedCount).toBe(1)
   })
 
+
+  it('generates the same synthetic student data from the same structured specification', async () => {
+    const base = await startServer()
+    const specification = {
+      projectId: 'structured-synthetic',
+      title: 'Structured Synthetic',
+      studentCount: 12,
+      seed: 'repeatable-seed',
+      metricDefinitions: [
+        {
+          key: 'score',
+          label: 'Score',
+          kind: 'number',
+          numberScale: { min: 0, max: 100 },
+        },
+        {
+          key: 'participation',
+          label: 'Participation',
+          kind: 'ordinal',
+          ordinalScale: ['1', '2', '3', '4', '5'],
+        },
+      ],
+      metrics: [
+        {
+          key: 'score',
+          kind: 'number',
+          distribution: {
+            type: 'normal',
+            mean: 68,
+            standardDeviation: 11,
+            min: 0,
+            max: 100,
+          },
+          missingRate: 0.1,
+        },
+        {
+          key: 'participation',
+          kind: 'ordinal',
+          values: [
+            { value: '1', weight: 1 },
+            { value: '2', weight: 2 },
+            { value: '3', weight: 4 },
+            { value: '4', weight: 2 },
+            { value: '5', weight: 1 },
+          ],
+          missingRate: 0.05,
+        },
+      ],
+    }
+
+    const generate = async () => {
+      const response = await fetch(`${base}/api/synthetic/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(specification),
+      })
+      expect(response.status).toBe(200)
+      return (await response.json()) as {
+        project: {
+          students: unknown[]
+          provenance: Record<string, { kind: string }>
+        }
+      }
+    }
+
+    const first = await generate()
+    const second = await generate()
+
+    expect(first.project.students).toHaveLength(12)
+    expect(first.project.students).toEqual(second.project.students)
+    expect(first.project.provenance['/students/0/metrics/score']?.kind).toBe('synthetic')
+  })
+
 })
