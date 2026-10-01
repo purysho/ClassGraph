@@ -185,4 +185,62 @@ describe('local app server', () => {
     expect(body.project.provenance['/students/0/displayName']?.kind).toBe('teacher-entered')
   })
 
+
+  it('returns descriptive project analysis and scatter data', async () => {
+    const base = await startServer()
+    let project = createEmptyProject({
+      projectId: 'analysis-api',
+      title: 'Analysis API',
+      now: '2026-10-01T10:00:00.000Z',
+    })
+
+    const createMutation = async (command: Record<string, unknown>) => {
+      const response = await fetch(`${base}/api/project/mutate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, command }),
+      })
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as { project: typeof project }
+      project = body.project
+    }
+
+    await createMutation({ type: 'add-student', student: { id: 's1' } })
+    await createMutation({ type: 'add-student', student: { id: 's2' } })
+    await createMutation({
+      type: 'add-metric-definition',
+      definition: { key: 'x', label: 'X', kind: 'number' },
+    })
+    await createMutation({
+      type: 'add-metric-definition',
+      definition: { key: 'y', label: 'Y', kind: 'number' },
+    })
+    await createMutation({ type: 'set-metric-value', studentId: 's1', metricKey: 'x', value: 0 })
+    await createMutation({ type: 'set-metric-value', studentId: 's1', metricKey: 'y', value: 2 })
+
+    const analysisResponse = await fetch(`${base}/api/analysis/project`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project }),
+    })
+    expect(analysisResponse.status).toBe(200)
+    const analysisBody = (await analysisResponse.json()) as {
+      analysis: { completeness: { recordedCount: number; unrecordedCount: number } }
+    }
+    expect(analysisBody.analysis.completeness.recordedCount).toBe(2)
+    expect(analysisBody.analysis.completeness.unrecordedCount).toBe(2)
+
+    const scatterResponse = await fetch(`${base}/api/analysis/scatter`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project, xMetricKey: 'x', yMetricKey: 'y' }),
+    })
+    expect(scatterResponse.status).toBe(200)
+    const scatterBody = (await scatterResponse.json()) as {
+      scatter: { points: Array<{ studentId: string; x: number; y: number }>; omittedCount: number }
+    }
+    expect(scatterBody.scatter.points).toEqual([{ studentId: 's1', x: 0, y: 2 }])
+    expect(scatterBody.scatter.omittedCount).toBe(1)
+  })
+
 })
