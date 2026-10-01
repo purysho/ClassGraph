@@ -51,18 +51,22 @@ describe('assistance contract', () => {
   })
 
   it('flags real student-level context distinctly from aggregate context', () => {
-    const preview = buildAssistanceTransmissionPreview('network', [
-      {
-        id: 'students',
-        label: 'Selected students',
-        scope: 'student-level',
-        content: [{ id: 's1', score: 80 }],
-        containsStudentIds: true,
-        containsDisplayNames: false,
-        containsFreeText: false,
-        syntheticOnly: false,
-      },
-    ], 'Example provider')
+    const preview = buildAssistanceTransmissionPreview(
+      'network',
+      [
+        {
+          id: 'students',
+          label: 'Selected students',
+          scope: 'student-level',
+          content: [{ id: 's1', score: 80 }],
+          containsStudentIds: true,
+          containsDisplayNames: false,
+          containsFreeText: false,
+          syntheticOnly: false,
+        },
+      ],
+      'Example provider',
+    )
 
     expect(preview.containsStudentLevelData).toBe(true)
     expect(preview.containsRealStudentData).toBe(true)
