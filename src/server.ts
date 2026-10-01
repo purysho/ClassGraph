@@ -4,6 +4,7 @@ import { extname, join } from 'node:path'
 import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
 import { generateGroupingCandidates } from './grouping.js'
 import { serializeEduBoardHandback } from './eduboard-handback.js'
+import { ClassGraphExportError } from './export-errors.js'
 import {
   safeExportStem,
   serializeAnalysisExport,
@@ -445,7 +446,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unexpected local server error.'
         const code =
-          error instanceof ClassGraphImportError
+          error instanceof ClassGraphImportError || error instanceof ClassGraphExportError
             ? error.code
             : (/^CG-\d{4}/.exec(message)?.[0] ?? 'CG-9001')
         const statusCode = code === 'CG-1002' ? 413 : 400
