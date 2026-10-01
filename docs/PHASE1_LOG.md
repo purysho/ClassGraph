@@ -13,7 +13,7 @@ The existing UI-independent core remains authoritative for schema validation, pr
 ## Completion checklist
 
 - [x] P1.0 — Recovery log and Phase 1 architecture checkpoint
-- [ ] P1.1 — Project workspace service: create, clone, update metadata, add/remove/edit students
+- [x] P1.1 — Project workspace service: create, update metadata, add/remove/edit students
 - [ ] P1.2 — Metric-definition editing and safe typed value editing
 - [ ] P1.3 — Local app server + JSON import/export endpoints
 - [ ] P1.4 — Teacher-facing UI shell and project setup
@@ -33,6 +33,26 @@ The existing UI-independent core remains authoritative for schema validation, pr
 - Chose a lean local app architecture with no new runtime dependency for the first UI slice.
 - Confirmed Phase 1 will not include seating optimisation, DOCX/PDF export, AI, a shared EduBoard database, or cloud services.
 
+### P1.1 — Project workspace service
+
+**Status:** Complete.
+
+Implemented `src/workspace.ts` and `tests/workspace.test.ts`.
+
+Completed behaviour:
+
+- create an empty ClassGraph Exchange v1 project from explicit IDs/timestamps;
+- update title and class metadata immutably;
+- add students with optional display name, tags and notes;
+- edit student details without inventing metrics;
+- reject duplicate student IDs with a `CG-2xxx` error;
+- remove a student and any relationships that reference them;
+- remap index-based provenance paths after removals;
+- mark manual project/student fields as `teacher-entered`;
+- validate each produced project through the canonical runtime schema.
+
+Public exports were updated through `src/index.ts`.
+
 ## Next exact step
 
-Implement **P1.1 — Project workspace service** with tests. The service must preserve provenance, never coerce missing values, and keep project timestamps/IDs explicit.
+Implement **P1.2 — Metric-definition editing and safe typed value editing**. It must validate metric definitions before applying them, distinguish a deliberately missing value (`null`) from zero/false/empty text, and attach teacher-entered provenance to each edited metric value.
