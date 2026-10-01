@@ -194,7 +194,6 @@ function remapStudentProvenance(
   return result
 }
 
-
 function remapRelationshipProvenance(
   provenance: ClassGraphProject['provenance'],
   removedIndexes: Set<number>,
