@@ -4,7 +4,7 @@
 
 ## Project status
 
-**Phase 0 is merged. Phase 1 is implemented on the teacher-workspace branch and is undergoing its final quality gate.**
+**Phase 0 is merged. Phase 1 is complete on PR #3 and has passed its full quality gate.**
 
 ClassGraph remains a **standalone companion to EduBoard**. The apps do not share a live database. ClassGraph Exchange JSON v1 is the portable boundary between them.
 
