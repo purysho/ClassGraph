@@ -3319,11 +3319,110 @@ function renderRelationships(content: HTMLElement): void {
           Directed A→B and B→A are distinct. Missing relationship records are never reconstructed.
         </p>
       </article>
+
+      <div class="relationship-history-grid">
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Approved seating history</p>
+              <h2>Repeat-neighbour record</h2>
+            </div>
+            <span class="schema-badge">${project.planning?.history?.length ?? 0} snapshots</span>
+          </div>
+          <p>
+            History is added only when you explicitly record the current persisted seating plan.
+            Current candidates and missing past plans are never reconstructed.
+          </p>
+          <form id="record-history-form" class="snapshot-form">
+            <label>
+              Label
+              <input name="label" placeholder="e.g. Week 4 approved plan" />
+            </label>
+            <label>
+              Neighbour rule
+              <select name="neighbourMode">
+                <option value="orthogonal">Side-by-side only</option>
+                <option value="king">Side or diagonal</option>
+              </select>
+            </label>
+            <button
+              class="secondary compact"
+              type="submit"
+              ${project.room && (project.planning?.assignments?.length ?? 0) > 0 ? '' : 'disabled'}
+            >Record current seating</button>
+          </form>
+          ${renderHistoryRecords()}
+          <div id="repeat-neighbour-stage" class="snapshot-analysis">
+            <div class="empty-analysis">Reading stored seating history…</div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Saved planning scenarios</p>
+              <h2>Before / after comparison</h2>
+            </div>
+            <span class="schema-badge">${project.planning?.scenarios?.length ?? 0} saved</span>
+          </div>
+          <p>
+            A scenario snapshots the exact persisted room, seating, groups, rules and planning seed.
+            It does not save transient generated candidates.
+          </p>
+          <form id="save-scenario-form" class="snapshot-form">
+            <label>
+              Scenario label
+              <input name="label" required placeholder="e.g. Before museum project" />
+            </label>
+            <button class="secondary compact" type="submit">Save current planning</button>
+          </form>
+          ${renderScenarioRecords()}
+          <div class="scenario-controls">
+            <label>
+              Before
+              <select id="scenario-left" ${(project.planning?.scenarios?.length ?? 0) < 2 ? 'disabled' : ''}>
+                ${(project.planning?.scenarios ?? [])
+                  .map((scenario) =>
+                    optionHtml(
+                      scenario.id,
+                      scenario.label,
+                      scenario.id === selectedScenarioLeftId,
+                    ),
+                  )
+                  .join('')}
+              </select>
+            </label>
+            <label>
+              After
+              <select id="scenario-right" ${(project.planning?.scenarios?.length ?? 0) < 2 ? 'disabled' : ''}>
+                ${(project.planning?.scenarios ?? [])
+                  .map((scenario) =>
+                    optionHtml(
+                      scenario.id,
+                      scenario.label,
+                      scenario.id === selectedScenarioRightId,
+                    ),
+                  )
+                  .join('')}
+              </select>
+            </label>
+          </div>
+          <div id="scenario-comparison-stage" class="snapshot-analysis">
+            <div class="empty-analysis">
+              ${(project.planning?.scenarios?.length ?? 0) >= 2
+                ? 'Comparing saved planning snapshots…'
+                : 'Save at least two planning scenarios to compare them.'}
+            </div>
+          </div>
+        </article>
+      </div>
     </div>
   `
 
   bindRelationshipEvents()
   void loadRelationshipGraph()
+  void loadRepeatNeighbourHistory()
+  void loadScenarioComparison()
 }
 
 function readRelationshipField<T extends HTMLInputElement | HTMLSelectElement>(
