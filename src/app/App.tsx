@@ -1,13 +1,5 @@
 import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { summarizeCategoryMetric, summarizeNumericMetric } from '../analysis.js'
 import { ClassGraphImportError, parseProjectJson, serializeProjectJson } from '../json.js'
 import type {
@@ -105,9 +97,14 @@ function MetricInput({
 }) {
   if (definition.kind === 'category' || definition.kind === 'ordinal') {
     const options =
-      definition.kind === 'category' ? definition.categories ?? [] : definition.ordinalScale ?? []
+      definition.kind === 'category'
+        ? (definition.categories ?? [])
+        : (definition.ordinalScale ?? [])
     return (
-      <select value={valueForInput(value)} onChange={(event) => onChange(parseManualValue(definition, event.target.value))}>
+      <select
+        value={valueForInput(value)}
+        onChange={(event) => onChange(parseManualValue(definition, event.target.value))}
+      >
         <option value="">—</option>
         {options.map((option) => (
           <option key={option} value={option}>
@@ -120,7 +117,10 @@ function MetricInput({
 
   if (definition.kind === 'boolean') {
     return (
-      <select value={valueForInput(value)} onChange={(event) => onChange(parseManualValue(definition, event.target.value))}>
+      <select
+        value={valueForInput(value)}
+        onChange={(event) => onChange(parseManualValue(definition, event.target.value))}
+      >
         <option value="">—</option>
         <option value="true">Yes</option>
         <option value="false">No</option>
@@ -331,7 +331,10 @@ function DataView({
         <div>
           <span className="eyebrow">Data model</span>
           <h2>Add a metric</h2>
-          <p>Create only the fields that are useful for this class. ClassGraph does not impose a fixed learner profile.</p>
+          <p>
+            Create only the fields that are useful for this class. ClassGraph does not impose a
+            fixed learner profile.
+          </p>
         </div>
         <form onSubmit={submitMetric}>
           <input
@@ -347,7 +350,10 @@ function DataView({
             value={metricKey}
             onChange={(event) => setMetricKey(metricKeyFromLabel(event.target.value))}
           />
-          <select value={metricKind} onChange={(event) => setMetricKind(event.target.value as MetricKind)}>
+          <select
+            value={metricKind}
+            onChange={(event) => setMetricKind(event.target.value as MetricKind)}
+          >
             <option value="number">Number</option>
             <option value="ordinal">Ordered category</option>
             <option value="category">Category</option>
@@ -405,7 +411,10 @@ function DataView({
                           editStudent(
                             studentIndex,
                             `/students/${studentIndex}/displayName`,
-                            (current) => ({ ...current, displayName: event.target.value || undefined }),
+                            (current) => ({
+                              ...current,
+                              displayName: event.target.value || undefined,
+                            }),
                           )
                         }
                       />
@@ -569,7 +578,9 @@ function AnalysisView({ project }: { project: ClassGraphProject }) {
         <span className="eyebrow">Data note</span>
         {missingCount > 0 ? (
           <p>
-            {missingCount} of {project.students.length} student records are missing this metric. Missing values remain missing and are excluded from the chart; ClassGraph does not replace them with zero or an average.
+            {missingCount} of {project.students.length} student records are missing this metric.
+            Missing values remain missing and are excluded from the chart; ClassGraph does not
+            replace them with zero or an average.
           </p>
         ) : (
           <p>All {project.students.length} student records contain a value for this metric.</p>
@@ -611,7 +622,10 @@ export function App() {
 
   function exportJson(): void {
     try {
-      const safeTitle = project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const safeTitle = project.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
       downloadText(
         `${safeTitle || 'classgraph'}.classgraph.json`,
         serializeProjectJson(project),
@@ -692,7 +706,10 @@ export function App() {
           <button className={view === 'data' ? 'active' : ''} onClick={() => setView('data')}>
             Data
           </button>
-          <button className={view === 'analysis' ? 'active' : ''} onClick={() => setView('analysis')}>
+          <button
+            className={view === 'analysis' ? 'active' : ''}
+            onClick={() => setView('analysis')}
+          >
             Analysis
           </button>
         </nav>

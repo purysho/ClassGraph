@@ -141,6 +141,7 @@ export function makeMetricDefinition(
     .filter(Boolean)
 
   if (kind === 'category') return { ...base, categories: values?.length ? values : ['A', 'B'] }
-  if (kind === 'ordinal') return { ...base, ordinalScale: values?.length ? values : ['Low', 'Medium', 'High'] }
+  if (kind === 'ordinal')
+    return { ...base, ordinalScale: values?.length ? values : ['Low', 'Medium', 'High'] }
   return base
 }
