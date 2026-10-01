@@ -18,9 +18,12 @@ afterEach(async () => {
   )
 })
 
-async function startServer(maxBodyBytes?: number): Promise<string> {
+async function startServer(
+  maxBodyBytes?: number,
+  appDirectory = 'does-not-matter-for-api-tests',
+): Promise<string> {
   const server = createClassGraphServer({
-    appDirectory: 'does-not-matter-for-api-tests',
+    appDirectory,
     maxBodyBytes,
   })
   servers.push(server)
@@ -31,6 +34,19 @@ async function startServer(maxBodyBytes?: number): Promise<string> {
 }
 
 describe('local app server', () => {
+
+  it('serves the local teacher workspace shell without remote assets', async () => {
+    const base = await startServer(undefined, 'app')
+    const response = await fetch(base)
+
+    expect(response.status).toBe(200)
+    const html = await response.text()
+    expect(html).toContain('<div id="app"></div>')
+    expect(html).toContain('src="/app.js"')
+    expect(html).toContain('href="/styles.css"')
+    expect(html).not.toMatch(/https?:\/\//)
+  })
+
   it('reports a local health response', async () => {
     const base = await startServer()
     const response = await fetch(`${base}/api/health`)
