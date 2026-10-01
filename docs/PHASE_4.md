@@ -3,7 +3,7 @@
 **Phase:** 4 — Relationship Graph and Advanced Comparison  
 **Branch:** `feat/phase-4-relationships`  
 **Base:** `feat/phase-3-reports` @ `25822d92c137396169c6c920e5c8edfe0ef55fd1`  
-**Status:** In progress  
+**Status:** Gate 4 verification  
 **Last updated:** 2026-10-02
 
 ## Non-negotiable rules
@@ -60,49 +60,63 @@ Verification: run `36911785277` — format, lint, strict typecheck, **106/106 te
 
 ### P4.2 — Relationship table
 
-- [ ] Accessible tabular equivalent first.
-- [ ] Filter by relationship type.
-- [ ] Show source/provenance clearly.
-- [ ] Add tests.
+- [x] Accessible tabular equivalent first.
+- [x] Filter by relationship type.
+- [x] Show source/provenance clearly.
+- [x] Add tests.
+
+Implemented a UI-independent table model plus the Relationships workspace. Record-level provenance is shown where present; nested relationship provenance is used as a fallback rather than invented.
 
 ### P4.3 — Deterministic relationship graph
 
-- [ ] Explicit/synthetic edges only.
-- [ ] Deterministic layout.
-- [ ] Labels/types and selected-student focus.
-- [ ] No hidden inference.
-- [ ] Table equivalent always available.
-- [ ] Add tests.
+- [x] Explicit/synthetic edges only.
+- [x] Deterministic layout.
+- [x] Labels/types and selected-student focus.
+- [x] No hidden inference.
+- [x] Table equivalent always available.
+- [x] Add tests.
+
+Layout is dependency-free. Whole-class nodes are sorted by stable student ID; focus mode places only explicitly connected neighbours on the inner ring. Unrelated student metrics do not affect graph nodes, edges, or layout.
 
 ### P4.4 — Network comparison
 
-- [ ] Compare explicit saved groups/scenarios.
-- [ ] Descriptive counts only.
-- [ ] No claim that edge density/count is educationally better unless an explicit authored rule says so.
-- [ ] Add tests.
+- [x] Compare explicit saved groups/scenarios.
+- [x] Descriptive counts only.
+- [x] No claim that edge density/count is educationally better unless an explicit authored rule says so.
+- [x] Add tests.
+
+Scenario comparison reports raw within-group, across-group, ungrouped, total, and relationship-type counts/deltas. It deliberately exposes no score, rank, winner, or optimization target.
 
 ### P4.5 — Repeat-neighbour history
 
-- [ ] Use only explicitly stored historical approved seating.
-- [ ] Do not infer/reconstruct missing history.
-- [ ] Separate history from current candidate state.
-- [ ] Add tests.
+- [x] Use only explicitly stored historical approved seating.
+- [x] Do not infer/reconstruct missing history.
+- [x] Separate history from current candidate state.
+- [x] Add tests.
+
+Teachers explicitly snapshot persisted seating with a recorded orthogonal/king neighbour rule. Grid snapshots are analysed; custom-layout history is preserved but skipped rather than guessed. Current seating is never treated as history until explicitly recorded.
 
 ### P4.6 — Saved scenarios
 
-- [ ] Save approved/current planning snapshots.
-- [ ] Deterministic IDs/versioning.
-- [ ] Explicit comparison dimensions.
-- [ ] Descriptive before/after views.
-- [ ] Add tests.
+- [x] Save approved/current planning snapshots.
+- [x] Deterministic IDs/versioning.
+- [x] Explicit comparison dimensions.
+- [x] Descriptive before/after views.
+- [x] Add tests.
+
+Scenario format version is `1.0`. IDs use a dependency-free deterministic hash of the label plus exact persisted planning snapshot. Saved state includes room, persisted seat assignments, groups, rules, seed/selected metrics, and approved candidate ID where present; transient generated candidates are excluded.
 
 ### P4.7 — UI polish + persistence
 
-- [ ] Relationship workspace.
-- [ ] Scenario comparison.
-- [ ] Provenance visibility.
-- [ ] JSON round-trip.
-- [ ] Accessible table equivalents.
+- [x] Relationship workspace.
+- [x] Scenario comparison.
+- [x] Provenance visibility.
+- [x] JSON round-trip.
+- [x] Accessible table equivalents.
+
+The local workspace now combines explicit relationship CRUD, deterministic graph + table, approved seating-history capture, repeat-neighbour history, and saved before/after scenario comparison. Phase 4 data round-trips through ClassGraph JSON without flattening synthetic/teacher-entered provenance.
+
+Integration verification before Gate 4: run `36913380276` — format, lint, strict typecheck, **127/127 tests across 26 files**, and build passed.
 
 ### P4.8 — Gate 4
 
