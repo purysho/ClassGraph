@@ -36,7 +36,9 @@ describe('metric editing', () => {
     )
 
     expect(project.metricDefinitions[0]?.key).toBe('assessment')
-    expect(project.provenance['/metricDefinitions/0']?.kind).toBe('teacher-entered')
+    expect(project.provenance['/metricDefinitions/0']?.kind).toBe(
+      'teacher-entered',
+    )
   })
 
   it('preserves zero, false and explicit missing null as distinct values', () => {
@@ -60,7 +62,9 @@ describe('metric editing', () => {
 
     project = setStudentMetricValue(project, 's-001', 'score', null, t3)
     expect(project.students[0]?.metrics.score).toBeNull()
-    expect(project.provenance['/students/0/metrics/score']?.kind).toBe('teacher-entered')
+    expect(project.provenance['/students/0/metrics/score']?.kind).toBe(
+      'teacher-entered',
+    )
   })
 
   it('can remove an unrecorded value without converting it to null', () => {
@@ -90,18 +94,27 @@ describe('metric editing', () => {
       t2,
     )
 
-    expect(() => setStudentMetricValue(project, 's-001', 'support', 'medium', t3)).toThrow()
+    expect(() =>
+      setStudentMetricValue(project, 's-001', 'support', 'medium', t3),
+    ).toThrow()
   })
 
   it('rejects null when a metric explicitly disallows missing values', () => {
     let project = projectWithStudent()
     project = addMetricDefinition(
       project,
-      { key: 'required', label: 'Required', kind: 'number', missingAllowed: false },
+      {
+        key: 'required',
+        label: 'Required',
+        kind: 'number',
+        missingAllowed: false,
+      },
       t2,
     )
 
-    expect(() => setStudentMetricValue(project, 's-001', 'required', null, t3)).toThrow()
+    expect(() =>
+      setStudentMetricValue(project, 's-001', 'required', null, t3),
+    ).toThrow()
   })
 
   it('updates definitions safely and removes metric data when the definition is removed', () => {
@@ -115,7 +128,12 @@ describe('metric editing', () => {
     project = updateMetricDefinition(
       project,
       'score',
-      { key: 'score', label: 'Assessment score', kind: 'number', numberScale: { max: 100 } },
+      {
+        key: 'score',
+        label: 'Assessment score',
+        kind: 'number',
+        numberScale: { max: 100 },
+      },
       t3,
     )
     expect(project.metricDefinitions[0]?.label).toBe('Assessment score')
