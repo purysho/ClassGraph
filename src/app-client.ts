@@ -173,7 +173,7 @@ let syntheticDraftProjectId = ''
 let syntheticDraftTitle = 'Synthetic Class'
 let syntheticDraftStudentCount = 36
 let syntheticDraftSeed = 'classgraph-demo'
-let syntheticDraftMetrics: SyntheticDraftMetric[] = [
+const syntheticDraftMetrics: SyntheticDraftMetric[] = [
   {
     key: 'assessment',
     label: 'Assessment',
@@ -857,12 +857,16 @@ function buildSyntheticSpecification(): Record<string, unknown> {
       }
     }
 
-    return {
-      key: metric.key,
-      kind: metric.kind,
-      value: metric.value,
-      missingRate: metric.missingRate,
+    if (metric.kind === 'text') {
+      return {
+        key: metric.key,
+        kind: metric.kind,
+        value: metric.value,
+        missingRate: metric.missingRate,
+      }
     }
+
+    throw new Error('Unsupported synthetic metric kind.')
   })
 
   return {
@@ -1006,11 +1010,6 @@ function renderWorkspaceContent(): void {
 function formatNumber(value: number | null): string {
   if (value === null) return '—'
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value)
-}
-
-function formatRange(min: number, max: number): string {
-  if (min === max) return formatNumber(min)
-  return `${formatNumber(min)}–${formatNumber(max)}`
 }
 
 function completenessPercent(completeness: ProjectAnalysis['completeness']): string {
@@ -1359,7 +1358,7 @@ function renderMetricCell(
     definition.kind === 'ordinal' ||
     definition.kind === 'boolean'
   ) {
-    return renderSelectMetricCell(student, definition, state, value, index)
+    return renderSelectMetricCell(student, definition, state, value)
   }
 
   const displayedValue =
@@ -1407,7 +1406,6 @@ function renderSelectMetricCell(
   definition: MetricDefinition,
   state: MetricState,
   value: MetricValue | undefined,
-  _index: number,
 ): string {
   let options: string[] = []
 
