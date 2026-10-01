@@ -158,18 +158,7 @@ Gate 5 verification: run `36917677220` at head `f7700b4ddf832329771f15af4da70b5b
 - the credential-boundary regression confirms provider tokens do not appear in provider status, assistance requests, or ClassGraph project exports;
 - static review of all nine assistance modules found no `console.*`, browser storage, or telemetry writes;
 - `package.json` and `package-lock.json` are unchanged from the Phase 4 head, so Phase 5 adds **zero runtime dependencies** and no provider SDK/assets.
-
-Verification: run `36917593651` — format, lint, strict typecheck, **150/150 tests across 29 files**, build, and production audit all passed; audit reported **0 vulnerabilities**.
-
-Gate 5 review:
-
-- Core no-network workflows remain covered and green; `/api/assistance/status` reports offline assistance available with the network provider disabled by default.
-- Credential regression coverage verifies provider tokens do not enter assistance request payloads or ClassGraph project/export state.
-- No Phase 5 change touched `package.json` or `package-lock.json`; **0 new runtime/build dependencies** were added.
-- Size review against the Phase 4 head: `src/` grew by **66,688 bytes**, of which the nine assistance core modules total **42,062 bytes**; `src/app-client.ts + app/styles.css` grew by **23,029 bytes**. This is source-only growth with no framework/provider-SDK payload.
-- Network assistance uses aggregate/redacted analysis/report context when student-level detail is unnecessary; explicit relationship/planning context can include stable student IDs while omitting display names.
-- Temporary phase workflows are removed after this recorded Gate 5 run; their removal does not change runtime/test source.
-
+- size review against the Phase 4 head: `src/` grew by **66,688 bytes**, the nine assistance core modules total **42,062 bytes**, and `src/app-client.ts + app/styles.css` grew by **23,029 bytes**; this is source-only growth with no framework/provider-SDK payload.
 ## Gate 5 acceptance
 
 - Assistance is optional and core workflows remain usable with no provider.
