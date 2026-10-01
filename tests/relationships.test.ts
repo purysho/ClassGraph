@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ClassGraphProject, RelationshipRecord } from '../src/model.js'
 import { applyProjectMutation } from '../src/project-mutations.js'
 import { canonicalRelationshipKey } from '../src/relationship-semantics.js'
-import {
-  addRelationship,
-  removeRelationship,
-  updateRelationship,
-} from '../src/relationships.js'
+import { addRelationship, removeRelationship, updateRelationship } from '../src/relationships.js'
 import { classGraphProjectSchema } from '../src/schema.js'
 import { addStudent, createEmptyProject, removeStudent } from '../src/workspace.js'
 
@@ -45,9 +41,9 @@ describe('relationship semantics', () => {
     expect(canonicalRelationshipKey(edge('a'))).toBe(
       canonicalRelationshipKey(edge('b', 's2', 's1')),
     )
-    expect(
-      canonicalRelationshipKey(edge('a', 's1', 's2', { directed: true })),
-    ).not.toBe(canonicalRelationshipKey(edge('b', 's2', 's1', { directed: true })))
+    expect(canonicalRelationshipKey(edge('a', 's1', 's2', { directed: true }))).not.toBe(
+      canonicalRelationshipKey(edge('b', 's2', 's1', { directed: true })),
+    )
   })
 
   it('uses custom labels to distinguish explicit custom relationship meanings', () => {
