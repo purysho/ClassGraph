@@ -274,7 +274,7 @@ interface ScatterView {
   omittedCount: number
 }
 
-type WorkspaceView = 'overview' | 'students' | 'graphs' | 'seating'
+type WorkspaceView = 'overview' | 'students' | 'graphs' | 'seating' | 'reports'
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
 type SyntheticDraftMetric =
   | {
@@ -1090,7 +1090,7 @@ function renderWorkspace(): void {
           <button data-view="students">Students</button>
           <button data-view="graphs">Graphs</button>
           <button data-view="seating">Seating</button>
-          <button disabled title="Phase 3">Reports</button>
+          <button data-view="reports">Reports</button>
         </nav>
 
         <div class="sidebar-footer">
@@ -1126,7 +1126,8 @@ function renderWorkspace(): void {
         nextView === 'overview' ||
         nextView === 'students' ||
         nextView === 'graphs' ||
-        nextView === 'seating'
+        nextView === 'seating' ||
+        nextView === 'reports'
       ) {
         activeView = nextView
         renderWorkspace()
@@ -1171,6 +1172,11 @@ function renderWorkspaceContent(): void {
 
   if (activeView === 'seating') {
     renderSeating(content)
+    return
+  }
+
+  if (activeView === 'reports') {
+    renderReports(content)
     return
   }
 
@@ -2678,6 +2684,140 @@ async function generateGrouping(data: FormData): Promise<void> {
     renderWorkspace()
   } catch (error) {
     showStatus(error instanceof Error ? error.message : 'Could not generate grouping candidates.')
+  }
+}
+
+
+function reportDownloadName(response: Response, fallback: string): string {
+  const disposition = response.headers.get('content-disposition') ?? ''
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposition)
+  if (utf8?.[1]) {
+    try {
+      return decodeURIComponent(utf8[1])
+    } catch {
+      return fallback
+    }
+  }
+  const quoted = /filename="([^"]+)"/i.exec(disposition)
+  return quoted?.[1] ?? fallback
+}
+
+async function downloadReportExport(path: string, fallback: string): Promise<void> {
+  if (!project) return
+  clearStatus()
+
+  try {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project }),
+    })
+    if (!response.ok) throw await responseError(response)
+
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = reportDownloadName(response, fallback)
+    anchor.hidden = true
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+    showStatus('Export created locally.', 'success')
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not create the export.')
+  }
+}
+
+function renderReports(content: HTMLElement): void {
+  if (!project) return
+  const assignmentCount = project.planning?.assignments?.length ?? 0
+  const groupCount = project.planning?.groups?.length ?? 0
+  const ruleCount = project.planning?.rules?.length ?? 0
+  const hasSeatingPlan = Boolean(project.room && assignmentCount > 0)
+  const syntheticCount = Object.values(project.provenance).filter(
+    (entry) => entry.kind === 'synthetic',
+  ).length
+  const derivedCount = Object.values(project.provenance).filter(
+    (entry) => entry.kind === 'derived',
+  ).length
+
+  content.innerHTML = `
+    <div class="reports-stack">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Portable exports</p>
+            <h2>Reports and hand-back files</h2>
+          </div>
+          <span class="schema-badge">Phase 3 · local only</span>
+        </div>
+        <p>
+          Exports are generated on this device from the currently validated project. ClassGraph
+          does not upload the class or keep a server-side copy of these files.
+        </p>
+        <div class="report-summary-grid">
+          <div><b>${project.students.length}</b><span>students</span></div>
+          <div><b>${assignmentCount}</b><span>approved seats</span></div>
+          <div><b>${groupCount}</b><span>saved groups</span></div>
+          <div><b>${ruleCount}</b><span>planning rules</span></div>
+          <div><b>${syntheticCount}</b><span>synthetic paths</span></div>
+          <div><b>${derivedCount}</b><span>derived paths</span></div>
+        </div>
+      </article>
+
+      <div class="report-card-grid">
+        <article class="panel report-card">
+          <p class="eyebrow">Machine-readable</p>
+          <h2>Portable JSON</h2>
+          <p>Versioned files for backup, analysis interchange, seating hand-off, and EduBoard mapping.</p>
+          <div class="report-actions">
+            <button class="secondary" type="button" data-report-export="/api/export/project-json" data-fallback="classgraph-project.json">Project JSON</button>
+            <button class="secondary" type="button" data-report-export="/api/export/analysis-json" data-fallback="classgraph-analysis.json">Analysis JSON</button>
+            <button class="secondary" type="button" data-report-export="/api/export/seating-json" data-fallback="classgraph-seating-plan.json" ${hasSeatingPlan ? '' : 'disabled'}>Seating Plan JSON</button>
+            <button class="secondary" type="button" data-report-export="/api/export/eduboard-json" data-fallback="classgraph-eduboard-handback.json">EduBoard Hand-back JSON</button>
+          </div>
+          ${hasSeatingPlan ? '' : '<p class="report-note">Create a room and persist at least one seating assignment to enable seating-plan exports.</p>'}
+        </article>
+
+        <article class="panel report-card">
+          <p class="eyebrow">Human-readable</p>
+          <h2>DOCX and PDF</h2>
+          <p>Descriptive reports include provenance, missing-data notes, current tables, approved planning, rules, and limitations.</p>
+          <div class="report-actions">
+            <button class="primary" type="button" data-report-export="/api/export/docx" data-fallback="classgraph-report.docx">DOCX Report</button>
+            <button class="secondary" type="button" data-report-export="/api/export/pdf" data-fallback="classgraph-report.pdf">PDF Report</button>
+            <button class="secondary" type="button" data-report-export="/api/export/seating-pdf" data-fallback="classgraph-seating-plan.pdf" ${hasSeatingPlan ? '' : 'disabled'}>Landscape Seating PDF</button>
+          </div>
+          <p class="report-note">
+            DOCX supports Unicode names such as Chinese characters. The current lean PDF renderer
+            uses a built-in Latin font and refuses unsupported Unicode with CG-5004 rather than
+            replacing or corrupting text.
+          </p>
+        </article>
+      </div>
+
+      <article class="panel quiet">
+        <p class="eyebrow">EduBoard hand-back</p>
+        <h2>Explicit mapping, never silent overwrite</h2>
+        <p>
+          The hand-back file keeps source-safe values, derived analysis, synthetic paths, and
+          teacher-approved planning in separate sections. EduBoard must still choose the target
+          class explicitly and match students by exact ID before applying zero-based row/column
+          seat coordinates.
+        </p>
+      </article>
+    </div>
+  `
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-report-export]')) {
+    button.addEventListener('click', () => {
+      const path = button.dataset.reportExport
+      const fallback = button.dataset.fallback
+      if (!path || !fallback) return
+      void downloadReportExport(path, fallback)
+    })
   }
 }
 
