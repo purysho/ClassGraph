@@ -2846,6 +2846,359 @@ function renderReports(content: HTMLElement): void {
   }
 }
 
+function relationshipTypeOptions(selected?: RelationshipType): string {
+  const types: Array<{ value: RelationshipType; label: string }> = [
+    { value: 'works-well-with', label: 'Works well with' },
+    { value: 'avoid-pairing', label: 'Avoid pairing' },
+    { value: 'support-pair', label: 'Support pair' },
+    { value: 'friendship', label: 'Friendship' },
+    { value: 'custom', label: 'Custom' },
+  ]
+
+  return types
+    .map((item) => optionHtml(item.value, item.label, item.value === selected))
+    .join('')
+}
+
+function studentOptionLabel(student: StudentRecord): string {
+  return student.displayName ? `${student.displayName} (${student.id})` : student.id
+}
+
+function relationshipRecordId(): string {
+  if (typeof crypto.randomUUID === 'function') return `rel-${crypto.randomUUID()}`
+  return `rel-${Date.now()}`
+}
+
+function relationshipProvenance(index: number): ProvenanceEntry | undefined {
+  if (!project) return undefined
+  const basePath = `/relationships/${index}`
+  const direct = project.provenance[basePath]
+  if (direct) return direct
+
+  const nested = Object.entries(project.provenance)
+    .filter(([path]) => path.startsWith(`${basePath}/`))
+    .sort(([left], [right]) => left.localeCompare(right))[0]
+
+  return nested?.[1]
+}
+
+function renderRelationshipSource(index: number): string {
+  const provenance = relationshipProvenance(index)
+  if (!provenance) return '<span class="muted">Not recorded</span>'
+
+  const source = provenance.source ? ` · ${escapeHtml(provenance.source)}` : ''
+  return `<span class="source-kind">${escapeHtml(provenance.kind)}</span><small>${source}</small>`
+}
+
+function renderRelationshipRows(): string {
+  if (!project) return ''
+
+  const relationships = (project.relationships ?? [])
+    .map((relationship, index) => ({ relationship, index }))
+    .filter(
+      ({ relationship }) =>
+        selectedRelationshipTypeFilter === 'all' ||
+        relationship.type === selectedRelationshipTypeFilter,
+    )
+
+  if (relationships.length === 0) {
+    return `
+      <tr>
+        <td colspan="8" class="empty-cell">
+          ${selectedRelationshipTypeFilter === 'all'
+            ? 'No explicit relationship records yet.'
+            : 'No relationship records match this type.'}
+        </td>
+      </tr>
+    `
+  }
+
+  return relationships
+    .map(({ relationship, index }) => {
+      const fromOptions = project!.students
+        .map((student) =>
+          optionHtml(
+            student.id,
+            studentOptionLabel(student),
+            student.id === relationship.fromStudentId,
+          ),
+        )
+        .join('')
+      const toOptions = project!.students
+        .map((student) =>
+          optionHtml(
+            student.id,
+            studentOptionLabel(student),
+            student.id === relationship.toStudentId,
+          ),
+        )
+        .join('')
+
+      return `
+        <tr>
+          <td class="id-cell"><code>${escapeHtml(relationship.id)}</code></td>
+          <td>
+            <select data-relationship-from="${escapeHtml(relationship.id)}">${fromOptions}</select>
+          </td>
+          <td>
+            <select data-relationship-to="${escapeHtml(relationship.id)}">${toOptions}</select>
+          </td>
+          <td>
+            <select data-relationship-type="${escapeHtml(relationship.id)}">
+              ${relationshipTypeOptions(relationship.type)}
+            </select>
+            <input
+              class="cell-input relationship-label-input"
+              data-relationship-label="${escapeHtml(relationship.id)}"
+              value="${escapeHtml(relationship.label ?? '')}"
+              placeholder="Optional label"
+            />
+          </td>
+          <td>
+            <label class="lock-toggle">
+              <input
+                type="checkbox"
+                data-relationship-directed="${escapeHtml(relationship.id)}"
+                ${relationship.directed ? 'checked' : ''}
+              />
+              Directed
+            </label>
+          </td>
+          <td>
+            <input
+              class="cell-input relationship-weight-input"
+              type="number"
+              step="any"
+              data-relationship-weight="${escapeHtml(relationship.id)}"
+              value="${relationship.weight === undefined ? '' : escapeHtml(String(relationship.weight))}"
+              placeholder="—"
+            />
+          </td>
+          <td class="relationship-source">${renderRelationshipSource(index)}</td>
+          <td>
+            <div class="relationship-actions">
+              <button
+                class="icon-button"
+                type="button"
+                data-save-relationship="${escapeHtml(relationship.id)}"
+                title="Save relationship"
+              >✓</button>
+              <button
+                class="icon-button danger-text"
+                type="button"
+                data-remove-relationship="${escapeHtml(relationship.id)}"
+                title="Remove relationship"
+              >×</button>
+            </div>
+          </td>
+        </tr>
+      `
+    })
+    .join('')
+}
+
+function renderRelationships(content: HTMLElement): void {
+  if (!project) return
+
+  const studentOptions = project.students
+    .map((student) => optionHtml(student.id, studentOptionLabel(student), false))
+    .join('')
+  const canAdd = project.students.length >= 2
+
+  content.innerHTML = `
+    <div class="relationship-stack">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Explicit relationship records</p>
+            <h2>Relationships</h2>
+          </div>
+          <span class="schema-badge">${project.relationships?.length ?? 0} edges</span>
+        </div>
+        <p>
+          This workspace shows only relationships explicitly supplied by a teacher/import or clearly
+          marked synthetic data. ClassGraph does not infer friendship, conflict, compatibility,
+          social status, or peer influence from grades, participation, demographics, attendance,
+          names, or seating history.
+        </p>
+
+        <form id="add-relationship-form" class="relationship-form">
+          <label>
+            From
+            <select name="fromStudentId" ${canAdd ? '' : 'disabled'}>${studentOptions}</select>
+          </label>
+          <label>
+            To
+            <select name="toStudentId" ${canAdd ? '' : 'disabled'}>${studentOptions}</select>
+          </label>
+          <label>
+            Type
+            <select name="type" ${canAdd ? '' : 'disabled'}>
+              ${relationshipTypeOptions('works-well-with')}
+            </select>
+          </label>
+          <label>
+            Label
+            <input name="label" placeholder="Optional" ${canAdd ? '' : 'disabled'} />
+          </label>
+          <label>
+            Weight
+            <input name="weight" type="number" step="any" placeholder="Optional" ${canAdd ? '' : 'disabled'} />
+          </label>
+          <label class="lock-toggle relationship-directed-control">
+            <input name="directed" type="checkbox" ${canAdd ? '' : 'disabled'} />
+            Directed
+          </label>
+          <button class="primary compact" type="submit" ${canAdd ? '' : 'disabled'}>
+            Add relationship
+          </button>
+        </form>
+        ${canAdd ? '' : '<p class="report-note">Add at least two students before recording a relationship.</p>'}
+      </article>
+
+      <article class="panel">
+        <div class="analysis-toolbar">
+          <div>
+            <p class="eyebrow">Accessible table</p>
+            <h2>Recorded edges and sources</h2>
+          </div>
+          <label class="compact-label">
+            Type filter
+            <select id="relationship-type-filter">
+              ${optionHtml('all', 'All types', selectedRelationshipTypeFilter === 'all')}
+              ${relationshipTypeOptions(
+                selectedRelationshipTypeFilter === 'all'
+                  ? undefined
+                  : selectedRelationshipTypeFilter,
+              )}
+            </select>
+          </label>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table relationship-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Type / label</th>
+                <th>Direction</th>
+                <th>Weight</th>
+                <th>Provenance</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${renderRelationshipRows()}
+            </tbody>
+          </table>
+        </div>
+        <p class="analysis-footnote">
+          Undirected A↔B and B↔A records with the same relationship meaning are treated as duplicates.
+          Directed A→B and B→A are distinct. Missing relationship records are never reconstructed.
+        </p>
+      </article>
+    </div>
+  `
+
+  bindRelationshipEvents()
+}
+
+function readRelationshipField<T extends HTMLInputElement | HTMLSelectElement>(
+  selector: string,
+  relationshipId: string,
+): T | null {
+  return document.querySelector<T>(`[${selector}="${CSS.escape(relationshipId)}"]`)
+}
+
+function bindRelationshipEvents(): void {
+  document
+    .querySelector<HTMLSelectElement>('#relationship-type-filter')
+    ?.addEventListener('change', (event) => {
+      const value = (event.currentTarget as HTMLSelectElement).value
+      selectedRelationshipTypeFilter =
+        value === 'all' ? 'all' : (value as RelationshipType)
+      renderWorkspace()
+    })
+
+  document
+    .querySelector<HTMLFormElement>('#add-relationship-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const data = new FormData(event.currentTarget as HTMLFormElement)
+      const fromStudentId = asString(data, 'fromStudentId')
+      const toStudentId = asString(data, 'toStudentId')
+      const type = asString(data, 'type') as RelationshipType
+      const label = asString(data, 'label')
+      const weight = optionalNumber(asString(data, 'weight'))
+      const directed = data.get('directed') === 'on'
+
+      void mutateProject({
+        type: 'add-relationship',
+        relationship: {
+          id: relationshipRecordId(),
+          fromStudentId,
+          toStudentId,
+          type,
+          ...(label ? { label } : {}),
+          ...(directed ? { directed: true } : {}),
+          ...(weight !== undefined ? { weight } : {}),
+        },
+      })
+    })
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-save-relationship]')) {
+    button.addEventListener('click', () => {
+      const relationshipId = button.dataset.saveRelationship
+      if (!relationshipId) return
+
+      const from = readRelationshipField<HTMLSelectElement>(
+        'data-relationship-from',
+        relationshipId,
+      )
+      const to = readRelationshipField<HTMLSelectElement>('data-relationship-to', relationshipId)
+      const typeSelect = readRelationshipField<HTMLSelectElement>(
+        'data-relationship-type',
+        relationshipId,
+      )
+      const label = readRelationshipField<HTMLInputElement>(
+        'data-relationship-label',
+        relationshipId,
+      )
+      const directed = readRelationshipField<HTMLInputElement>(
+        'data-relationship-directed',
+        relationshipId,
+      )
+      const weight = readRelationshipField<HTMLInputElement>(
+        'data-relationship-weight',
+        relationshipId,
+      )
+
+      void mutateProject({
+        type: 'update-relationship',
+        relationshipId,
+        patch: {
+          fromStudentId: from?.value ?? '',
+          toStudentId: to?.value ?? '',
+          type: (typeSelect?.value ?? 'custom') as RelationshipType,
+          label: label?.value.trim() || null,
+          directed: directed?.checked ?? false,
+          weight: weight?.value.trim() ? Number(weight.value) : null,
+        },
+      })
+    })
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-remove-relationship]')) {
+    button.addEventListener('click', () => {
+      const relationshipId = button.dataset.removeRelationship
+      if (!relationshipId) return
+      if (!window.confirm(`Remove relationship ${relationshipId}?`)) return
+      void mutateProject({ type: 'remove-relationship', relationshipId })
+    })
+  }
+}
+
 function renderGraphs(content: HTMLElement): void {
   if (!project) return
 
