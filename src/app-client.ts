@@ -495,7 +495,8 @@ interface AssistanceRunResponseView {
   proposal: AssistanceProposalView
 }
 
-type WorkspaceView = 'overview' | 'students' | 'graphs' | 'relationships' | 'seating' | 'assistance' | 'reports'
+type WorkspaceView =
+  'overview' | 'students' | 'graphs' | 'relationships' | 'seating' | 'assistance' | 'reports'
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
 type SyntheticDraftMetric =
   | {
@@ -3133,7 +3134,7 @@ function renderAssistanceDisclosure(request: AssistanceRequestView): string {
         </div>
         <span class="schema-badge">${escapeHtml(
           disclosure.mode === 'network'
-            ? disclosure.providerLabel ?? 'Network provider'
+            ? (disclosure.providerLabel ?? 'Network provider')
             : 'Offline · no send',
         )}</span>
       </div>
@@ -3175,7 +3176,9 @@ function assistanceDraftText(proposal: AssistanceProposalView): string {
 }
 
 function renderAssistanceProposal(proposal: AssistanceProposalView): string {
-  const provider = proposal.providerLabel ? ` · ${escapeHtml(proposal.providerLabel)}` : ' · offline'
+  const provider = proposal.providerLabel
+    ? ` · ${escapeHtml(proposal.providerLabel)}`
+    : ' · offline'
   let body = ''
 
   if (proposal.task === 'planning-rule-suggestions') {
@@ -3276,11 +3279,16 @@ async function applyAssistanceRuleSuggestions(): Promise<void> {
     renderWorkspace()
     showStatus(`Applied ${selected.length} explicitly selected planning rule(s).`, 'success')
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not apply the selected rule suggestions.')
+    showStatus(
+      error instanceof Error ? error.message : 'Could not apply the selected rule suggestions.',
+    )
   }
 }
 
-async function runAssistanceFromWorkspace(mode: 'offline' | 'network', confirmSend = false): Promise<void> {
+async function runAssistanceFromWorkspace(
+  mode: 'offline' | 'network',
+  confirmSend = false,
+): Promise<void> {
   if (!project) return
   const sourceProject = project
   clearStatus()
@@ -3444,10 +3452,12 @@ async function renderAssistance(content: HTMLElement): Promise<void> {
     </div>
   `
 
-  document.querySelector<HTMLFormElement>('#assistance-form')?.addEventListener('submit', (event) => {
-    event.preventDefault()
-    void runAssistanceFromWorkspace('offline')
-  })
+  document
+    .querySelector<HTMLFormElement>('#assistance-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      void runAssistanceFromWorkspace('offline')
+    })
 
   document
     .querySelector<HTMLButtonElement>('#assistance-preview-network')
@@ -3464,12 +3474,16 @@ async function renderAssistance(content: HTMLElement): Promise<void> {
     if (confirmation?.checked) void runAssistanceFromWorkspace('network', true)
   })
 
-  document.querySelector<HTMLButtonElement>('#assistance-copy-draft')?.addEventListener('click', () => {
-    void copyAssistanceDraft()
-  })
-  document.querySelector<HTMLButtonElement>('#assistance-apply-rules')?.addEventListener('click', () => {
-    void applyAssistanceRuleSuggestions()
-  })
+  document
+    .querySelector<HTMLButtonElement>('#assistance-copy-draft')
+    ?.addEventListener('click', () => {
+      void copyAssistanceDraft()
+    })
+  document
+    .querySelector<HTMLButtonElement>('#assistance-apply-rules')
+    ?.addEventListener('click', () => {
+      void applyAssistanceRuleSuggestions()
+    })
 }
 
 function relationshipTypeOptions(selected?: RelationshipType): string {
