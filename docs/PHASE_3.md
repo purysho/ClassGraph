@@ -67,7 +67,7 @@ A later packaging phase may bundle an appropriately licensed Unicode font only a
 ## Completion checklist
 
 - [x] P3.0 — Phase 3 branch, recovery log, architecture/export contract
-- [ ] P3.1 — Canonical report snapshot, safe filenames, analysis/seating JSON exports
+- [x] P3.1 — Canonical report snapshot, safe filenames, analysis/seating JSON exports
 - [ ] P3.2 — DOCX report generator and structural tests
 - [ ] P3.3 — PDF report generator and landscape seating-plan export
 - [ ] P3.4 — Local export endpoints and Reports workspace UI
@@ -89,26 +89,49 @@ A later packaging phase may bundle an appropriately licensed Unicode font only a
 
 ## P3.1 — Portable export model and JSON
 
-Implement first, before document formatting:
+**Status:** Complete.
 
-- `src/report-model.ts` — deterministic report/export snapshot;
-- `src/export-json.ts` — analysis, seating-plan, and hand-back JSON envelopes;
-- safe filename helper;
-- provenance-kind summary;
-- limitations list derived only from project state;
-- explicit distinction between:
-  - imported/teacher/observed source fields;
-  - derived descriptive analysis;
-  - synthetic data;
-  - approved planning decisions.
+Implemented:
 
-Acceptance:
+- `src/report-model.ts`
+  - deterministic report snapshot;
+  - roster references with optional names;
+  - descriptive analysis reuse from the Phase 1 analysis core;
+  - provenance-kind counts;
+  - sorted synthetic provenance paths;
+  - deterministic limitations based only on stored project state;
+  - room/planning state copied without mutation.
 
-- same validated project -> byte-for-byte stable JSON except explicitly supplied export timestamp if used;
-- analysis export contains no invented student values;
-- seating export contains only persisted/approved planning, never transient candidates;
-- filenames cannot escape or create invalid download paths;
-- unsupported hand-back fields are preserved in an explicit extension/passthrough area or rejected with a readable error.
+- `src/export-json.ts`
+  - `classgraph-analysis` v1 envelope;
+  - `classgraph-seating-plan` v1 envelope;
+  - deterministic pretty JSON serialization;
+  - planning/room provenance subset;
+  - persisted assignments/rules/groups only;
+  - safe Unicode-preserving cross-platform filename stems;
+  - traversal separators, control characters and Windows reserved names handled explicitly.
+
+Important semantics verified:
+
+- zero and `false` remain recorded values;
+- explicit `null` remains missing;
+- absent metric properties remain not-recorded;
+- no missing value is imputed;
+- synthetic provenance remains explicit;
+- seating-plan export cannot contain transient candidate state because candidates are never part of the canonical project;
+- leading traversal dots/path separators are removed from download names.
+
+Verified P3.1 head: `c8f844783e1a81e28bc7bf9bf06361385601e3dd`.
+
+Read-only Phase 3 check run `36902721626`:
+
+- `npm ci`: **success**;
+- `npm run format:check`: **success**;
+- `npm run lint`: **success**;
+- `npm run typecheck`: **success**;
+- `npm test`: **success — 82/82 tests across 16 files**;
+- `npm run build`: **success**;
+- `npm audit --omit=dev --audit-level=high`: **success**.
 
 ## P3.2 — DOCX report
 
@@ -249,4 +272,4 @@ Gate 3 passes only when:
 
 ## Next exact step
 
-Implement **P3.1 — canonical report snapshot + safe/versioned JSON exports** before adding DOCX/PDF formatting.
+Implement **P3.2 — DOCX report generation** from the canonical report snapshot. Add the export dependency only after lockfile/audit review, keep report wording descriptive, and structurally test generated OOXML rather than relying on visual inspection alone.
