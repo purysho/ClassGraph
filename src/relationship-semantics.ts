@@ -13,13 +13,7 @@ export function canonicalRelationshipKey(relationship: RelationshipRecord): stri
     ;[fromStudentId, toStudentId] = [toStudentId, fromStudentId]
   }
 
-  const customLabel = relationship.type === 'custom' ? relationship.label?.trim() ?? '' : ''
+  const customLabel = relationship.type === 'custom' ? (relationship.label?.trim() ?? '') : ''
 
-  return JSON.stringify([
-    relationship.type,
-    directed,
-    fromStudentId,
-    toStudentId,
-    customLabel,
-  ])
+  return JSON.stringify([relationship.type, directed, fromStudentId, toStudentId, customLabel])
 }
