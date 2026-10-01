@@ -122,7 +122,7 @@ describe('offline assistance drafts', () => {
         toStudentId: 's2',
         type: 'avoid-pairing',
       },
-      'teacher-entered',
+      '2026-10-02T00:01:00.000Z',
     )
     project = addRelationship(
       project,
@@ -132,7 +132,7 @@ describe('offline assistance drafts', () => {
         toStudentId: 's3',
         type: 'friendship',
       },
-      'teacher-entered',
+      '2026-10-02T00:01:00.000Z',
     )
 
     const proposal = draftPlanningRuleSuggestions('request-rules', project)
