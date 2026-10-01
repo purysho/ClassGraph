@@ -90,5 +90,4 @@ describe('room grid service', () => {
     expect(project.room?.front).toBe('bottom')
     expect(project.provenance['/room/front']?.kind).toBe('teacher-entered')
   })
-
 })

@@ -96,10 +96,7 @@ function optionalString(record: Record<string, unknown>, key: string): string | 
   return value
 }
 
-function optionalPositiveInteger(
-  record: Record<string, unknown>,
-  key: string,
-): number | undefined {
+function optionalPositiveInteger(record: Record<string, unknown>, key: string): number | undefined {
   const value = record[key]
   if (value === undefined) return undefined
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {

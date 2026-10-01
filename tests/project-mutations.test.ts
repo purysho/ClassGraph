@@ -150,11 +150,7 @@ describe('project mutations', () => {
       { type: 'add-student', student: { id: 's1' } },
       t1,
     )
-    project = applyProjectMutation(
-      project,
-      { type: 'add-student', student: { id: 's2' } },
-      t1,
-    )
+    project = applyProjectMutation(project, { type: 'add-student', student: { id: 's2' } }, t1)
     project = applyProjectMutation(
       project,
       { type: 'set-grid-room', rows: 2, columns: 2, front: 'bottom' },
@@ -214,5 +210,4 @@ describe('project mutations', () => {
       ),
     ).toThrow()
   })
-
 })

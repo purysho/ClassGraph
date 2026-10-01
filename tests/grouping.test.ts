@@ -62,11 +62,7 @@ describe('grouping candidate engine', () => {
 
   it('balances an explicit metric and ignores missing values', () => {
     let project = baseProject()
-    project = addMetricDefinition(
-      project,
-      { key: 'score', label: 'Score', kind: 'number' },
-      t0,
-    )
+    project = addMetricDefinition(project, { key: 'score', label: 'Score', kind: 'number' }, t0)
     for (const [id, value] of [
       ['s1', 90],
       ['s2', 80],
@@ -95,11 +91,7 @@ describe('grouping candidate engine', () => {
 
   it('rejects unsupported balance metrics', () => {
     let project = baseProject()
-    project = addMetricDefinition(
-      project,
-      { key: 'note', label: 'Note', kind: 'text' },
-      t0,
-    )
+    project = addMetricDefinition(project, { key: 'note', label: 'Note', kind: 'text' }, t0)
 
     expect(() =>
       generateGroupingCandidates(project, {

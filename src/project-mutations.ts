@@ -242,12 +242,6 @@ export function applyProjectMutation(
     case 'replace-planning-groups':
       return replacePlanningGroups(project, command.groups, command.source, now)
     case 'set-group-student-locked':
-      return setGroupStudentLocked(
-        project,
-        command.groupId,
-        command.studentId,
-        command.locked,
-        now,
-      )
+      return setGroupStudentLocked(project, command.groupId, command.studentId, command.locked, now)
   }
 }

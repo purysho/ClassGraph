@@ -198,7 +198,8 @@ export function generateGroupingCandidates(
     const candidate = buildCandidate(project, options, seed, attempt)
     const signature = groupSignature(candidate.groups)
     const previous = distinct.get(signature)
-    if (!previous || candidate.totalPenalty < previous.totalPenalty) distinct.set(signature, candidate)
+    if (!previous || candidate.totalPenalty < previous.totalPenalty)
+      distinct.set(signature, candidate)
   }
 
   const candidates = [...distinct.values()]

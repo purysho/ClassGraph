@@ -194,7 +194,6 @@ const roomSchema = z
     }
   })
 
-
 export const planningAssignmentSchema = z.object({
   studentId: z.string().min(1),
   seatId: z.string().min(1),

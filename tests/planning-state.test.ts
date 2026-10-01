@@ -85,9 +85,7 @@ describe('planning state', () => {
     )
 
     expect(project.planning?.assignments).toHaveLength(2)
-    expect(project.provenance['/planning/assignments']?.source).toBe(
-      'accepted-seating-candidate',
-    )
+    expect(project.provenance['/planning/assignments']?.source).toBe('accepted-seating-candidate')
   })
 
   it('stores groups and supports per-student group locks', () => {

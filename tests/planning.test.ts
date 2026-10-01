@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { addMetricDefinition, setStudentMetricValue } from '../src/metrics.js'
-import { addPlanningRule, assignStudentToSeat, setSeatAssignmentLocked } from '../src/planning-state.js'
+import {
+  addPlanningRule,
+  assignStudentToSeat,
+  setSeatAssignmentLocked,
+} from '../src/planning-state.js'
 import { generateSeatingCandidates } from '../src/planning.js'
 import { setGridRoom, setSeatTags } from '../src/room.js'
 import { addStudent, createEmptyProject } from '../src/workspace.js'

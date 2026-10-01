@@ -117,15 +117,16 @@ function deterministicOrder<T>(
     const leftKey = identity(left)
     const rightKey = identity(right)
     const difference =
-      deterministicUnit(seed, `${key}:${leftKey}`) -
-      deterministicUnit(seed, `${key}:${rightKey}`)
+      deterministicUnit(seed, `${key}:${leftKey}`) - deterministicUnit(seed, `${key}:${rightKey}`)
     return difference || leftKey.localeCompare(rightKey)
   })
 }
 
-function applyRequiredAssignments(
-  project: ClassGraphProject,
-): { assignments: AssignmentMap; lockedStudents: Set<string>; reasons: string[] } {
+function applyRequiredAssignments(project: ClassGraphProject): {
+  assignments: AssignmentMap
+  lockedStudents: Set<string>
+  reasons: string[]
+} {
   const assignments: AssignmentMap = new Map()
   const seatOccupants = new Map<string, string>()
   const lockedStudents = new Set<string>()
@@ -178,7 +179,8 @@ function preflightReasons(project: ClassGraphProject): string[] {
   reasons.push(...required.reasons)
 
   for (const [studentId, seatId] of required.assignments) {
-    if (!studentIds.has(studentId)) reasons.push(`Required assignment references unknown student ${studentId}.`)
+    if (!studentIds.has(studentId))
+      reasons.push(`Required assignment references unknown student ${studentId}.`)
     if (!seatMap.get(seatId)?.enabled) reasons.push(`Required seat ${seatId} is not enabled.`)
   }
 
@@ -358,16 +360,20 @@ function candidateExplanation(
     explanation.push('All hard constraints are satisfied.')
   }
   if (objectives.length === 0) {
-    explanation.push('No soft objectives are selected; candidates differ only by seeded arrangement.')
+    explanation.push(
+      'No soft objectives are selected; candidates differ only by seeded arrangement.',
+    )
     return explanation
   }
 
   const ordered = [...objectives].sort((a, b) => b.penalty - a.penalty)
   explanation.push(
-    ...ordered.slice(0, 3).map(
-      (result) =>
-        `${result.kind} (${result.ruleId}) penalty ${result.penalty.toFixed(2)}: ${result.details}`,
-    ),
+    ...ordered
+      .slice(0, 3)
+      .map(
+        (result) =>
+          `${result.kind} (${result.ruleId}) penalty ${result.penalty.toFixed(2)}: ${result.details}`,
+      ),
   )
   return explanation
 }
@@ -459,7 +465,8 @@ export function generateSeatingCandidates(
     if (candidate) {
       const signature = assignmentSignature(candidate.assignments)
       const previous = distinct.get(signature)
-      if (!previous || candidate.totalPenalty < previous.totalPenalty) distinct.set(signature, candidate)
+      if (!previous || candidate.totalPenalty < previous.totalPenalty)
+        distinct.set(signature, candidate)
       continue
     }
 
@@ -487,7 +494,8 @@ export function generateSeatingCandidates(
       if (student && seat) map.set(student.id, seat.id)
     }
     for (const result of evaluateHardConstraints(project, map)) {
-      if (!result.satisfied) failureCounts.set(result.ruleId, (failureCounts.get(result.ruleId) ?? 0) + 1)
+      if (!result.satisfied)
+        failureCounts.set(result.ruleId, (failureCounts.get(result.ruleId) ?? 0) + 1)
     }
   }
 

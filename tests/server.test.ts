@@ -407,5 +407,4 @@ describe('local app server', () => {
       2, 2, 2,
     ])
   })
-
 })

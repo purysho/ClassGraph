@@ -1922,7 +1922,6 @@ async function saveInputMetric(studentId: string, definition: MetricDefinition):
   })
 }
 
-
 function studentLabel(studentId: string): string {
   const student = project?.students.find((item) => item.id === studentId)
   return student?.displayName ?? studentId
@@ -1972,7 +1971,13 @@ function renderSeating(content: HTMLElement): void {
             Front of room
             <select name="front">
               ${['top', 'bottom', 'left', 'right']
-                .map((value) => optionHtml(value, value[0]!.toUpperCase() + value.slice(1), (room?.front ?? 'top') === value))
+                .map((value) =>
+                  optionHtml(
+                    value,
+                    value[0]!.toUpperCase() + value.slice(1),
+                    (room?.front ?? 'top') === value,
+                  ),
+                )
                 .join('')}
             </select>
           </label>
@@ -2162,7 +2167,10 @@ function renderRuleEditor(): string {
   if (!project) return ''
   const rules = project.planning?.rules ?? []
   const studentOptions = project.students
-    .map((student) => `<option value="${escapeHtml(student.id)}">${escapeHtml(student.displayName ?? student.id)}</option>`)
+    .map(
+      (student) =>
+        `<option value="${escapeHtml(student.id)}">${escapeHtml(student.displayName ?? student.id)}</option>`,
+    )
     .join('')
   const seatOptions = (project.room?.seats ?? [])
     .filter((seat) => seat.enabled)
@@ -2170,7 +2178,9 @@ function renderRuleEditor(): string {
     .join('')
   const metricOptions = project.metricDefinitions
     .filter((metric) => metric.kind === 'number' || metric.kind === 'ordinal')
-    .map((metric) => `<option value="${escapeHtml(metric.key)}">${escapeHtml(metric.label)}</option>`)
+    .map(
+      (metric) => `<option value="${escapeHtml(metric.key)}">${escapeHtml(metric.label)}</option>`,
+    )
     .join('')
 
   const ruleRows = rules
@@ -2311,7 +2321,9 @@ function renderGroupingGenerator(seed: string): string {
   if (!project) return ''
   const numericOptions = project.metricDefinitions
     .filter((metric) => metric.kind === 'number' || metric.kind === 'ordinal')
-    .map((metric) => `<option value="${escapeHtml(metric.key)}">${escapeHtml(metric.label)}</option>`)
+    .map(
+      (metric) => `<option value="${escapeHtml(metric.key)}">${escapeHtml(metric.label)}</option>`,
+    )
     .join('')
 
   return `
@@ -2520,8 +2532,13 @@ function bindSeatingEvents(): void {
     button.addEventListener('click', () => {
       const seatId = button.dataset.saveSeatTags
       if (!seatId) return
-      const input = document.querySelector<HTMLInputElement>(`[data-seat-tags="${CSS.escape(seatId)}"]`)
-      const tags = (input?.value ?? '').split(',').map((item) => item.trim()).filter(Boolean)
+      const input = document.querySelector<HTMLInputElement>(
+        `[data-seat-tags="${CSS.escape(seatId)}"]`,
+      )
+      const tags = (input?.value ?? '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
       void mutateProject({ type: 'set-seat-tags', seatId, tags })
     })
   }
@@ -2547,11 +2564,13 @@ function bindSeatingEvents(): void {
     })
   }
 
-  document.querySelector<HTMLFormElement>('#planning-rule-form')?.addEventListener('submit', (event) => {
-    event.preventDefault()
-    const rule = planningRuleFromForm(new FormData(event.currentTarget as HTMLFormElement))
-    if (rule) void mutateProject({ type: 'add-planning-rule', rule })
-  })
+  document
+    .querySelector<HTMLFormElement>('#planning-rule-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const rule = planningRuleFromForm(new FormData(event.currentTarget as HTMLFormElement))
+      if (rule) void mutateProject({ type: 'add-planning-rule', rule })
+    })
 
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-remove-rule]')) {
     button.addEventListener('click', () => {
@@ -2560,14 +2579,20 @@ function bindSeatingEvents(): void {
     })
   }
 
-  document.querySelector<HTMLFormElement>('#seating-generator-form')?.addEventListener('submit', (event) => {
-    event.preventDefault()
-    void generateSeating(new FormData(event.currentTarget as HTMLFormElement))
-  })
+  document
+    .querySelector<HTMLFormElement>('#seating-generator-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      void generateSeating(new FormData(event.currentTarget as HTMLFormElement))
+    })
 
-  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-apply-seat-candidate]')) {
+  for (const button of document.querySelectorAll<HTMLButtonElement>(
+    '[data-apply-seat-candidate]',
+  )) {
     button.addEventListener('click', () => {
-      const candidate = seatingGeneration?.candidates.find((item) => item.id === button.dataset.applySeatCandidate)
+      const candidate = seatingGeneration?.candidates.find(
+        (item) => item.id === button.dataset.applySeatCandidate,
+      )
       if (!candidate) return
       void mutateProject({
         type: 'replace-seat-assignments',
@@ -2577,14 +2602,20 @@ function bindSeatingEvents(): void {
     })
   }
 
-  document.querySelector<HTMLFormElement>('#grouping-generator-form')?.addEventListener('submit', (event) => {
-    event.preventDefault()
-    void generateGrouping(new FormData(event.currentTarget as HTMLFormElement))
-  })
+  document
+    .querySelector<HTMLFormElement>('#grouping-generator-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      void generateGrouping(new FormData(event.currentTarget as HTMLFormElement))
+    })
 
-  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-apply-group-candidate]')) {
+  for (const button of document.querySelectorAll<HTMLButtonElement>(
+    '[data-apply-group-candidate]',
+  )) {
     button.addEventListener('click', () => {
-      const candidate = groupingGeneration?.candidates.find((item) => item.id === button.dataset.applyGroupCandidate)
+      const candidate = groupingGeneration?.candidates.find(
+        (item) => item.id === button.dataset.applyGroupCandidate,
+      )
       if (!candidate) return
       void mutateProject({
         type: 'replace-planning-groups',

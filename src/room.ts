@@ -1,4 +1,10 @@
-import type { ClassGraphProject, ProvenanceEntry, RoomDefinition, RoomFront, SeatDefinition } from './model.js'
+import type {
+  ClassGraphProject,
+  ProvenanceEntry,
+  RoomDefinition,
+  RoomFront,
+  SeatDefinition,
+} from './model.js'
 import { classGraphProjectSchema } from './schema.js'
 
 export const MAX_GRID_SEATS = 1000

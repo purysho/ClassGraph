@@ -1243,7 +1243,6 @@ select:focus {
   }
 }
 
-
 .phase2-stack {
   display: grid;
   gap: 16px;
@@ -1566,7 +1565,6 @@ select:focus {
     justify-self: center;
   }
 }
-
 
 .unassigned-strip {
   margin: 12px 0 16px;
