@@ -159,6 +159,7 @@ Gate 5 verification: run `36917677220` at head `f7700b4ddf832329771f15af4da70b5b
 - static review of all nine assistance modules found no `console.*`, browser storage, or telemetry writes;
 - `package.json` and `package-lock.json` are unchanged from the Phase 4 head, so Phase 5 adds **zero runtime dependencies** and no provider SDK/assets.
 - size review against the Phase 4 head: `src/` grew by **66,688 bytes**, the nine assistance core modules total **42,062 bytes**, and `src/app-client.ts + app/styles.css` grew by **23,029 bytes**; this is source-only growth with no framework/provider-SDK payload.
+
 ## Gate 5 acceptance
 
 - Assistance is optional and core workflows remain usable with no provider.
