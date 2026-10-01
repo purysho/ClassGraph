@@ -99,4 +99,59 @@ describe('local app server', () => {
 
     expect(response.status).toBe(413)
   })
+
+  it('creates a manual project through the local API', async () => {
+    const base = await startServer()
+    const response = await fetch(`${base}/api/project/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId: 'manual-5a',
+        title: 'Grade 5A English',
+        classInfo: { subject: 'English', gradeOrLevel: 'Grade 5' },
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      project: { title: string; students: unknown[]; provenance: Record<string, { kind: string }> }
+    }
+    expect(body.project.title).toBe('Grade 5A English')
+    expect(body.project.students).toEqual([])
+    expect(body.project.provenance['/title']?.kind).toBe('teacher-entered')
+  })
+
+  it('creates a reproducible basic synthetic project through the local API', async () => {
+    const base = await startServer()
+    const request = {
+      projectId: 'synthetic-36',
+      title: 'Synthetic Class',
+      studentCount: 36,
+      seed: 'same-seed',
+    }
+
+    const first = await fetch(`${base}/api/synthetic/basic`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    })
+    const second = await fetch(`${base}/api/synthetic/basic`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    })
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    const firstBody = (await first.json()) as {
+      project: { students: unknown[]; metricDefinitions: unknown[] }
+    }
+    const secondBody = (await second.json()) as {
+      project: { students: unknown[]; metricDefinitions: unknown[] }
+    }
+    expect(firstBody.project.students).toHaveLength(36)
+    expect(firstBody.project.metricDefinitions).toHaveLength(2)
+    expect(firstBody.project.students).toEqual(secondBody.project.students)
+  })
+
 })
