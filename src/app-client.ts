@@ -31,6 +31,154 @@ interface StudentRecord {
   metrics: Record<string, MetricValue>
 }
 
+interface SeatRecord {
+  id: string
+  row?: number
+  column?: number
+  x?: number
+  y?: number
+  enabled: boolean
+  tags?: string[]
+}
+
+interface RoomRecord {
+  layout: 'grid' | 'custom'
+  rows?: number
+  columns?: number
+  front?: 'top' | 'bottom' | 'left' | 'right'
+  seats: SeatRecord[]
+}
+
+interface PlanningSeatAssignment {
+  studentId: string
+  seatId: string
+  locked: boolean
+}
+
+interface PlanningGroup {
+  id: string
+  label?: string
+  studentIds: string[]
+  lockedStudentIds?: string[]
+}
+
+type PlanningRule =
+  | {
+      id: string
+      label?: string
+      strength: 'hard'
+      kind: 'fixed-seat'
+      studentId: string
+      seatId: string
+    }
+  | {
+      id: string
+      label?: string
+      strength: 'hard'
+      kind: 'keep-apart'
+      studentAId: string
+      studentBId: string
+      neighbourMode?: 'orthogonal' | 'king'
+    }
+  | {
+      id: string
+      label?: string
+      strength: 'hard'
+      kind: 'seat-tag-required'
+      studentId: string
+      tag: string
+    }
+  | {
+      id: string
+      label?: string
+      strength: 'soft'
+      kind: 'prefer-together' | 'prefer-apart'
+      studentAId: string
+      studentBId: string
+      weight?: number
+    }
+  | {
+      id: string
+      label?: string
+      strength: 'soft'
+      kind: 'prefer-seat-tag'
+      studentId: string
+      tag: string
+      weight?: number
+    }
+  | {
+      id: string
+      label?: string
+      strength: 'soft'
+      kind: 'balance-metric-by-row'
+      metricKey: string
+      weight?: number
+    }
+
+interface PlanningRecord {
+  ruleSchemaVersion?: '1.0'
+  seed?: string
+  selectedMetricKeys?: string[]
+  assignments?: PlanningSeatAssignment[]
+  rules?: PlanningRule[]
+  groups?: PlanningGroup[]
+  approvedCandidateId?: string
+}
+
+interface HardConstraintView {
+  ruleId: string
+  kind: string
+  satisfied: boolean
+  message: string
+}
+
+interface ObjectiveView {
+  ruleId: string
+  kind: string
+  penalty: number
+  weight: number
+  details: string
+}
+
+interface SeatingCandidateView {
+  id: string
+  seed: string
+  assignments: PlanningSeatAssignment[]
+  feasible: boolean
+  hardConstraintResults: HardConstraintView[]
+  objectiveResults: ObjectiveView[]
+  totalPenalty: number
+  explanation: string[]
+}
+
+interface SeatingGenerationView {
+  seed: string
+  candidates: SeatingCandidateView[]
+  infeasibleReasons: string[]
+  attempts: number
+}
+
+interface GroupObjectiveView {
+  kind: 'size-balance' | 'metric-balance'
+  penalty: number
+  details: string
+}
+
+interface GroupingCandidateView {
+  id: string
+  seed: string
+  groups: PlanningGroup[]
+  objectiveResults: GroupObjectiveView[]
+  totalPenalty: number
+  explanation: string[]
+}
+
+interface GroupingGenerationView {
+  seed: string
+  candidates: GroupingCandidateView[]
+  attempts: number
+}
+
 interface ClassGraphProject {
   schemaVersion: string
   projectId: string
@@ -43,6 +191,8 @@ interface ClassGraphProject {
   }
   metricDefinitions: MetricDefinition[]
   students: StudentRecord[]
+  room?: RoomRecord
+  planning?: PlanningRecord
   provenance: Record<string, ProvenanceEntry>
 }
 
@@ -124,7 +274,7 @@ interface ScatterView {
   omittedCount: number
 }
 
-type WorkspaceView = 'overview' | 'students' | 'graphs'
+type WorkspaceView = 'overview' | 'students' | 'graphs' | 'seating'
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
 type SyntheticDraftMetric =
   | {
@@ -174,6 +324,8 @@ let selectedProvenanceStudentId: string | null = null
 let selectedGraphMetricKey: string | null = null
 let selectedScatterX: string | null = null
 let selectedScatterY: string | null = null
+let seatingGeneration: SeatingGenerationView | null = null
+let groupingGeneration: GroupingGenerationView | null = null
 let syntheticDraftProjectId = ''
 let syntheticDraftTitle = 'Synthetic Class'
 let syntheticDraftStudentCount = 36
@@ -268,6 +420,8 @@ async function mutateProject(command: Record<string, unknown>): Promise<void> {
       command,
     })
     project = response.project
+    seatingGeneration = null
+    groupingGeneration = null
     renderWorkspace()
   } catch (error) {
     showStatus(error instanceof Error ? error.message : 'Could not update the project.')
@@ -935,7 +1089,7 @@ function renderWorkspace(): void {
           <button data-view="overview">Overview</button>
           <button data-view="students">Students</button>
           <button data-view="graphs">Graphs</button>
-          <button disabled title="Phase 2">Seating</button>
+          <button data-view="seating">Seating</button>
           <button disabled title="Phase 3">Reports</button>
         </nav>
 
@@ -968,7 +1122,12 @@ function renderWorkspace(): void {
     button.classList.toggle('active', button.dataset.view === activeView)
     button.addEventListener('click', () => {
       const nextView = button.dataset.view
-      if (nextView === 'overview' || nextView === 'students' || nextView === 'graphs') {
+      if (
+        nextView === 'overview' ||
+        nextView === 'students' ||
+        nextView === 'graphs' ||
+        nextView === 'seating'
+      ) {
         activeView = nextView
         renderWorkspace()
       }
@@ -1007,6 +1166,11 @@ function renderWorkspaceContent(): void {
 
   if (activeView === 'students') {
     renderStudents(content)
+    return
+  }
+
+  if (activeView === 'seating') {
+    renderSeating(content)
     return
   }
 
