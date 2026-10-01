@@ -391,7 +391,111 @@ interface ScatterView {
   omittedCount: number
 }
 
-type WorkspaceView = 'overview' | 'students' | 'graphs' | 'relationships' | 'seating' | 'reports'
+type AssistanceTaskView =
+  | 'synthetic-spec-draft'
+  | 'analysis-explanation'
+  | 'report-wording-draft'
+  | 'planning-rule-suggestions'
+
+interface AssistanceStatusView {
+  offlineAvailable: true
+  network: {
+    enabled: boolean
+    mode: 'network'
+    label?: string
+    endpointHost?: string
+  }
+}
+
+interface AssistanceContextItemView {
+  id: string
+  label: string
+  scope: string
+  content: unknown
+  containsStudentIds: boolean
+  containsDisplayNames: boolean
+  containsFreeText: boolean
+  syntheticOnly: boolean
+}
+
+interface AssistanceDisclosureView {
+  mode: 'offline' | 'network'
+  providerLabel?: string
+  items: AssistanceContextItemView[]
+  containsStudentLevelData: boolean
+  containsRealStudentData: boolean
+  containsStudentIds: boolean
+  containsDisplayNames: boolean
+  containsFreeText: boolean
+  requiresExplicitSend: boolean
+}
+
+interface AssistanceRequestView {
+  version: '1.0'
+  requestId: string
+  task: AssistanceTaskView
+  disclosure: AssistanceDisclosureView
+  payload: unknown
+}
+
+type AssistanceProposalView =
+  | {
+      version: '1.0'
+      proposalId: string
+      requestId: string
+      task: 'synthetic-spec-draft'
+      status: 'proposal'
+      providerLabel?: string
+      warnings: string[]
+      assumptions: string[]
+      specification: unknown
+    }
+  | {
+      version: '1.0'
+      proposalId: string
+      requestId: string
+      task: 'analysis-explanation'
+      status: 'proposal'
+      providerLabel?: string
+      warnings: string[]
+      assumptions: string[]
+      text: string
+      sourceMetricKeys: string[]
+      caveats: string[]
+    }
+  | {
+      version: '1.0'
+      proposalId: string
+      requestId: string
+      task: 'report-wording-draft'
+      status: 'proposal'
+      providerLabel?: string
+      warnings: string[]
+      assumptions: string[]
+      sections: Array<{ heading: string; text: string }>
+    }
+  | {
+      version: '1.0'
+      proposalId: string
+      requestId: string
+      task: 'planning-rule-suggestions'
+      status: 'proposal'
+      providerLabel?: string
+      warnings: string[]
+      assumptions: string[]
+      suggestions: Array<{
+        rule: PlanningRule
+        rationale: string
+        inputPaths: string[]
+      }>
+    }
+
+interface AssistanceRunResponseView {
+  request: AssistanceRequestView
+  proposal: AssistanceProposalView
+}
+
+type WorkspaceView = 'overview' | 'students' | 'graphs' | 'relationships' | 'seating' | 'assistance' | 'reports'
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
 type SyntheticDraftMetric =
   | {
@@ -447,6 +551,11 @@ let selectedScenarioLeftId: string | null = null
 let selectedScenarioRightId: string | null = null
 let seatingGeneration: SeatingGenerationView | null = null
 let groupingGeneration: GroupingGenerationView | null = null
+let assistanceStatusView: AssistanceStatusView | null = null
+let assistanceRequestView: AssistanceRequestView | null = null
+let assistanceProposalView: AssistanceProposalView | null = null
+let assistanceSelectedTask: AssistanceTaskView = 'analysis-explanation'
+let assistancePrompt = ''
 let syntheticDraftProjectId = ''
 let syntheticDraftTitle = 'Synthetic Class'
 let syntheticDraftStudentCount = 36
@@ -525,6 +634,12 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
+async function getJson<T>(path: string): Promise<T> {
+  const response = await fetch(path)
+  if (!response.ok) throw await responseError(response)
+  return (await response.json()) as T
+}
+
 async function postText<T>(path: string, body: string): Promise<T> {
   const response = await fetch(path, { method: 'POST', body })
   if (!response.ok) throw await responseError(response)
@@ -586,7 +701,7 @@ function renderSetup(): void {
           <p class="setup-note">Nothing is uploaded. Export JSON when you want a portable copy.</p>
         </div>
 
-        <div id="status" class="status" hidden></div>
+        <div id="status" class="status" role="status" aria-live="polite" hidden></div>
 
         <div class="setup-grid">
           <article class="setup-card">
@@ -716,7 +831,7 @@ function renderSyntheticBuilder(): void {
         <button id="back-to-setup" class="ghost compact" type="button">Back</button>
       </header>
 
-      <div id="status" class="status" hidden></div>
+      <div id="status" class="status" role="status" aria-live="polite" hidden></div>
 
       <section class="generator-grid">
         <article class="panel generator-config">
@@ -1187,6 +1302,9 @@ function openProject(nextProject: ClassGraphProject): void {
   project = nextProject
   activeView = 'overview'
   selectedProvenanceStudentId = null
+  assistanceRequestView = null
+  assistanceProposalView = null
+  assistanceStatusView = null
   renderWorkspace()
 }
 
@@ -1212,6 +1330,7 @@ function renderWorkspace(): void {
           <button data-view="graphs">Graphs</button>
           <button data-view="relationships">Relationships</button>
           <button data-view="seating">Seating</button>
+          <button data-view="assistance">Assistance</button>
           <button data-view="reports">Reports</button>
         </nav>
 
@@ -1234,7 +1353,7 @@ function renderWorkspace(): void {
           </div>
         </header>
 
-        <div id="status" class="status" hidden></div>
+        <div id="status" class="status" role="status" aria-live="polite" hidden></div>
         <section id="workspace-content"></section>
       </main>
     </div>
@@ -1250,6 +1369,7 @@ function renderWorkspace(): void {
         nextView === 'graphs' ||
         nextView === 'relationships' ||
         nextView === 'seating' ||
+        nextView === 'assistance' ||
         nextView === 'reports'
       ) {
         activeView = nextView
@@ -1300,6 +1420,11 @@ function renderWorkspaceContent(): void {
 
   if (activeView === 'seating') {
     renderSeating(content)
+    return
+  }
+
+  if (activeView === 'assistance') {
+    void renderAssistance(content)
     return
   }
 
@@ -2946,6 +3071,405 @@ function renderReports(content: HTMLElement): void {
       void downloadReportExport(path, fallback)
     })
   }
+}
+
+function assistanceTaskLabel(task: AssistanceTaskView): string {
+  switch (task) {
+    case 'synthetic-spec-draft':
+      return 'Draft synthetic specification'
+    case 'analysis-explanation':
+      return 'Explain descriptive analysis'
+    case 'report-wording-draft':
+      return 'Draft report wording'
+    case 'planning-rule-suggestions':
+      return 'Suggest planning rules'
+  }
+}
+
+function assistanceRequestId(): string {
+  if (typeof crypto.randomUUID === 'function') return `assist-${crypto.randomUUID()}`
+  return `assist-${Date.now()}`
+}
+
+function assistanceWarningList(title: string, items: string[]): string {
+  if (items.length === 0) return ''
+  return `
+    <div class="assistance-note">
+      <b>${escapeHtml(title)}</b>
+      <ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+    </div>
+  `
+}
+
+function renderAssistanceDisclosure(request: AssistanceRequestView): string {
+  const disclosure = request.disclosure
+  const flags = [
+    disclosure.containsStudentLevelData ? 'Student-level context' : 'No student-level context',
+    disclosure.containsStudentIds ? 'Student IDs included' : 'No student IDs',
+    disclosure.containsDisplayNames ? 'Display names included' : 'No display names',
+    disclosure.containsFreeText ? 'Free text included' : 'No free text',
+  ]
+
+  const items = disclosure.items
+    .map(
+      (item) => `
+        <details class="assistance-context-item">
+          <summary>
+            <strong>${escapeHtml(item.label)}</strong>
+            <span>${escapeHtml(item.scope)}</span>
+          </summary>
+          <pre>${escapeHtml(JSON.stringify(item.content, null, 2))}</pre>
+        </details>
+      `,
+    )
+    .join('')
+
+  return `
+    <article class="panel assistance-disclosure">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">${disclosure.mode === 'network' ? 'Transmission preview' : 'Local context'}</p>
+          <h2>${disclosure.mode === 'network' ? 'Exactly what would leave this device' : 'Context used by the offline draft'}</h2>
+        </div>
+        <span class="schema-badge">${escapeHtml(
+          disclosure.mode === 'network'
+            ? disclosure.providerLabel ?? 'Network provider'
+            : 'Offline · no send',
+        )}</span>
+      </div>
+      <div class="assistance-flags">
+        ${flags.map((flag) => `<span>${escapeHtml(flag)}</span>`).join('')}
+      </div>
+      <div class="assistance-context-list">${items || '<p>No project context is included.</p>'}</div>
+      ${
+        disclosure.mode === 'network'
+          ? `
+            <label class="confirmation-row">
+              <input id="assistance-confirm-send" type="checkbox" />
+              I reviewed the context above and want to send it to
+              ${escapeHtml(disclosure.providerLabel ?? 'the configured provider')}.
+            </label>
+            <button id="assistance-send-network" class="primary" type="button" disabled>
+              Send to provider
+            </button>
+          `
+          : ''
+      }
+    </article>
+  `
+}
+
+function assistanceDraftText(proposal: AssistanceProposalView): string {
+  if (proposal.task === 'synthetic-spec-draft') {
+    return JSON.stringify(proposal.specification, null, 2)
+  }
+  if (proposal.task === 'analysis-explanation') {
+    return [proposal.text, '', 'Caveats:', ...proposal.caveats.map((item) => `- ${item}`)].join(
+      '\n',
+    )
+  }
+  if (proposal.task === 'report-wording-draft') {
+    return proposal.sections.map((section) => `${section.heading}\n${section.text}`).join('\n\n')
+  }
+  return JSON.stringify(proposal.suggestions, null, 2)
+}
+
+function renderAssistanceProposal(proposal: AssistanceProposalView): string {
+  const provider = proposal.providerLabel ? ` · ${escapeHtml(proposal.providerLabel)}` : ' · offline'
+  let body = ''
+
+  if (proposal.task === 'planning-rule-suggestions') {
+    const suggestions = proposal.suggestions
+      .map(
+        (suggestion, index) => `
+          <label class="assistance-suggestion">
+            <input type="checkbox" data-assistance-rule-index="${index}" checked />
+            <span>
+              <strong>${escapeHtml(suggestion.rule.strength)} · ${escapeHtml(suggestion.rule.kind)}</strong>
+              <small>${escapeHtml(suggestion.rationale)}</small>
+              <code>${escapeHtml(suggestion.inputPaths.join(', '))}</code>
+            </span>
+          </label>
+        `,
+      )
+      .join('')
+
+    body = `
+      <div class="assistance-suggestions">
+        ${suggestions || '<p>No planning-rule suggestions were produced.</p>'}
+      </div>
+      ${
+        proposal.suggestions.length > 0
+          ? '<button id="assistance-apply-rules" class="primary" type="button">Apply selected rules</button>'
+          : ''
+      }
+    `
+  } else {
+    body = `
+      <label class="wide-label">
+        Editable draft
+        <textarea id="assistance-draft-editor" class="assistance-editor" rows="16">${escapeHtml(
+          assistanceDraftText(proposal),
+        )}</textarea>
+      </label>
+      <button id="assistance-copy-draft" class="secondary" type="button">Copy edited draft</button>
+    `
+  }
+
+  return `
+    <article class="panel assistance-proposal">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Proposal only</p>
+          <h2>${escapeHtml(assistanceTaskLabel(proposal.task))}</h2>
+        </div>
+        <span class="schema-badge">proposal${provider}</span>
+      </div>
+      ${assistanceWarningList('Warnings', proposal.warnings)}
+      ${assistanceWarningList('Assumptions', proposal.assumptions)}
+      ${body}
+    </article>
+  `
+}
+
+async function copyAssistanceDraft(): Promise<void> {
+  if (!assistanceProposalView) return
+  const editor = document.querySelector<HTMLTextAreaElement>('#assistance-draft-editor')
+  const text = editor?.value ?? assistanceDraftText(assistanceProposalView)
+  try {
+    await navigator.clipboard.writeText(text)
+    showStatus('Assistance draft copied. No project data was changed.', 'success')
+  } catch {
+    showStatus('Could not access the clipboard. Select the draft text and copy it manually.')
+  }
+}
+
+async function applyAssistanceRuleSuggestions(): Promise<void> {
+  if (!project || assistanceProposalView?.task !== 'planning-rule-suggestions') return
+  const selected = [...document.querySelectorAll<HTMLInputElement>('[data-assistance-rule-index]')]
+    .filter((input) => input.checked)
+    .map((input) => Number(input.dataset.assistanceRuleIndex))
+    .filter((index) => Number.isInteger(index))
+
+  if (selected.length === 0) {
+    showStatus('Select at least one suggested rule before applying.')
+    return
+  }
+
+  clearStatus()
+  try {
+    let nextProject = project
+    for (const index of selected) {
+      const suggestion = assistanceProposalView.suggestions[index]
+      if (!suggestion) continue
+      const response = await postJson<ProjectResponse>('/api/project/mutate', {
+        project: nextProject,
+        command: { type: 'add-planning-rule', rule: suggestion.rule },
+      })
+      nextProject = response.project
+    }
+    project = nextProject
+    assistanceProposalView = null
+    assistanceRequestView = null
+    seatingGeneration = null
+    groupingGeneration = null
+    renderWorkspace()
+    showStatus(`Applied ${selected.length} explicitly selected planning rule(s).`, 'success')
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not apply the selected rule suggestions.')
+  }
+}
+
+async function runAssistanceFromWorkspace(mode: 'offline' | 'network', confirmSend = false): Promise<void> {
+  if (!project) return
+  const sourceProject = project
+  clearStatus()
+
+  const taskSelect = document.querySelector<HTMLSelectElement>('#assistance-task')
+  const promptInput = document.querySelector<HTMLTextAreaElement>('#assistance-prompt')
+  if (taskSelect) assistanceSelectedTask = taskSelect.value as AssistanceTaskView
+  if (promptInput) assistancePrompt = promptInput.value
+
+  try {
+    const result = await postJson<AssistanceRunResponseView>('/api/assistance/run', {
+      project,
+      task: assistanceSelectedTask,
+      mode,
+      prompt: assistancePrompt,
+      requestId:
+        mode === 'network' && assistanceRequestView?.disclosure.mode === 'network'
+          ? assistanceRequestView.requestId
+          : assistanceRequestId(),
+      confirmSend,
+    })
+    if (project !== sourceProject || activeView !== 'assistance') return
+    assistanceRequestView = result.request
+    assistanceProposalView = result.proposal
+    await renderAssistance(document.querySelector<HTMLElement>('#workspace-content')!)
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not create the assistance draft.')
+  }
+}
+
+async function previewNetworkAssistance(): Promise<void> {
+  if (!project) return
+  const sourceProject = project
+  clearStatus()
+  const taskSelect = document.querySelector<HTMLSelectElement>('#assistance-task')
+  const promptInput = document.querySelector<HTMLTextAreaElement>('#assistance-prompt')
+  if (taskSelect) assistanceSelectedTask = taskSelect.value as AssistanceTaskView
+  if (promptInput) assistancePrompt = promptInput.value
+
+  try {
+    const result = await postJson<{ request: AssistanceRequestView }>('/api/assistance/preview', {
+      project,
+      task: assistanceSelectedTask,
+      mode: 'network',
+      prompt: assistancePrompt,
+      requestId: assistanceRequestId(),
+    })
+    if (project !== sourceProject || activeView !== 'assistance') return
+    assistanceRequestView = result.request
+    assistanceProposalView = null
+    await renderAssistance(document.querySelector<HTMLElement>('#workspace-content')!)
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not build the network preview.')
+  }
+}
+
+async function renderAssistance(content: HTMLElement): Promise<void> {
+  if (!project) return
+  const sourceProject = project
+
+  if (!assistanceStatusView) {
+    content.innerHTML = `
+      <article class="panel analysis-loading">
+        <p class="eyebrow">Optional assistance</p>
+        <h2>Checking local assistance status…</h2>
+      </article>
+    `
+    try {
+      assistanceStatusView = await getJson<AssistanceStatusView>('/api/assistance/status')
+    } catch (error) {
+      if (project !== sourceProject || activeView !== 'assistance') return
+      content.innerHTML = `
+        <article class="panel">
+          <p class="eyebrow">Optional assistance</p>
+          <h2>Assistance status unavailable</h2>
+          <p>${escapeHtml(error instanceof Error ? error.message : 'Could not read assistance status.')}</p>
+        </article>
+      `
+      return
+    }
+  }
+
+  if (project !== sourceProject || activeView !== 'assistance') return
+  const status = assistanceStatusView
+  const networkLabel = status.network.enabled
+    ? `${status.network.label ?? 'Configured provider'}${status.network.endpointHost ? ` · ${status.network.endpointHost}` : ''}`
+    : 'Not configured'
+
+  content.innerHTML = `
+    <div class="assistance-stack">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Phase 5 · optional assistance</p>
+            <h2>Draft and explain without silent changes</h2>
+          </div>
+          <span class="schema-badge">Offline first</span>
+        </div>
+        <p>
+          Assistance creates proposals only. Core ClassGraph remains available without a provider,
+          and nothing is sent over the network until you preview the exact context and confirm a
+          second send action.
+        </p>
+        <div class="assistance-status-grid">
+          <div><b>Offline drafts</b><span>${status.offlineAvailable ? 'Available' : 'Unavailable'}</span></div>
+          <div><b>Network provider</b><span>${escapeHtml(networkLabel)}</span></div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <form id="assistance-form" class="stack-form">
+          <div class="two-col">
+            <label>
+              Assistance task
+              <select id="assistance-task" name="task">
+                ${(
+                  [
+                    'synthetic-spec-draft',
+                    'analysis-explanation',
+                    'report-wording-draft',
+                    'planning-rule-suggestions',
+                  ] as AssistanceTaskView[]
+                )
+                  .map(
+                    (task) =>
+                      `<option value="${task}" ${task === assistanceSelectedTask ? 'selected' : ''}>${escapeHtml(
+                        assistanceTaskLabel(task),
+                      )}</option>`,
+                  )
+                  .join('')}
+              </select>
+            </label>
+            <label>
+              Execution
+              <input value="Offline local draft by default" disabled />
+            </label>
+          </div>
+          <label class="wide-label">
+            Teacher prompt
+            <textarea id="assistance-prompt" name="prompt" rows="5" placeholder="For synthetic drafting, use explicit clauses such as: 36 students; metric Assessment mean 70 sd 10 range 0-100 missing 5%">${escapeHtml(
+              assistancePrompt,
+            )}</textarea>
+            <small>
+              Analysis, report, and planning tasks use validated project context. Synthetic drafting
+              treats this prompt only as editable draft intent.
+            </small>
+          </label>
+          <div class="assistance-actions">
+            <button class="primary" type="submit">Run offline draft</button>
+            <button id="assistance-preview-network" class="secondary" type="button" ${
+              status.network.enabled ? '' : 'disabled'
+            }>
+              Preview network context
+            </button>
+          </div>
+        </form>
+      </article>
+
+      ${assistanceRequestView ? renderAssistanceDisclosure(assistanceRequestView) : ''}
+      ${assistanceProposalView ? renderAssistanceProposal(assistanceProposalView) : ''}
+    </div>
+  `
+
+  document.querySelector<HTMLFormElement>('#assistance-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    void runAssistanceFromWorkspace('offline')
+  })
+
+  document
+    .querySelector<HTMLButtonElement>('#assistance-preview-network')
+    ?.addEventListener('click', () => {
+      void previewNetworkAssistance()
+    })
+
+  const confirmation = document.querySelector<HTMLInputElement>('#assistance-confirm-send')
+  const sendButton = document.querySelector<HTMLButtonElement>('#assistance-send-network')
+  confirmation?.addEventListener('change', () => {
+    if (sendButton) sendButton.disabled = !confirmation.checked
+  })
+  sendButton?.addEventListener('click', () => {
+    if (confirmation?.checked) void runAssistanceFromWorkspace('network', true)
+  })
+
+  document.querySelector<HTMLButtonElement>('#assistance-copy-draft')?.addEventListener('click', () => {
+    void copyAssistanceDraft()
+  })
+  document.querySelector<HTMLButtonElement>('#assistance-apply-rules')?.addEventListener('click', () => {
+    void applyAssistanceRuleSuggestions()
+  })
 }
 
 function relationshipTypeOptions(selected?: RelationshipType): string {
