@@ -15,7 +15,7 @@ The existing UI-independent core remains authoritative for schema validation, pr
 - [x] P1.0 — Recovery log and Phase 1 architecture checkpoint
 - [x] P1.1 — Project workspace service: create, update metadata, add/remove/edit students
 - [x] P1.2 — Metric-definition editing and safe typed value editing
-- [ ] P1.3 — Local app server + JSON import/export endpoints
+- [x] P1.3 — Local app server + JSON import/export endpoints
 - [ ] P1.4 — Teacher-facing UI shell and project setup
 - [ ] P1.5 — Editable student roster + provenance inspection
 - [ ] P1.6 — Overview statistics + distribution/comparison views
@@ -72,6 +72,24 @@ Completed behaviour:
 - remove associated student metric data/provenance when a definition is deleted;
 - remap metric-definition provenance indices after deletion.
 
+### P1.3 — Local app server and JSON boundary
+
+**Status:** Complete.
+
+Implemented `src/server.ts`, `src/server-main.ts`, and `tests/server.test.ts`.
+
+Completed behaviour:
+
+- binds to `127.0.0.1` by default so student data is not exposed to the LAN automatically;
+- supports an explicit `CLASSGRAPH_HOST` override and warns when a non-loopback host is used;
+- provides `GET /api/health`;
+- provides `POST /api/import`, validating input through `parseProjectJson`;
+- provides `POST /api/export`, validating and serialising through `serializeProjectJson`;
+- caps request bodies at 5 MiB by default;
+- serves only an explicit allow-list of local UI assets rather than arbitrary filesystem paths;
+- sends no CORS headers and uses `no-store`, `nosniff`, and no-referrer response headers;
+- adds `npm run dev` and `npm start` commands without introducing a new package dependency.
+
 ## Next exact step
 
-Implement **P1.3 — Local app server + JSON import/export endpoints** using only Node's standard library plus the existing ClassGraph core. It must bind to loopback by default, never expose student data to the LAN automatically, serve the local UI, validate imported JSON through `parseProjectJson`, and export through `serializeProjectJson`.
+Implement **P1.4 — Teacher-facing UI shell and project setup** in the `app/` directory. The first usable screen must support: create a manual class, import a ClassGraph JSON file, create a structured synthetic class, and then enter the main workspace without requiring internet access.
