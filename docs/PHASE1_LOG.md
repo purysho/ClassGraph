@@ -236,4 +236,3 @@ Permanent GitHub Actions results on that head:
 ## Next exact step
 
 Phase 1 is complete. The next implementation phase in `DESIGN.md` is **Phase 2 — room, seating, and grouping**: room/grid editing, manual seat locking, explicit hard/soft rules, deterministic candidate generation, multiple comparable plans, and explainable trade-offs.
-
