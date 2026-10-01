@@ -100,9 +100,7 @@ describe('Phase 3 portable exports', () => {
     ])
     expect(exported.approvedPlanning.rules).toHaveLength(1)
     expect(exported.approvedPlanning.groups).toHaveLength(1)
-    expect(exported.planningProvenance['/planning/assignments/0']?.kind).toBe(
-      'teacher-entered',
-    )
+    expect(exported.planningProvenance['/planning/assignments/0']?.kind).toBe('teacher-entered')
     expect(JSON.stringify(exported)).not.toContain('seat-candidate-')
   })
 

@@ -59,7 +59,11 @@ export function safeExportStem(title: string, fallback = 'classgraph'): string {
   if (WINDOWS_RESERVED.test(value)) value = `${fallback}-${value}`
 
   const codePoints = [...value]
-  if (codePoints.length > 80) value = codePoints.slice(0, 80).join('').replace(/[. ]+$/g, '')
+  if (codePoints.length > 80)
+    value = codePoints
+      .slice(0, 80)
+      .join('')
+      .replace(/[. ]+$/g, '')
   return value || fallback
 }
 
@@ -79,7 +83,9 @@ function projectIdentity(project: ClassGraphProject): AnalysisExportV1['project'
 function planningProvenance(project: ClassGraphProject): FieldProvenanceMap {
   return Object.fromEntries(
     Object.entries(project.provenance)
-      .filter(([path]) => path === '/room' || path.startsWith('/room/') || path.startsWith('/planning/'))
+      .filter(
+        ([path]) => path === '/room' || path.startsWith('/room/') || path.startsWith('/planning/'),
+      )
       .sort(([left], [right]) => left.localeCompare(right)),
   )
 }

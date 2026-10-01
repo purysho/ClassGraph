@@ -191,9 +191,9 @@ interface EduBoardHandbackV1 {
   format: 'classgraph-eduboard-handback'
   version: '1.0'
   project: { projectId: string; title: string; schemaVersion: '1.0' }
-  sourceData: { /* source/imported/teacher/observed references */ }
-  derivedAnalysis: { /* descriptive summaries */ }
-  approvedPlanning: { /* persisted assignments/groups/rules */ }
+  sourceData: {/* source/imported/teacher/observed references */}
+  derivedAnalysis: {/* descriptive summaries */}
+  approvedPlanning: {/* persisted assignments/groups/rules */}
   syntheticPaths: string[]
   provenance: Record<string, ProvenanceEntry>
   extensions?: Record<string, unknown>
