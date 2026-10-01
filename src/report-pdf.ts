@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from '@cantoo/pdf-lib'
+import { PdfDocumentAdapter, StandardFonts, rgb, type PdfFontAdapter, type PdfPageAdapter } from '@cantoo/pdf-lib'
 import { ClassGraphExportError } from './export-errors.js'
 import type { ClassGraphProject, PlanningSeatAssignment, SeatDefinition } from './model.js'
 import { buildHumanReport, type HumanReportTable } from './report-content.js'
@@ -15,7 +15,7 @@ function exportUnicodeError(): ClassGraphExportError {
   )
 }
 
-function ensureEncodable(font: PDFFont, text: string): void {
+function ensureEncodable(font: PdfFontAdapter, text: string): void {
   try {
     font.encodeText(text)
   } catch {
@@ -23,7 +23,7 @@ function ensureEncodable(font: PDFFont, text: string): void {
   }
 }
 
-function wrapText(font: PDFFont, text: string, size: number, width: number): string[] {
+function wrapText(font: PdfFontAdapter, text: string, size: number, width: number): string[] {
   ensureEncodable(font, text)
   const words = text.split(/\s+/).filter(Boolean)
   if (words.length === 0) return ['']
@@ -45,16 +45,16 @@ function wrapText(font: PDFFont, text: string, size: number, width: number): str
 }
 
 interface PdfCursor {
-  document: PDFDocument
-  page: PDFPage
-  regular: PDFFont
-  bold: PDFFont
+  document: PdfDocumentAdapter
+  page: PdfPageAdapter
+  regular: PdfFontAdapter
+  bold: PdfFontAdapter
   y: number
   pageWidth: number
   pageHeight: number
 }
 
-function newPortraitPage(document: PDFDocument, regular: PDFFont, bold: PDFFont): PdfCursor {
+function newPortraitPage(document: PdfDocumentAdapter, regular: PdfFontAdapter, bold: PdfFontAdapter): PdfCursor {
   const page = document.addPage(A4_PORTRAIT)
   return {
     document,
@@ -91,7 +91,7 @@ function drawWrapped(
       y: next.y - size,
       size,
       font,
-      color: rgb(0.12, 0.16, 0.18),
+      color: pdfRgb(0.12, 0.16, 0.18),
     })
     next.y -= lineHeight
   }
@@ -123,9 +123,9 @@ function drawTable(cursor: PdfCursor, table: HumanReportTable): PdfCursor {
 export async function generatePdfReport(project: ClassGraphProject): Promise<Uint8Array> {
   const validated = classGraphProjectSchema.parse(project)
   const report = buildHumanReport(validated)
-  const document = await PDFDocument.create()
-  const regular = await document.embedFont(StandardFonts.Helvetica)
-  const bold = await document.embedFont(StandardFonts.HelveticaBold)
+  const document = await createPdfDocument()
+  const regular = await document.embedFont(pdfStandardFonts.Helvetica)
+  const bold = await document.embedFont(pdfpdfStandardFonts.HelveticaBold)
   let cursor = newPortraitPage(document, regular, bold)
 
   cursor = drawWrapped(cursor, report.title, { bold: true, size: 19, spacingAfter: 5 })
@@ -161,9 +161,9 @@ function seatByGridPosition(
 }
 
 function drawSeatCell(
-  page: PDFPage,
-  font: PDFFont,
-  bold: PDFFont,
+  page: PdfPageAdapter,
+  font: PdfFontAdapter,
+  bold: PdfFontAdapter,
   project: ClassGraphProject,
   seat: SeatDefinition | undefined,
   assignmentMap: Map<string, PlanningSeatAssignment>,
@@ -178,8 +178,8 @@ function drawSeatCell(
     width,
     height,
     borderWidth: 0.7,
-    borderColor: rgb(0.55, 0.6, 0.63),
-    color: seat?.enabled === false ? rgb(0.92, 0.92, 0.92) : rgb(0.98, 0.99, 0.99),
+    borderColor: pdfRgb(0.55, 0.6, 0.63),
+    color: seat?.enabled === false ? pdfRgb(0.92, 0.92, 0.92) : pdfRgb(0.98, 0.99, 0.99),
   })
   if (!seat) return
 
@@ -205,7 +205,7 @@ function drawSeatCell(
       y: textY,
       size,
       font: index === 1 ? bold : font,
-      color: rgb(0.14, 0.18, 0.2),
+      color: pdfRgb(0.14, 0.18, 0.2),
       maxWidth: width - 8,
     })
     textY -= size + 2
@@ -228,9 +228,9 @@ export async function generateSeatingPlanPdf(project: ClassGraphProject): Promis
     throw new ClassGraphExportError('CG-5003', 'The grid room has invalid dimensions.')
   }
 
-  const document = await PDFDocument.create()
-  const regular = await document.embedFont(StandardFonts.Helvetica)
-  const bold = await document.embedFont(StandardFonts.HelveticaBold)
+  const document = await createPdfDocument()
+  const regular = await document.embedFont(pdfStandardFonts.Helvetica)
+  const bold = await document.embedFont(pdfpdfStandardFonts.HelveticaBold)
   const assignments = validated.planning?.assignments ?? []
   const assignmentMap = seatAssignmentMap(assignments)
 
