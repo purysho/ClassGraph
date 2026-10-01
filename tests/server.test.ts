@@ -567,7 +567,9 @@ describe('local app server', () => {
       execute: (request, options) => {
         if (!options.confirmed) {
           return Promise.reject(
-            new Error('CG-6007 explicit confirmation is required before sending assistance context'),
+            new Error(
+              'CG-6007 explicit confirmation is required before sending assistance context',
+            ),
           )
         }
         callCount += 1

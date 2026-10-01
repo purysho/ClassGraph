@@ -2,10 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
-import {
-  acceptPlanningRuleSuggestions,
-  acceptSyntheticSpecDraft,
-} from './assistance-acceptance.js'
+import { acceptPlanningRuleSuggestions, acceptSyntheticSpecDraft } from './assistance-acceptance.js'
 import type { AssistanceExecutionMode, AssistanceTask } from './assistance-contract.js'
 import type { AssistanceProvider } from './assistance-provider.js'
 import {
