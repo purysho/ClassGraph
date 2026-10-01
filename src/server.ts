@@ -26,13 +26,6 @@ interface ProjectSetupRequest {
   }
 }
 
-interface BasicSyntheticRequest {
-  projectId: string
-  title: string
-  studentCount: number
-  seed: string
-}
-
 const DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024
 
 function send(
@@ -123,21 +116,6 @@ function parseProjectSetup(value: unknown): ProjectSetupRequest {
   }
 }
 
-function parseBasicSynthetic(value: unknown): BasicSyntheticRequest {
-  const record = expectRecord(value)
-  const studentCount = record.studentCount
-
-  if (typeof studentCount !== 'number' || !Number.isInteger(studentCount)) {
-    throw new Error('CG-1001 studentCount must be an integer')
-  }
-
-  return {
-    projectId: expectString(record, 'projectId'),
-    title: expectString(record, 'title'),
-    studentCount,
-    seed: expectString(record, 'seed'),
-  }
-}
 
 
 function parseProjectFromRequest(record: Record<string, unknown>) {
@@ -258,58 +236,6 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
         sendJson(response, 200, { project })
         return
       }
-
-      if (request.method === 'POST' && url.pathname === '/api/synthetic/basic') {
-        const setup = parseBasicSynthetic(await readJsonBody(request, maxBodyBytes))
-        const project = generateSyntheticProject({
-          projectId: setup.projectId,
-          title: setup.title,
-          seed: setup.seed,
-          studentCount: setup.studentCount,
-          metricDefinitions: [
-            {
-              key: 'assessment',
-              label: 'Assessment',
-              kind: 'number',
-              numberScale: { min: 0, max: 100 },
-            },
-            {
-              key: 'participation',
-              label: 'Participation',
-              kind: 'ordinal',
-              ordinalScale: ['1', '2', '3', '4', '5'],
-            },
-          ],
-          metrics: [
-            {
-              key: 'assessment',
-              kind: 'number',
-              distribution: {
-                type: 'normal',
-                mean: 70,
-                standardDeviation: 12,
-                min: 0,
-                max: 100,
-              },
-            },
-            {
-              key: 'participation',
-              kind: 'ordinal',
-              values: [
-                { value: '1', weight: 1 },
-                { value: '2', weight: 2 },
-                { value: '3', weight: 4 },
-                { value: '4', weight: 2 },
-                { value: '5', weight: 1 },
-              ],
-            },
-          ],
-          generatedAt: new Date().toISOString(),
-        })
-        sendJson(response, 200, { project })
-        return
-      }
-
 
       if (request.method === 'POST' && url.pathname === '/api/analysis/project') {
         const record = expectRecord(await readJsonBody(request, maxBodyBytes))
