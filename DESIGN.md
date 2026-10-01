@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 1 implementation contract  
-**Design revision:** 0.2  
+**Status:** Phase 3 implementation contract  
+**Design revision:** 0.3  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -531,12 +531,12 @@ Foundation technology:
 - Prettier;
 - property/invariant tests where useful.
 
-Phase 1–2 UI implementation:
+Phase 1–3 UI implementation:
 
 - local Node 22 HTTP boundary bound to loopback by default;
 - browser UI authored in TypeScript and compiled with the existing TypeScript build;
 - plain local CSS and DOM APIs;
-- no React, Electron, charting library, remote font, or remote script required for Phase 1–2;
+- no React, Electron, charting library, remote font, or remote script required for Phase 1–3;
 - browser remains a thin client: schema/provenance/generation/analysis/planning rules stay in UI-independent TypeScript modules;
 - candidate generation endpoints are read-only previews until the teacher explicitly accepts a candidate through a validated project mutation.
 
@@ -681,13 +681,39 @@ important visual views retain table equivalents
 
 ### Phase 3 — Reports and portable exports
 
-Add:
+Implemented scope:
 
-- `.docx` report;
-- `.pdf` report;
-- seating-plan print layout;
-- analysis JSON;
-- EduBoard interchange adapter tests.
+- deterministic canonical report snapshot;
+- versioned analysis JSON;
+- versioned approved seating-plan JSON;
+- local DOCX report generated from shared report content;
+- local portrait PDF descriptive report;
+- landscape seating-plan PDF with orientation, disabled seats, assignments, locks, tags and assignment-table fallback;
+- explicit `CG-5004` failure instead of silent PDF Unicode corruption;
+- Reports workspace with project/analysis/seating/EduBoard JSON plus DOCX/PDF downloads;
+- POST-only export endpoints with project revalidation, safe filenames and no persistent server-side copy;
+- `classgraph-eduboard-handback` v1 envelope separating source-safe fields, derived analysis, synthetic paths and approved planning;
+- EduBoard compatibility contract requiring explicit class selection, exact student-ID mapping and zero-based seat coordinates;
+- representative fixtures and non-writing adapter tests in both repositories.
+
+Phase 3 acceptance:
+
+```text
+format green
+lint green
+strict typecheck green
+tests green
+build green
+shipped dependency audit green
+DOCX OOXML structure tested
+PDF signature/orientation and Unicode-failure behavior tested
+analysis/seating/hand-back JSON versioned and deterministic
+download filenames sanitised
+export endpoints do not persist report files
+synthetic/derived paths cannot masquerade as source-safe EduBoard values
+EduBoard adapter plans writes only after explicit class + exact ID mapping
+fixtures exist in both repositories
+```
 
 ### Phase 4 — Relationship graph and advanced comparison
 
@@ -747,4 +773,4 @@ Proceed only when:
 
 ## 16. Immediate implementation instruction
 
-> Phase 0–2 are complete and Gate 2 passed. Preserve the lean local architecture unless a concrete requirement justifies additional runtime weight. Proceed to Phase 3: DOCX/PDF and portable report exports, seating-plan print/export, analysis JSON, and EduBoard interchange adapter tests. Keep teacher-approved planning decisions separate from observed/imported student data.
+> Phase 0–3 are complete once Gate 3 verification is recorded. Preserve the lean local architecture. Phase 4 may add explicit relationship-network and advanced comparison features only when they remain grounded in teacher-supplied/synthetic edges and retain table equivalents. Do not infer social relationships from unrelated student data.
