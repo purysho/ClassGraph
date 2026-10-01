@@ -1922,6 +1922,667 @@ async function saveInputMetric(studentId: string, definition: MetricDefinition):
   })
 }
 
+
+function studentLabel(studentId: string): string {
+  const student = project?.students.find((item) => item.id === studentId)
+  return student?.displayName ?? studentId
+}
+
+function roomCapacityClient(room: RoomRecord | undefined): number {
+  return room?.seats.filter((seat) => seat.enabled).length ?? 0
+}
+
+function assignmentForStudent(studentId: string): PlanningSeatAssignment | undefined {
+  return project?.planning?.assignments?.find((item) => item.studentId === studentId)
+}
+
+function assignmentForSeat(seatId: string): PlanningSeatAssignment | undefined {
+  return project?.planning?.assignments?.find((item) => item.seatId === seatId)
+}
+
+function renderSeating(content: HTMLElement): void {
+  if (!project) return
+  const current = project
+  const room = current.room
+  const capacity = roomCapacityClient(room)
+  const shortfall = current.students.length - capacity
+  const seed = current.planning?.seed ?? 'classgraph-seating'
+
+  content.innerHTML = `
+    <div class="phase2-stack">
+      <article class="panel room-editor-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Room</p>
+            <h2>Classroom grid</h2>
+          </div>
+          <span class="schema-badge">${capacity} enabled seats</span>
+        </div>
+
+        <form id="room-form" class="phase2-form-grid">
+          <label>
+            Rows
+            <input name="rows" type="number" min="1" max="1000" value="${room?.rows ?? 5}" required />
+          </label>
+          <label>
+            Columns
+            <input name="columns" type="number" min="1" max="1000" value="${room?.columns ?? 8}" required />
+          </label>
+          <label>
+            Front of room
+            <select name="front">
+              ${['top', 'bottom', 'left', 'right']
+                .map((value) => optionHtml(value, value[0]!.toUpperCase() + value.slice(1), (room?.front ?? 'top') === value))
+                .join('')}
+            </select>
+          </label>
+          <button class="primary compact" type="submit">${room ? 'Update room' : 'Create room'}</button>
+        </form>
+
+        ${shortfall > 0 ? `<p class="capacity-warning">Enabled capacity is ${capacity} for ${current.students.length} students. Add/enable at least ${shortfall} more seat(s) before generating a complete seating plan.</p>` : ''}
+
+        ${room ? renderRoomGrid(room) : '<div class="empty-analysis"><p>Create a room grid to begin seating.</p></div>'}
+      </article>
+
+      ${room ? renderSeatTable(room) : ''}
+      ${room ? renderManualAssignments() : ''}
+      ${room ? renderRuleEditor() : ''}
+      ${room ? renderSeatingGenerator(seed) : ''}
+      ${renderGroupingGenerator(seed)}
+    </div>
+  `
+
+  bindSeatingEvents()
+}
+
+function renderRoomGrid(room: RoomRecord): string {
+  if (room.layout !== 'grid' || !room.columns) {
+    return '<div class="empty-analysis"><p>Custom room editing is not part of Phase 2 yet.</p></div>'
+  }
+
+  const seatCards = room.seats
+    .map((seat) => {
+      const assignment = assignmentForSeat(seat.id)
+      const label = assignment ? studentLabel(assignment.studentId) : 'Empty'
+      return `
+        <button
+          class="seat-card ${seat.enabled ? '' : 'disabled'} ${assignment ? 'occupied' : ''}"
+          type="button"
+          data-toggle-seat="${escapeHtml(seat.id)}"
+          title="${seat.enabled ? 'Disable seat' : 'Enable seat'}"
+        >
+          <b>${escapeHtml(label)}</b>
+          <span>R${(seat.row ?? 0) + 1} · C${(seat.column ?? 0) + 1}</span>
+          <small>${seat.tags?.length ? escapeHtml(seat.tags.join(', ')) : seat.enabled ? 'Enabled' : 'Disabled'}</small>
+        </button>
+      `
+    })
+    .join('')
+
+  return `
+    <div class="room-stage front-${escapeHtml(room.front ?? 'top')}">
+      <div class="front-marker">Front of room</div>
+      <div class="seat-grid" style="grid-template-columns: repeat(${room.columns}, minmax(72px, 1fr))">
+        ${seatCards}
+      </div>
+    </div>
+  `
+}
+
+function renderSeatTable(room: RoomRecord): string {
+  const rows = room.seats
+    .map(
+      (seat) => `
+        <tr>
+          <td><code>${escapeHtml(seat.id)}</code></td>
+          <td>R${(seat.row ?? 0) + 1} / C${(seat.column ?? 0) + 1}</td>
+          <td>${seat.enabled ? 'Enabled' : 'Disabled'}</td>
+          <td>
+            <div class="inline-editor">
+              <input data-seat-tags="${escapeHtml(seat.id)}" value="${escapeHtml((seat.tags ?? []).join(', '))}" placeholder="front, aisle" />
+              <button class="ghost compact" type="button" data-save-seat-tags="${escapeHtml(seat.id)}">Save</button>
+            </div>
+          </td>
+          <td>
+            <button class="secondary compact" type="button" data-seat-enabled="${escapeHtml(seat.id)}" data-next-enabled="${seat.enabled ? 'false' : 'true'}">
+              ${seat.enabled ? 'Disable' : 'Enable'}
+            </button>
+          </td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  return `
+    <article class="panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">Table equivalent</p><h2>Seat geometry</h2></div>
+      </div>
+      <div class="data-table-wrap">
+        <table class="source-table">
+          <thead><tr><th>Seat</th><th>Position</th><th>Status</th><th>Tags</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </article>
+  `
+}
+
+function renderManualAssignments(): string {
+  if (!project) return ''
+  const enabledSeats = project.room?.seats.filter((seat) => seat.enabled) ?? []
+  const rows = project.students
+    .map((student) => {
+      const assignment = assignmentForStudent(student.id)
+      const occupiedByOthers = new Set(
+        (project?.planning?.assignments ?? [])
+          .filter((item) => item.studentId !== student.id)
+          .map((item) => item.seatId),
+      )
+      const options = [
+        '<option value="">Unassigned</option>',
+        ...enabledSeats
+          .filter((seat) => !occupiedByOthers.has(seat.id))
+          .map((seat) =>
+            optionHtml(
+              seat.id,
+              `R${(seat.row ?? 0) + 1} C${(seat.column ?? 0) + 1}${seat.tags?.length ? ` · ${seat.tags.join('/')}` : ''}`,
+              assignment?.seatId === seat.id,
+            ),
+          ),
+      ].join('')
+
+      return `
+        <tr>
+          <td>${escapeHtml(student.displayName ?? student.id)}</td>
+          <td><select data-assignment-seat="${escapeHtml(student.id)}">${options}</select></td>
+          <td>
+            <label class="lock-toggle">
+              <input type="checkbox" data-assignment-lock="${escapeHtml(student.id)}" ${assignment?.locked ? 'checked' : ''} ${assignment ? '' : 'disabled'} />
+              Locked
+            </label>
+          </td>
+        </tr>
+      `
+    })
+    .join('')
+
+  const assigned = project.planning?.assignments?.length ?? 0
+  return `
+    <article class="panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">Manual seating</p><h2>Assignments and locks</h2></div>
+        <span class="schema-badge">${assigned}/${project.students.length} assigned</span>
+      </div>
+      <p>Manual assignments are teacher decisions. Lock any assignment that candidate generation must preserve.</p>
+      <div class="data-table-wrap">
+        <table class="source-table">
+          <thead><tr><th>Student</th><th>Seat</th><th>Lock</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="3" class="empty-cell">No students in the roster.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </article>
+  `
+}
+
+function ruleDescription(rule: PlanningRule): string {
+  switch (rule.kind) {
+    case 'fixed-seat':
+      return `${studentLabel(rule.studentId)} fixed to ${rule.seatId}`
+    case 'keep-apart':
+      return `${studentLabel(rule.studentAId)} apart from ${studentLabel(rule.studentBId)} (${rule.neighbourMode ?? 'orthogonal'})`
+    case 'seat-tag-required':
+      return `${studentLabel(rule.studentId)} requires tag "${rule.tag}"`
+    case 'prefer-together':
+      return `Prefer ${studentLabel(rule.studentAId)} near ${studentLabel(rule.studentBId)}`
+    case 'prefer-apart':
+      return `Prefer ${studentLabel(rule.studentAId)} away from ${studentLabel(rule.studentBId)}`
+    case 'prefer-seat-tag':
+      return `Prefer ${studentLabel(rule.studentId)} in tag "${rule.tag}"`
+    case 'balance-metric-by-row':
+      return `Balance ${rule.metricKey} across rows`
+  }
+}
+
+function renderRuleEditor(): string {
+  if (!project) return ''
+  const rules = project.planning?.rules ?? []
+  const studentOptions = project.students
+    .map((student) => `<option value="${escapeHtml(student.id)}">${escapeHtml(student.displayName ?? student.id)}</option>`)
+    .join('')
+  const seatOptions = (project.room?.seats ?? [])
+    .filter((seat) => seat.enabled)
+    .map((seat) => `<option value="${escapeHtml(seat.id)}">${escapeHtml(seat.id)}</option>`)
+    .join('')
+  const metricOptions = project.metricDefinitions
+    .filter((metric) => metric.kind === 'number' || metric.kind === 'ordinal')
+    .map((metric) => `<option value="${escapeHtml(metric.key)}">${escapeHtml(metric.label)}</option>`)
+    .join('')
+
+  const ruleRows = rules
+    .map(
+      (rule) => `
+        <tr>
+          <td><span class="rule-strength ${rule.strength}">${rule.strength}</span></td>
+          <td><code>${escapeHtml(rule.kind)}</code></td>
+          <td>${escapeHtml(ruleDescription(rule))}</td>
+          <td>${rule.strength === 'soft' ? String(rule.weight ?? 1) : '—'}</td>
+          <td><button class="icon-button danger-text" type="button" data-remove-rule="${escapeHtml(rule.id)}">×</button></td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  return `
+    <article class="panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">Planning rules</p><h2>Hard constraints and soft objectives</h2></div>
+        <span class="schema-badge">${rules.length} rules</span>
+      </div>
+      <p>Hard constraints determine feasibility. Soft objectives may trade off; their penalties remain visible.</p>
+      <form id="planning-rule-form" class="rule-form">
+        <label>
+          Rule
+          <select name="kind">
+            <option value="fixed-seat">Hard · fixed seat</option>
+            <option value="keep-apart">Hard · keep apart</option>
+            <option value="seat-tag-required">Hard · seat tag required</option>
+            <option value="prefer-together">Soft · prefer together</option>
+            <option value="prefer-apart">Soft · prefer apart</option>
+            <option value="prefer-seat-tag">Soft · prefer seat tag</option>
+            <option value="balance-metric-by-row">Soft · balance metric by row</option>
+          </select>
+        </label>
+        <label>Student A<select name="studentAId">${studentOptions}</select></label>
+        <label>Student B<select name="studentBId">${studentOptions}</select></label>
+        <label>Seat<select name="seatId">${seatOptions}</select></label>
+        <label>Tag<input name="tag" placeholder="front" /></label>
+        <label>Metric<select name="metricKey"><option value="">—</option>${metricOptions}</select></label>
+        <label>Weight<input name="weight" type="number" min="0.01" step="0.25" value="1" /></label>
+        <label>Neighbour<select name="neighbourMode"><option value="orthogonal">Orthogonal</option><option value="king">Including diagonal</option></select></label>
+        <button class="secondary compact" type="submit">Add rule</button>
+      </form>
+      <div class="data-table-wrap">
+        <table class="source-table">
+          <thead><tr><th>Strength</th><th>Rule</th><th>Meaning</th><th>Weight</th><th></th></tr></thead>
+          <tbody>${ruleRows || '<tr><td colspan="5" class="empty-cell">No planning rules yet.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </article>
+  `
+}
+
+function renderSeatingGenerator(seed: string): string {
+  const result = seatingGeneration
+  return `
+    <article class="panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">Candidate seating</p><h2>Generate and compare three plans</h2></div>
+      </div>
+      <form id="seating-generator-form" class="candidate-controls">
+        <label>Seed<input name="seed" value="${escapeHtml(seed)}" required /></label>
+        <button class="primary compact" type="submit">Generate candidates</button>
+      </form>
+      ${result ? renderSeatingGeneration(result) : '<p class="muted">Generate candidates to compare hard-constraint status and objective-by-objective penalties.</p>'}
+    </article>
+  `
+}
+
+function renderSeatingGeneration(result: SeatingGenerationView): string {
+  if (!result.candidates.length) {
+    return `
+      <div class="infeasible-panel">
+        <h3>No feasible candidate produced</h3>
+        <ul>${result.infeasibleReasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join('')}</ul>
+        <p>ClassGraph does not silently violate hard constraints. Change the room, locks, or hard rules and rerun.</p>
+      </div>
+    `
+  }
+
+  return `
+    <div class="candidate-grid">
+      ${result.candidates.map(renderSeatingCandidate).join('')}
+    </div>
+  `
+}
+
+function renderSeatingCandidate(candidate: SeatingCandidateView): string {
+  const objectives = candidate.objectiveResults
+    .map(
+      (item) => `
+        <tr><td>${escapeHtml(item.kind)}</td><td>${numberLabel(item.penalty)}</td><td>${escapeHtml(item.details)}</td></tr>
+      `,
+    )
+    .join('')
+  const assignments = candidate.assignments
+    .map(
+      (item) => `
+        <tr><td>${escapeHtml(studentLabel(item.studentId))}</td><td>${escapeHtml(item.seatId)}</td><td>${item.locked ? 'Locked' : ''}</td></tr>
+      `,
+    )
+    .join('')
+
+  return `
+    <section class="candidate-card">
+      <div class="candidate-heading">
+        <div><b>${escapeHtml(candidate.id)}</b><small>Seed ${escapeHtml(candidate.seed)}</small></div>
+        <span class="candidate-penalty">Penalty ${numberLabel(candidate.totalPenalty)}</span>
+      </div>
+      <ul class="candidate-explanation">${candidate.explanation.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>
+      <details>
+        <summary>Objective components</summary>
+        <table class="mini-table"><thead><tr><th>Objective</th><th>Penalty</th><th>Detail</th></tr></thead><tbody>${objectives || '<tr><td colspan="3">No soft objectives.</td></tr>'}</tbody></table>
+      </details>
+      <details>
+        <summary>Assignments</summary>
+        <table class="mini-table"><thead><tr><th>Student</th><th>Seat</th><th></th></tr></thead><tbody>${assignments}</tbody></table>
+      </details>
+      <button class="secondary compact" type="button" data-apply-seat-candidate="${escapeHtml(candidate.id)}">Apply candidate</button>
+    </section>
+  `
+}
+
+function renderGroupingGenerator(seed: string): string {
+  if (!project) return ''
+  const numericOptions = project.metricDefinitions
+    .filter((metric) => metric.kind === 'number' || metric.kind === 'ordinal')
+    .map((metric) => `<option value="${escapeHtml(metric.key)}">${escapeHtml(metric.label)}</option>`)
+    .join('')
+
+  return `
+    <article class="panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">Grouping</p><h2>Deterministic group candidates</h2></div>
+      </div>
+      <p>Optional metric balancing uses only the selected recorded field; missing values are ignored and reported.</p>
+      <form id="grouping-generator-form" class="candidate-controls">
+        <label>Groups<input name="groupCount" type="number" min="2" max="${Math.max(2, project.students.length)}" value="${Math.min(4, Math.max(2, project.students.length))}" /></label>
+        <label>Balance metric<select name="metricKey"><option value="">None</option>${numericOptions}</select></label>
+        <label>Seed<input name="seed" value="${escapeHtml(seed)}" required /></label>
+        <button class="primary compact" type="submit">Generate groups</button>
+      </form>
+      ${groupingGeneration ? renderGroupingGeneration(groupingGeneration) : renderCurrentGroups()}
+    </article>
+  `
+}
+
+function renderCurrentGroups(): string {
+  const groups = project?.planning?.groups ?? []
+  if (!groups.length) return '<p class="muted">No saved groups yet.</p>'
+  return `<div class="candidate-grid">${groups.map((group) => renderSavedGroup(group)).join('')}</div>`
+}
+
+function renderSavedGroup(group: PlanningGroup): string {
+  return `
+    <section class="candidate-card">
+      <div class="candidate-heading"><b>${escapeHtml(group.label ?? group.id)}</b><span>${group.studentIds.length} students</span></div>
+      <ul class="group-member-list">
+        ${group.studentIds
+          .map((studentId) => {
+            const locked = group.lockedStudentIds?.includes(studentId) ?? false
+            return `<li><span>${escapeHtml(studentLabel(studentId))}</span><label><input type="checkbox" data-group-lock="${escapeHtml(group.id)}:${escapeHtml(studentId)}" ${locked ? 'checked' : ''}/> lock</label></li>`
+          })
+          .join('')}
+      </ul>
+    </section>
+  `
+}
+
+function renderGroupingGeneration(result: GroupingGenerationView): string {
+  return `
+    <div class="candidate-grid">
+      ${result.candidates
+        .map(
+          (candidate) => `
+            <section class="candidate-card">
+              <div class="candidate-heading"><div><b>${escapeHtml(candidate.id)}</b><small>Penalty ${numberLabel(candidate.totalPenalty)}</small></div></div>
+              <ul class="candidate-explanation">${candidate.explanation.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>
+              <div class="group-columns">
+                ${candidate.groups
+                  .map(
+                    (group) => `
+                      <div class="group-column">
+                        <b>${escapeHtml(group.label ?? group.id)}</b>
+                        <ul>${group.studentIds.map((id) => `<li>${escapeHtml(studentLabel(id))}${group.lockedStudentIds?.includes(id) ? ' · locked' : ''}</li>`).join('')}</ul>
+                      </div>
+                    `,
+                  )
+                  .join('')}
+              </div>
+              <button class="secondary compact" type="button" data-apply-group-candidate="${escapeHtml(candidate.id)}">Apply groups</button>
+            </section>
+          `,
+        )
+        .join('')}
+    </div>
+  `
+}
+
+function newRuleId(): string {
+  if (typeof crypto.randomUUID === 'function') return `rule-${crypto.randomUUID()}`
+  return `rule-${Date.now()}`
+}
+
+function planningRuleFromForm(data: FormData): PlanningRule | null {
+  const kind = asString(data, 'kind')
+  const studentAId = asString(data, 'studentAId')
+  const studentBId = asString(data, 'studentBId')
+  const seatId = asString(data, 'seatId')
+  const tag = asString(data, 'tag')
+  const metricKey = asString(data, 'metricKey')
+  const weight = Number(asString(data, 'weight') || '1')
+  const id = newRuleId()
+
+  if (kind === 'fixed-seat') return { id, strength: 'hard', kind, studentId: studentAId, seatId }
+  if (kind === 'keep-apart') {
+    return {
+      id,
+      strength: 'hard',
+      kind,
+      studentAId,
+      studentBId,
+      neighbourMode: asString(data, 'neighbourMode') === 'king' ? 'king' : 'orthogonal',
+    }
+  }
+  if (kind === 'seat-tag-required') {
+    if (!tag) {
+      showStatus('Enter a seat tag for this hard rule.')
+      return null
+    }
+    return { id, strength: 'hard', kind, studentId: studentAId, tag }
+  }
+  if (kind === 'prefer-together' || kind === 'prefer-apart') {
+    return { id, strength: 'soft', kind, studentAId, studentBId, weight }
+  }
+  if (kind === 'prefer-seat-tag') {
+    if (!tag) {
+      showStatus('Enter a seat tag for this objective.')
+      return null
+    }
+    return { id, strength: 'soft', kind, studentId: studentAId, tag, weight }
+  }
+  if (kind === 'balance-metric-by-row') {
+    if (!metricKey) {
+      showStatus('Choose a numeric or ordinal metric to balance.')
+      return null
+    }
+    return { id, strength: 'soft', kind, metricKey, weight }
+  }
+  return null
+}
+
+function bindSeatingEvents(): void {
+  document.querySelector<HTMLFormElement>('#room-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget as HTMLFormElement)
+    void mutateProject({
+      type: 'set-grid-room',
+      rows: Number(asString(data, 'rows')),
+      columns: Number(asString(data, 'columns')),
+      front: asString(data, 'front'),
+    })
+  })
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-toggle-seat]')) {
+    button.addEventListener('click', () => {
+      const seatId = button.dataset.toggleSeat
+      const seat = project?.room?.seats.find((item) => item.id === seatId)
+      if (!seatId || !seat) return
+      if (seat.enabled && assignmentForSeat(seatId)) {
+        showStatus('Unassign the student before disabling this seat.')
+        return
+      }
+      void mutateProject({ type: 'set-seat-enabled', seatId, enabled: !seat.enabled })
+    })
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-seat-enabled]')) {
+    button.addEventListener('click', () => {
+      const seatId = button.dataset.seatEnabled
+      if (!seatId) return
+      const enabled = button.dataset.nextEnabled === 'true'
+      if (!enabled && assignmentForSeat(seatId)) {
+        showStatus('Unassign the student before disabling this seat.')
+        return
+      }
+      void mutateProject({ type: 'set-seat-enabled', seatId, enabled })
+    })
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-save-seat-tags]')) {
+    button.addEventListener('click', () => {
+      const seatId = button.dataset.saveSeatTags
+      if (!seatId) return
+      const input = document.querySelector<HTMLInputElement>(`[data-seat-tags="${CSS.escape(seatId)}"]`)
+      const tags = (input?.value ?? '').split(',').map((item) => item.trim()).filter(Boolean)
+      void mutateProject({ type: 'set-seat-tags', seatId, tags })
+    })
+  }
+
+  for (const select of document.querySelectorAll<HTMLSelectElement>('[data-assignment-seat]')) {
+    select.addEventListener('change', () => {
+      const studentId = select.dataset.assignmentSeat
+      if (!studentId) return
+      if (!select.value) {
+        void mutateProject({ type: 'unassign-student', studentId })
+        return
+      }
+      const locked = assignmentForStudent(studentId)?.locked ?? false
+      void mutateProject({ type: 'set-seat-assignment', studentId, seatId: select.value, locked })
+    })
+  }
+
+  for (const input of document.querySelectorAll<HTMLInputElement>('[data-assignment-lock]')) {
+    input.addEventListener('change', () => {
+      const studentId = input.dataset.assignmentLock
+      if (!studentId) return
+      void mutateProject({ type: 'set-assignment-locked', studentId, locked: input.checked })
+    })
+  }
+
+  document.querySelector<HTMLFormElement>('#planning-rule-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const rule = planningRuleFromForm(new FormData(event.currentTarget as HTMLFormElement))
+    if (rule) void mutateProject({ type: 'add-planning-rule', rule })
+  })
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-remove-rule]')) {
+    button.addEventListener('click', () => {
+      const ruleId = button.dataset.removeRule
+      if (ruleId) void mutateProject({ type: 'remove-planning-rule', ruleId })
+    })
+  }
+
+  document.querySelector<HTMLFormElement>('#seating-generator-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    void generateSeating(new FormData(event.currentTarget as HTMLFormElement))
+  })
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-apply-seat-candidate]')) {
+    button.addEventListener('click', () => {
+      const candidate = seatingGeneration?.candidates.find((item) => item.id === button.dataset.applySeatCandidate)
+      if (!candidate) return
+      void mutateProject({
+        type: 'replace-seat-assignments',
+        assignments: candidate.assignments,
+        source: 'accepted-seating-candidate',
+      })
+    })
+  }
+
+  document.querySelector<HTMLFormElement>('#grouping-generator-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    void generateGrouping(new FormData(event.currentTarget as HTMLFormElement))
+  })
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-apply-group-candidate]')) {
+    button.addEventListener('click', () => {
+      const candidate = groupingGeneration?.candidates.find((item) => item.id === button.dataset.applyGroupCandidate)
+      if (!candidate) return
+      void mutateProject({
+        type: 'replace-planning-groups',
+        groups: candidate.groups,
+        source: 'accepted-grouping-candidate',
+      })
+    })
+  }
+
+  for (const input of document.querySelectorAll<HTMLInputElement>('[data-group-lock]')) {
+    input.addEventListener('change', () => {
+      const target = input.dataset.groupLock
+      if (!target) return
+      const separator = target.indexOf(':')
+      if (separator < 1) return
+      void mutateProject({
+        type: 'set-group-student-locked',
+        groupId: target.slice(0, separator),
+        studentId: target.slice(separator + 1),
+        locked: input.checked,
+      })
+    })
+  }
+}
+
+async function generateSeating(data: FormData): Promise<void> {
+  if (!project) return
+  clearStatus()
+  try {
+    const seed = asString(data, 'seed')
+    const response = await postJson<{ result: SeatingGenerationView }>('/api/planning/seating', {
+      project,
+      seed,
+      candidateCount: 3,
+      attempts: 750,
+    })
+    seatingGeneration = response.result
+    groupingGeneration = null
+    renderWorkspace()
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not generate seating candidates.')
+  }
+}
+
+async function generateGrouping(data: FormData): Promise<void> {
+  if (!project) return
+  clearStatus()
+  try {
+    const metricKey = asString(data, 'metricKey')
+    const response = await postJson<{ result: GroupingGenerationView }>('/api/planning/grouping', {
+      project,
+      groupCount: Number(asString(data, 'groupCount')),
+      seed: asString(data, 'seed'),
+      ...(metricKey ? { metricKey } : {}),
+      candidateCount: 3,
+      attempts: 400,
+    })
+    groupingGeneration = response.result
+    seatingGeneration = null
+    renderWorkspace()
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not generate grouping candidates.')
+  }
+}
+
 function renderGraphs(content: HTMLElement): void {
   if (!project) return
 
