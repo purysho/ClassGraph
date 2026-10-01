@@ -1,0 +1,29 @@
+name: Phase 3 dependency size review
+
+on:
+  push:
+    branches: [feat/phase-3-reports]
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Runtime dependency tree
+        run: npm ls --omit=dev --depth=0
+      - name: Installed dependency sizes
+        run: |
+          du -sk node_modules/docx
+          du -sk node_modules/pdf-lib
+          du -sk node_modules/zod
+          du -sk node_modules
+      - name: Packed application size
+        run: npm pack --dry-run --json
