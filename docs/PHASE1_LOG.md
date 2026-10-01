@@ -163,6 +163,27 @@ Completed behaviour:
 
 P1.5 cleanup also removed an overlapping older roster CSS block so the current roster/provenance styling has a single authoritative implementation.
 
+### P1.6 — Descriptive analysis views
+
+**Status:** Complete.
+
+Implemented `src/analysis-view.ts`, `tests/analysis-view.test.ts`, local analysis endpoints, and the Overview/Graphs workspace.
+
+Completed behaviour:
+
+- project completeness separates recorded cells, explicit missing values, and unrecorded cells;
+- numeric metrics expose count, missing count, min/max, mean, median, quartiles, and deterministic histogram buckets;
+- categorical/ordinal/boolean/text metrics expose descriptive counts;
+- every graph has a table equivalent;
+- scatter comparison accepts two distinct numeric metrics only;
+- students without both selected numeric values are omitted and counted rather than filled;
+- scatter UI states explicitly that association does not imply causation;
+- no charting dependency was added; rendering stays lightweight and offline;
+- analysis requests validate the full Exchange v1 project before calculations;
+- tests cover completeness, zero preservation, histogram totals, scatter omission, and endpoint validation.
+
+A later cleanup consolidated two overlapping client implementations created during the interrupted session into one authoritative analysis UI.
+
 ## Next exact step
 
-Implement **P1.6 — Overview statistics + distribution/comparison views**. Reuse the existing descriptive-analysis core, add API endpoints for project summaries, and build graph/table views that always expose missing counts and never imply causation or hidden student traits.
+Complete **P1.7 — Synthetic class creation from structured parameters**. The structured specification validator and `/api/synthetic/generate` endpoint already exist; finish the teacher-facing builder so metrics, distributions, weights, missing rates, and seed are explicit before generation.
