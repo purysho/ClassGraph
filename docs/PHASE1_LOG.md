@@ -110,6 +110,23 @@ Completed behaviour:
 
 **Verification note:** Earlier PR test runs reached Prettier and exposed formatting-only failures. Those three original formatter blockers were corrected. Subsequent API-written commits have not received new GitHub check runs yet; P1.8 will force a fresh pull-request event and run the complete gate before merge.
 
+### P1.5a — Core-backed project mutation API
+
+**Status:** Complete.
+
+Implemented `src/project-mutations.ts`, `tests/project-mutations.test.ts`, and `POST /api/project/mutate`.
+
+Completed behaviour:
+
+- validates the current project through the canonical ClassGraph Exchange v1 schema before mutation;
+- validates mutation commands before they reach workspace/metric services;
+- supports add/update/remove student commands;
+- supports add/remove metric-definition commands;
+- supports set/unset metric-value commands;
+- preserves explicit `null`, `0`, and `false` semantics through the existing core;
+- preserves core `CG-2xxx` error codes at the local HTTP boundary instead of flattening them into import errors;
+- includes direct command-layer tests and an end-to-end local server mutation test.
+
 ## Next exact step
 
-Implement **P1.5 — Editable student roster + provenance inspection**. Add local mutation endpoints backed by the workspace/metric services, then make the Students view support roster edits, metric definitions/values, explicit missingness, removal, and source/provenance inspection.
+Continue **P1.5b — Editable student roster UI**. Replace the Students placeholder with add/edit/remove student controls, a metric-definition editor, typed metric cells (including explicit missing and unrecorded states), and save every change through `/api/project/mutate`. Then complete P1.5c with provenance inspection.
