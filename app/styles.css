@@ -1728,3 +1728,78 @@ select:focus {
     grid-template-columns: 1fr;
   }
 }
+
+
+.relationship-graph-panel {
+  overflow: hidden;
+}
+
+.relationship-graph-stage {
+  min-height: 420px;
+  margin-top: 16px;
+  overflow: auto;
+  border: 1px solid #dce4e8;
+  border-radius: 14px;
+  background:
+    linear-gradient(to right, rgba(89, 105, 116, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(89, 105, 116, 0.05) 1px, transparent 1px),
+    #f9fbfc;
+  background-size: 40px 40px;
+}
+
+.relationship-graph {
+  width: 100%;
+  min-width: 680px;
+  display: block;
+}
+
+.relationship-edge {
+  stroke: #7d8c95;
+  stroke-width: 3;
+  stroke-opacity: 0.74;
+}
+
+.relationship-edge-support-pair {
+  stroke-dasharray: 9 4;
+}
+
+.relationship-edge-avoid-pairing {
+  stroke-dasharray: 3 5;
+}
+
+.relationship-edge-friendship {
+  stroke-width: 4;
+}
+
+.relationship-edge-custom {
+  stroke-opacity: 0.56;
+}
+
+.relationship-graph marker path {
+  fill: #596c78;
+}
+
+.relationship-node circle {
+  fill: #f8fbfc;
+  stroke: #526a79;
+  stroke-width: 3;
+}
+
+.relationship-node.connected circle {
+  fill: #eef4f7;
+}
+
+.relationship-node.focused circle {
+  fill: #17212a;
+  stroke: #17212a;
+}
+
+.relationship-node text {
+  fill: #344550;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.relationship-node.focused text {
+  font-weight: 900;
+}
