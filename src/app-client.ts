@@ -200,7 +200,8 @@ function renderSetup(): void {
 
   document.querySelector<HTMLFormElement>('#manual-form')?.addEventListener('submit', (event) => {
     event.preventDefault()
-    void createManualClass(new FormData(event.currentTarget))
+    const form = event.currentTarget as HTMLFormElement
+    void createManualClass(new FormData(form))
   })
 
   document.querySelector<HTMLFormElement>('#import-form')?.addEventListener('submit', (event) => {
@@ -210,7 +211,8 @@ function renderSetup(): void {
 
   document.querySelector<HTMLFormElement>('#synthetic-form')?.addEventListener('submit', (event) => {
     event.preventDefault()
-    void createSyntheticClass(new FormData(event.currentTarget))
+    const form = event.currentTarget as HTMLFormElement
+    void createSyntheticClass(new FormData(form))
   })
 }
 
