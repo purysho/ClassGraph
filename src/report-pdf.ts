@@ -83,7 +83,7 @@ function drawWrapped(
   const lineHeight = size * 1.35
   const width = cursor.pageWidth - MARGIN * 2 - indent
   const lines = wrapText(font, text, size, width)
-  let next = ensureRoom(cursor, lines.length * lineHeight + (options.spacingAfter ?? 4))
+  const next = ensureRoom(cursor, lines.length * lineHeight + (options.spacingAfter ?? 4))
 
   for (const line of lines) {
     next.page.drawText(line, {
