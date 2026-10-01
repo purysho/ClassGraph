@@ -296,4 +296,116 @@ describe('local app server', () => {
     expect(first.project.students).toEqual(second.project.students)
     expect(first.project.provenance['/students/0/metrics/score']?.kind).toBe('synthetic')
   })
+
+  it('generates deterministic seating candidates through the local planning API', async () => {
+    const base = await startServer()
+    let project = createEmptyProject({
+      projectId: 'planning-api',
+      title: 'Planning API',
+      now: '2026-10-01T10:00:00.000Z',
+    })
+
+    const mutate = async (command: Record<string, unknown>) => {
+      const response = await fetch(`${base}/api/project/mutate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, command }),
+      })
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as { project: typeof project }
+      project = body.project
+    }
+
+    for (const id of ['s1', 's2', 's3', 's4']) {
+      await mutate({ type: 'add-student', student: { id } })
+    }
+    await mutate({ type: 'set-grid-room', rows: 2, columns: 2, front: 'top' })
+    await mutate({
+      type: 'add-planning-rule',
+      rule: {
+        id: 'apart',
+        strength: 'hard',
+        kind: 'keep-apart',
+        studentAId: 's1',
+        studentBId: 's2',
+      },
+    })
+
+    const generate = async () => {
+      const response = await fetch(`${base}/api/planning/seating`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project,
+          seed: 'api-seat',
+          candidateCount: 3,
+          attempts: 300,
+        }),
+      })
+      expect(response.status).toBe(200)
+      return (await response.json()) as {
+        result: {
+          candidates: Array<{
+            assignments: Array<{ studentId: string; seatId: string }>
+            hardConstraintResults: Array<{ satisfied: boolean }>
+          }>
+        }
+      }
+    }
+
+    const first = await generate()
+    const second = await generate()
+    expect(first).toEqual(second)
+    expect(first.result.candidates).toHaveLength(3)
+    expect(
+      first.result.candidates.every((candidate) =>
+        candidate.hardConstraintResults.every((result) => result.satisfied),
+      ),
+    ).toBe(true)
+  })
+
+  it('generates deterministic grouping candidates through the local planning API', async () => {
+    const base = await startServer()
+    let project = createEmptyProject({
+      projectId: 'group-api',
+      title: 'Group API',
+      now: '2026-10-01T10:00:00.000Z',
+    })
+
+    const mutate = async (command: Record<string, unknown>) => {
+      const response = await fetch(`${base}/api/project/mutate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, command }),
+      })
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as { project: typeof project }
+      project = body.project
+    }
+
+    for (const id of ['s1', 's2', 's3', 's4', 's5', 's6']) {
+      await mutate({ type: 'add-student', student: { id } })
+    }
+
+    const response = await fetch(`${base}/api/planning/grouping`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project,
+        groupCount: 3,
+        seed: 'api-groups',
+        candidateCount: 3,
+        attempts: 100,
+      }),
+    })
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      result: { candidates: Array<{ groups: Array<{ studentIds: string[] }> }> }
+    }
+    expect(body.result.candidates).toHaveLength(3)
+    expect(body.result.candidates[0]?.groups.map((group) => group.studentIds.length)).toEqual([
+      2, 2, 2,
+    ])
+  })
+
 })
