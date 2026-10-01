@@ -16,11 +16,10 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - name: Resolve dependency graph without running package scripts
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          cache: npm
       - name: Known high/critical problems in shipped packages
         run: npm audit --omit=dev --audit-level=high
