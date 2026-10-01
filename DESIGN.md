@@ -717,24 +717,31 @@ fixtures exist in both repositories
 
 ### Phase 4 — Relationship graph and advanced comparison
 
-Add only if useful:
+Implemented scope:
 
-- explicit relationship network;
-- group network comparison;
-- repeat-neighbour history;
-- saved scenario comparisons;
-- selected before/after views.
+- explicit teacher/imported/synthetic relationship records only;
+- deterministic relationship network with table equivalent;
+- repeat-neighbour history from approved seating records;
+- saved planning scenarios and deterministic comparisons;
+- selected before/after planning/network views;
+- no relationship inference from grades, demographics, names, attendance, or other unrelated metrics.
 
 ### Phase 5 — Optional assistance layer
 
-Possible later assistance:
+Implemented scope:
 
-- convert teacher natural-language class description into an editable synthetic-generation specification;
-- explain visible distributions;
-- draft report wording;
-- suggest candidate planning rules.
+- provider-independent request/proposal/disclosure contracts;
+- deterministic offline synthetic-spec drafting from constrained teacher intent;
+- descriptive analysis explanation with missing-data and non-causation caveats;
+- report wording drafted from the canonical validated snapshot;
+- planning-rule suggestions only from explicit supported relationship records;
+- teacher-visible source paths, rationale, and soft/hard rule status;
+- assistance workspace with provider status, exact-context disclosure, editable/copyable drafts, and explicit acceptance boundaries;
+- optional direct-HTTPS provider configured only through process environment variables;
+- explicit per-request network confirmation, timeout/response-size limits, and response validation;
+- no provider enabled by default and no provider SDK dependency.
 
-AI only suggests; the teacher previews/edits before applying.
+Assistance only proposes. Synthetic generation and planning mutations remain separate explicit teacher actions.
 
 ---
 
@@ -773,4 +780,4 @@ Proceed only when:
 
 ## 16. Immediate implementation instruction
 
-> Phase 0–3 are complete and Gate 3 passed. Preserve the lean local architecture. Proceed to Phase 4 only with explicit relationship-network and advanced-comparison features grounded in teacher-supplied or clearly synthetic edges, with accessible table equivalents. Do not infer social relationships from unrelated student data.
+> Phase 0–5 are implemented. Preserve the lean local architecture, explicit provenance, missing-data semantics, and proposal-only assistance boundary. Any future phase must keep the core usable with no network provider, avoid hidden student-trait inference, and justify every new runtime dependency.
