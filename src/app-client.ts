@@ -3103,8 +3103,89 @@ function renderRelationshipRows(): string {
     .join('')
 }
 
+function formatSavedDate(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
+function renderHistoryRecords(): string {
+  const history = project?.planning?.history ?? []
+  if (history.length === 0) {
+    return '<p class="muted">No approved seating history has been recorded.</p>'
+  }
+
+  return history
+    .map(
+      (entry) => `
+        <div class="snapshot-row">
+          <div>
+            <b>${escapeHtml(entry.label ?? 'Approved seating')}</b>
+            <small>
+              ${escapeHtml(formatSavedDate(entry.approvedAt))} ·
+              ${escapeHtml(entry.neighbourMode)} neighbours ·
+              ${entry.assignments.length} assignments
+            </small>
+          </div>
+          <button
+            class="icon-button danger-text"
+            type="button"
+            data-remove-history="${escapeHtml(entry.id)}"
+            title="Remove history record"
+          >×</button>
+        </div>
+      `,
+    )
+    .join('')
+}
+
+function renderScenarioRecords(): string {
+  const scenarios = project?.planning?.scenarios ?? []
+  if (scenarios.length === 0) return '<p class="muted">No saved planning scenarios yet.</p>'
+
+  return scenarios
+    .map(
+      (scenario) => `
+        <div class="snapshot-row">
+          <div>
+            <b>${escapeHtml(scenario.label)}</b>
+            <small>
+              ${escapeHtml(formatSavedDate(scenario.savedAt))} ·
+              ${scenario.assignments.length} seats ·
+              ${scenario.groups.length} groups ·
+              ${scenario.rules.length} rules
+            </small>
+          </div>
+          <button
+            class="icon-button danger-text"
+            type="button"
+            data-remove-scenario="${escapeHtml(scenario.id)}"
+            title="Remove planning scenario"
+          >×</button>
+        </div>
+      `,
+    )
+    .join('')
+}
+
+function normalizeScenarioSelections(): void {
+  const scenarios = project?.planning?.scenarios ?? []
+  const ids = scenarios.map((scenario) => scenario.id)
+
+  if (!selectedScenarioLeftId || !ids.includes(selectedScenarioLeftId)) {
+    selectedScenarioLeftId = ids[0] ?? null
+  }
+  if (
+    !selectedScenarioRightId ||
+    !ids.includes(selectedScenarioRightId) ||
+    selectedScenarioRightId === selectedScenarioLeftId
+  ) {
+    selectedScenarioRightId = ids.find((id) => id !== selectedScenarioLeftId) ?? null
+  }
+}
+
 function renderRelationships(content: HTMLElement): void {
   if (!project) return
+  normalizeScenarioSelections()
 
   const fromStudentOptions = project.students
     .map((student, index) => optionHtml(student.id, studentOptionLabel(student), index === 0))
