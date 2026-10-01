@@ -127,6 +127,25 @@ Completed behaviour:
 - preserves core `CG-2xxx` error codes at the local HTTP boundary instead of flattening them into import errors;
 - includes direct command-layer tests and an end-to-end local server mutation test.
 
+### P1.5b — Editable student roster UI
+
+**Status:** Complete.
+
+Implemented the real Students workspace in `src/app-client.ts` with supporting styles in `app/styles.css`.
+
+Completed behaviour:
+
+- add a student with explicit ID and optional display name;
+- edit display name, tags, and notes for existing students;
+- remove students through the core mutation layer;
+- add number, ordinal, category, boolean, or text metric definitions;
+- edit every defined metric directly in the roster table;
+- distinguish three cell states: `Value`, `Missing` (explicit `null`), and `Unrecorded` (property absent);
+- parse number and boolean values without converting `0` or `false` into missing data;
+- category/ordinal cells use the authored definition values;
+- all saves route through `POST /api/project/mutate`; the browser does not directly rewrite Exchange v1 objects;
+- horizontal roster layout supports larger classes and many custom metrics.
+
 ## Next exact step
 
-Continue **P1.5b — Editable student roster UI**. Replace the Students placeholder with add/edit/remove student controls, a metric-definition editor, typed metric cells (including explicit missing and unrecorded states), and save every change through `/api/project/mutate`. Then complete P1.5c with provenance inspection.
+Complete **P1.5c — Provenance inspection**. Add per-student/per-metric source indicators and a readable inspector showing path, provenance kind, source/note, and derived-from fields without inventing provenance where none is recorded.
