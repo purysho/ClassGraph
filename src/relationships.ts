@@ -50,7 +50,10 @@ function normalizeRelationship(relationship: RelationshipRecord): RelationshipRe
   }
 }
 
-function assertRelationshipEndpoints(project: ClassGraphProject, relationship: RelationshipRecord): void {
+function assertRelationshipEndpoints(
+  project: ClassGraphProject,
+  relationship: RelationshipRecord,
+): void {
   const studentIds = new Set(project.students.map((student) => student.id))
   if (!studentIds.has(relationship.fromStudentId)) {
     throw new Error(`CG-2021 unknown relationship student: ${relationship.fromStudentId}`)
@@ -142,7 +145,8 @@ export function updateRelationship(
   if (index < 0) throw new Error(`CG-2024 unknown relationship: ${relationshipId}`)
 
   const current = project.relationships?.[index]
-  if (!current) throw new Error(`CG-9001 relationship index unexpectedly missing: ${relationshipId}`)
+  if (!current)
+    throw new Error(`CG-9001 relationship index unexpectedly missing: ${relationshipId}`)
 
   const candidate = normalizeRelationship({
     ...current,
