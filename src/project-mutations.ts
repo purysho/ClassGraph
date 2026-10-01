@@ -6,8 +6,24 @@ import {
   setStudentMetricValue,
   unsetStudentMetricValue,
 } from './metrics.js'
-import { setGridRoom, setSeatEnabled, setSeatTags } from './room.js'
-import { classGraphProjectSchema } from './schema.js'
+import {
+  addPlanningRule,
+  assignStudentToSeat,
+  removePlanningRule,
+  replacePlanningGroups,
+  replaceSeatAssignments,
+  setGroupStudentLocked,
+  setPlanningSeed,
+  setSeatAssignmentLocked,
+  unassignStudentFromSeat,
+} from './planning-state.js'
+import { setGridRoom, setRoomFront, setSeatEnabled, setSeatTags } from './room.js'
+import {
+  classGraphProjectSchema,
+  planningAssignmentSchema,
+  planningGroupSchema,
+  planningRuleSchema,
+} from './schema.js'
 import { addStudent, removeStudent, updateStudent } from './workspace.js'
 
 const metricValueSchema = z.union([z.number().finite(), z.string(), z.boolean(), z.null()])
@@ -86,6 +102,53 @@ const commandSchema = z.discriminatedUnion('type', [
     seatId: z.string().min(1),
     tags: z.array(z.string()),
   }),
+  z.object({
+    type: z.literal('set-room-front'),
+    front: z.enum(['top', 'bottom', 'left', 'right']),
+  }),
+  z.object({
+    type: z.literal('set-planning-seed'),
+    seed: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal('set-seat-assignment'),
+    studentId: z.string().min(1),
+    seatId: z.string().min(1),
+    locked: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('unassign-student'),
+    studentId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal('set-assignment-locked'),
+    studentId: z.string().min(1),
+    locked: z.boolean(),
+  }),
+  z.object({
+    type: z.literal('replace-seat-assignments'),
+    assignments: z.array(planningAssignmentSchema),
+    source: z.enum(['manual-seat-assignment', 'accepted-seating-candidate']),
+  }),
+  z.object({
+    type: z.literal('add-planning-rule'),
+    rule: planningRuleSchema,
+  }),
+  z.object({
+    type: z.literal('remove-planning-rule'),
+    ruleId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal('replace-planning-groups'),
+    groups: z.array(planningGroupSchema),
+    source: z.enum(['manual-grouping', 'accepted-grouping-candidate']),
+  }),
+  z.object({
+    type: z.literal('set-group-student-locked'),
+    groupId: z.string().min(1),
+    studentId: z.string().min(1),
+    locked: z.boolean(),
+  }),
 ])
 
 export type ProjectMutationCommand = z.infer<typeof commandSchema>
@@ -153,5 +216,37 @@ export function applyProjectMutation(
       return setSeatEnabled(project, command.seatId, command.enabled, now)
     case 'set-seat-tags':
       return setSeatTags(project, command.seatId, command.tags, now)
+    case 'set-room-front':
+      return setRoomFront(project, command.front, now)
+    case 'set-planning-seed':
+      return setPlanningSeed(project, command.seed, now)
+    case 'set-seat-assignment':
+      return assignStudentToSeat(
+        project,
+        command.studentId,
+        command.seatId,
+        command.locked ?? false,
+        now,
+      )
+    case 'unassign-student':
+      return unassignStudentFromSeat(project, command.studentId, now)
+    case 'set-assignment-locked':
+      return setSeatAssignmentLocked(project, command.studentId, command.locked, now)
+    case 'replace-seat-assignments':
+      return replaceSeatAssignments(project, command.assignments, command.source, now)
+    case 'add-planning-rule':
+      return addPlanningRule(project, command.rule, now)
+    case 'remove-planning-rule':
+      return removePlanningRule(project, command.ruleId, now)
+    case 'replace-planning-groups':
+      return replacePlanningGroups(project, command.groups, command.source, now)
+    case 'set-group-student-locked':
+      return setGroupStudentLocked(
+        project,
+        command.groupId,
+        command.studentId,
+        command.locked,
+        now,
+      )
   }
 }
