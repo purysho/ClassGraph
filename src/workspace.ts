@@ -194,6 +194,30 @@ function remapStudentProvenance(
   return result
 }
 
+
+function remapRelationshipProvenance(
+  provenance: ClassGraphProject['provenance'],
+  removedIndexes: Set<number>,
+): ClassGraphProject['provenance'] {
+  const result: ClassGraphProject['provenance'] = {}
+
+  for (const [path, entry] of Object.entries(provenance)) {
+    const match = /^\/relationships\/(\d+)(\/.*)?$/.exec(path)
+    if (!match) {
+      result[path] = entry
+      continue
+    }
+
+    const index = Number(match[1])
+    if (removedIndexes.has(index)) continue
+    const shift = [...removedIndexes].filter((removedIndex) => removedIndex < index).length
+    const suffix = match[2] ?? ''
+    result[`/relationships/${index - shift}${suffix}`] = entry
+  }
+
+  return result
+}
+
 export function removeStudent(
   project: ClassGraphProject,
   studentId: string,
@@ -204,11 +228,20 @@ export function removeStudent(
 
   const next = cloneProject(project)
   next.students.splice(index, 1)
-  next.relationships = next.relationships?.filter(
-    (relationship) =>
-      relationship.fromStudentId !== studentId && relationship.toStudentId !== studentId,
-  )
+
+  const removedRelationshipIndexes = new Set<number>()
+  next.relationships = next.relationships?.filter((relationship, relationshipIndex) => {
+    const remove =
+      relationship.fromStudentId === studentId || relationship.toStudentId === studentId
+    if (remove) removedRelationshipIndexes.add(relationshipIndex)
+    return !remove
+  })
+  if (next.relationships?.length === 0) delete next.relationships
+
   next.provenance = remapStudentProvenance(next, index)
+  if (removedRelationshipIndexes.size > 0) {
+    next.provenance = remapRelationshipProvenance(next.provenance, removedRelationshipIndexes)
+  }
   next.updatedAt = now
 
   return validate(next)
