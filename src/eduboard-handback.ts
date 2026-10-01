@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { buildAnalysisExport } from './export-json.js'
 import type {
   ClassGraphProject,
-  FieldProvenanceMap,
   PlanningGroup,
   PlanningRule,
   ProvenanceEntry,
@@ -204,7 +203,7 @@ export function buildEduBoardHandback(project: ClassGraphProject): EduBoardHandb
     approvedPlanning: planningForEduBoard(validated),
     syntheticPaths: provenancePaths(validated, 'synthetic'),
     derivedPaths: provenancePaths(validated, 'derived'),
-    provenance: structuredClone(validated.provenance) as FieldProvenanceMap,
+    provenance: structuredClone(validated.provenance),
     ...(validated.extensions ? { extensions: structuredClone(validated.extensions) } : {}),
   }
 
