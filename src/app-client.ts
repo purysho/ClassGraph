@@ -31,6 +31,23 @@ interface StudentRecord {
   metrics: Record<string, MetricValue>
 }
 
+type RelationshipType =
+  | 'works-well-with'
+  | 'avoid-pairing'
+  | 'support-pair'
+  | 'friendship'
+  | 'custom'
+
+interface RelationshipRecord {
+  id: string
+  fromStudentId: string
+  toStudentId: string
+  type: RelationshipType
+  label?: string
+  directed?: boolean
+  weight?: number
+}
+
 interface SeatRecord {
   id: string
   row?: number
@@ -191,6 +208,7 @@ interface ClassGraphProject {
   }
   metricDefinitions: MetricDefinition[]
   students: StudentRecord[]
+  relationships?: RelationshipRecord[]
   room?: RoomRecord
   planning?: PlanningRecord
   provenance: Record<string, ProvenanceEntry>
@@ -274,7 +292,7 @@ interface ScatterView {
   omittedCount: number
 }
 
-type WorkspaceView = 'overview' | 'students' | 'graphs' | 'seating' | 'reports'
+type WorkspaceView = 'overview' | 'students' | 'graphs' | 'relationships' | 'seating' | 'reports'
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
 type SyntheticDraftMetric =
   | {
@@ -324,6 +342,7 @@ let selectedProvenanceStudentId: string | null = null
 let selectedGraphMetricKey: string | null = null
 let selectedScatterX: string | null = null
 let selectedScatterY: string | null = null
+let selectedRelationshipTypeFilter: RelationshipType | 'all' = 'all'
 let seatingGeneration: SeatingGenerationView | null = null
 let groupingGeneration: GroupingGenerationView | null = null
 let syntheticDraftProjectId = ''
@@ -1089,6 +1108,7 @@ function renderWorkspace(): void {
           <button data-view="overview">Overview</button>
           <button data-view="students">Students</button>
           <button data-view="graphs">Graphs</button>
+          <button data-view="relationships">Relationships</button>
           <button data-view="seating">Seating</button>
           <button data-view="reports">Reports</button>
         </nav>
@@ -1126,6 +1146,7 @@ function renderWorkspace(): void {
         nextView === 'overview' ||
         nextView === 'students' ||
         nextView === 'graphs' ||
+        nextView === 'relationships' ||
         nextView === 'seating' ||
         nextView === 'reports'
       ) {
@@ -1167,6 +1188,11 @@ function renderWorkspaceContent(): void {
 
   if (activeView === 'students') {
     renderStudents(content)
+    return
+  }
+
+  if (activeView === 'relationships') {
+    renderRelationships(content)
     return
   }
 
