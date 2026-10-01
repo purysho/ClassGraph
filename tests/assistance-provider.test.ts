@@ -65,9 +65,7 @@ describe('assistance context and provider boundary', () => {
       label: 'Fake provider',
       mode: 'network',
       status: () => ({ enabled: true, mode: 'network', label: 'Fake provider' }),
-      execute: async () => {
-        throw new Error('not called')
-      },
+      execute: () => Promise.reject(new Error('not called')),
     }
     const request = buildAssistanceRequest(
       {
@@ -107,10 +105,10 @@ describe('assistance context and provider boundary', () => {
 
   it('requires a second explicit confirmation before a configured provider receives context', async () => {
     let callCount = 0
-    const fetchImpl: typeof fetch = async (_input, init) => {
+    const fetchImpl: typeof fetch = (_input, init) => {
       callCount += 1
       expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer secret-token')
-      return new Response(
+      return Promise.resolve(new Response(
         JSON.stringify({
           version: '1.0',
           proposalId: 'network-proposal',
@@ -125,7 +123,7 @@ describe('assistance context and provider boundary', () => {
           caveats: ['No causal claim.'],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
-      )
+      ))
     }
 
     const provider = new JsonHttpsAssistanceProvider({
@@ -178,8 +176,8 @@ describe('assistance context and provider boundary', () => {
     const mismatched = new JsonHttpsAssistanceProvider({
       label: 'Example',
       endpoint: 'https://provider.example/assist',
-      fetchImpl: async () =>
-        new Response(
+      fetchImpl: () =>
+        Promise.resolve(new Response(
           JSON.stringify({
             version: '1.0',
             proposalId: 'wrong',
@@ -194,7 +192,7 @@ describe('assistance context and provider boundary', () => {
             caveats: [],
           }),
           { status: 200 },
-        ),
+        )),
     })
 
     await expect(
@@ -214,7 +212,7 @@ describe('assistance context and provider boundary', () => {
       label: 'Example',
       endpoint: 'https://provider.example/assist',
       maxResponseBytes: 10,
-      fetchImpl: async () => new Response('x'.repeat(20), { status: 200 }),
+      fetchImpl: () => Promise.resolve(new Response('x'.repeat(20), { status: 200 })),
     })
 
     await expect(
