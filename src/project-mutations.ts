@@ -17,12 +17,14 @@ import {
   setSeatAssignmentLocked,
   unassignStudentFromSeat,
 } from './planning-state.js'
+import { addRelationship, removeRelationship, updateRelationship } from './relationships.js'
 import { setGridRoom, setRoomFront, setSeatEnabled, setSeatTags } from './room.js'
 import {
   classGraphProjectSchema,
   planningAssignmentSchema,
   planningGroupSchema,
   planningRuleSchema,
+  relationshipSchema,
 } from './schema.js'
 import { addStudent, removeStudent, updateStudent } from './workspace.js'
 
@@ -43,6 +45,17 @@ const metricDefinitionSchema = z.object({
   ordinalScale: z.array(z.string().min(1)).optional(),
   categories: z.array(z.string().min(1)).optional(),
   missingAllowed: z.boolean().optional(),
+})
+
+const relationshipPatchSchema = z.object({
+  fromStudentId: z.string().min(1).optional(),
+  toStudentId: z.string().min(1).optional(),
+  type: z
+    .enum(['works-well-with', 'avoid-pairing', 'support-pair', 'friendship', 'custom'])
+    .optional(),
+  label: z.string().nullable().optional(),
+  directed: z.boolean().nullable().optional(),
+  weight: z.number().finite().nullable().optional(),
 })
 
 const commandSchema = z.discriminatedUnion('type', [
@@ -67,6 +80,19 @@ const commandSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('remove-student'),
     studentId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal('add-relationship'),
+    relationship: relationshipSchema,
+  }),
+  z.object({
+    type: z.literal('update-relationship'),
+    relationshipId: z.string().min(1),
+    patch: relationshipPatchSchema,
+  }),
+  z.object({
+    type: z.literal('remove-relationship'),
+    relationshipId: z.string().min(1),
   }),
   z.object({
     type: z.literal('add-metric-definition'),
@@ -197,6 +223,12 @@ export function applyProjectMutation(
       return updateStudent(project, command.studentId, command.patch, now)
     case 'remove-student':
       return removeStudent(project, command.studentId, now)
+    case 'add-relationship':
+      return addRelationship(project, command.relationship, now)
+    case 'update-relationship':
+      return updateRelationship(project, command.relationshipId, command.patch, now)
+    case 'remove-relationship':
+      return removeRelationship(project, command.relationshipId, now)
     case 'add-metric-definition':
       return addMetricDefinition(project, command.definition, now)
     case 'remove-metric-definition':
