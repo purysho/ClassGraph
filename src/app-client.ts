@@ -160,7 +160,6 @@ type SyntheticDraftMetric =
       value: string
     }
 
-
 const root = document.querySelector<HTMLElement>('#app')
 if (!root) throw new Error('ClassGraph could not find the application root.')
 
@@ -421,7 +420,6 @@ async function importProject(): Promise<void> {
     showStatus(error instanceof Error ? error.message : 'Could not import the project.')
   }
 }
-
 
 function renderSyntheticBuilder(): void {
   root.innerHTML = `
@@ -1204,9 +1202,7 @@ function renderStudents(content: HTMLElement): void {
     )
     .join('')
 
-  const rows = project.students
-    .map((student, index) => renderStudentRow(student, index))
-    .join('')
+  const rows = project.students.map((student, index) => renderStudentRow(student, index)).join('')
 
   const metricChips = project.metricDefinitions.length
     ? project.metricDefinitions
@@ -1459,9 +1455,7 @@ function optionHtml(value: string, label: string, selected: boolean): string {
 function renderProvenanceInspector(): string {
   if (!project || !selectedProvenanceStudentId) return ''
 
-  const index = project.students.findIndex(
-    (student) => student.id === selectedProvenanceStudentId,
-  )
+  const index = project.students.findIndex((student) => student.id === selectedProvenanceStudentId)
   if (index < 0) return ''
 
   const student = project.students[index]
@@ -1522,28 +1516,32 @@ function renderProvenanceInspector(): string {
 }
 
 function bindStudentViewEvents(): void {
-  document.querySelector<HTMLFormElement>('#add-student-form')?.addEventListener('submit', (event) => {
-    event.preventDefault()
-    const form = event.currentTarget as HTMLFormElement
-    const data = new FormData(form)
-    const id = asString(data, 'id')
-    const displayName = asString(data, 'displayName')
-    void mutateProject({
-      type: 'add-student',
-      student: {
-        id,
-        ...(displayName ? { displayName } : {}),
-      },
+  document
+    .querySelector<HTMLFormElement>('#add-student-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const form = event.currentTarget as HTMLFormElement
+      const data = new FormData(form)
+      const id = asString(data, 'id')
+      const displayName = asString(data, 'displayName')
+      void mutateProject({
+        type: 'add-student',
+        student: {
+          id,
+          ...(displayName ? { displayName } : {}),
+        },
+      })
     })
-  })
 
-  document.querySelector<HTMLFormElement>('#add-metric-form')?.addEventListener('submit', (event) => {
-    event.preventDefault()
-    const form = event.currentTarget as HTMLFormElement
-    const data = new FormData(form)
-    const definition = metricDefinitionFromForm(data)
-    void mutateProject({ type: 'add-metric-definition', definition })
-  })
+  document
+    .querySelector<HTMLFormElement>('#add-metric-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const form = event.currentTarget as HTMLFormElement
+      const data = new FormData(form)
+      const definition = metricDefinitionFromForm(data)
+      void mutateProject({ type: 'add-metric-definition', definition })
+    })
 
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-save-student]')) {
     button.addEventListener('click', () => {
@@ -1703,10 +1701,7 @@ async function saveSelectMetric(
   })
 }
 
-async function saveInputMetric(
-  studentId: string,
-  definition: MetricDefinition,
-): Promise<void> {
+async function saveInputMetric(studentId: string, definition: MetricDefinition): Promise<void> {
   const target = `${studentId}:${definition.key}`
   const stateSelect = document.querySelector<HTMLSelectElement>(
     `[data-metric-state="${CSS.escape(target)}"]`,
@@ -1759,7 +1754,6 @@ async function saveInputMetric(
   })
 }
 
-
 function renderGraphs(content: HTMLElement): void {
   if (!project) return
 
@@ -1798,7 +1792,10 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
   const current = project
   if (!current) return
 
-  if (!selectedGraphMetricKey || !analysis.metrics.some((item) => item.key === selectedGraphMetricKey)) {
+  if (
+    !selectedGraphMetricKey ||
+    !analysis.metrics.some((item) => item.key === selectedGraphMetricKey)
+  ) {
     selectedGraphMetricKey = analysis.metrics[0]?.key ?? null
   }
 
@@ -1922,9 +1919,7 @@ function renderNoMetrics(): string {
 }
 
 function renderMetricAnalysis(metric: MetricAnalysis): string {
-  return metric.kind === 'number'
-    ? renderNumericAnalysis(metric)
-    : renderCategoryAnalysis(metric)
+  return metric.kind === 'number' ? renderNumericAnalysis(metric) : renderCategoryAnalysis(metric)
 }
 
 function renderNumericAnalysis(metric: NumericMetricAnalysis): string {

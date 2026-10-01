@@ -1,9 +1,4 @@
-import type {
-  ClassGraphProject,
-  ClassInfo,
-  ProvenanceEntry,
-  StudentRecord,
-} from './model.js'
+import type { ClassGraphProject, ClassInfo, ProvenanceEntry, StudentRecord } from './model.js'
 import { classGraphProjectSchema } from './schema.js'
 
 export interface NewProjectInput {
@@ -121,16 +116,13 @@ export function addStudent(
   const index = next.students.length - 1
   next.provenance[studentPath(index, 'id')] = teacherEntered('manual-student-entry')
   if (student.displayName !== undefined) {
-    next.provenance[studentPath(index, 'displayName')] =
-      teacherEntered('manual-student-entry')
+    next.provenance[studentPath(index, 'displayName')] = teacherEntered('manual-student-entry')
   }
   if (student.tags !== undefined) {
-    next.provenance[studentPath(index, 'tags')] =
-      teacherEntered('manual-student-entry')
+    next.provenance[studentPath(index, 'tags')] = teacherEntered('manual-student-entry')
   }
   if (student.notes !== undefined) {
-    next.provenance[studentPath(index, 'notes')] =
-      teacherEntered('manual-student-entry')
+    next.provenance[studentPath(index, 'notes')] = teacherEntered('manual-student-entry')
   }
 
   next.updatedAt = now
@@ -148,8 +140,7 @@ export function updateStudent(
 
   const next = cloneProject(project)
   const student = next.students[index]
-  if (!student)
-    throw new Error(`CG-9001 student index unexpectedly missing: ${studentId}`)
+  if (!student) throw new Error(`CG-9001 student index unexpectedly missing: ${studentId}`)
 
   if (patch.displayName !== undefined) {
     if (patch.displayName === null || !patch.displayName.trim()) {
@@ -157,15 +148,13 @@ export function updateStudent(
       delete next.provenance[studentPath(index, 'displayName')]
     } else {
       student.displayName = patch.displayName.trim()
-      next.provenance[studentPath(index, 'displayName')] =
-        teacherEntered('manual-student-edit')
+      next.provenance[studentPath(index, 'displayName')] = teacherEntered('manual-student-edit')
     }
   }
 
   if (patch.tags !== undefined) {
     student.tags = [...patch.tags]
-    next.provenance[studentPath(index, 'tags')] =
-      teacherEntered('manual-student-edit')
+    next.provenance[studentPath(index, 'tags')] = teacherEntered('manual-student-edit')
   }
 
   if (patch.notes !== undefined) {
@@ -174,8 +163,7 @@ export function updateStudent(
       delete next.provenance[studentPath(index, 'notes')]
     } else {
       student.notes = patch.notes
-      next.provenance[studentPath(index, 'notes')] =
-        teacherEntered('manual-student-edit')
+      next.provenance[studentPath(index, 'notes')] = teacherEntered('manual-student-edit')
     }
   }
 

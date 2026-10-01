@@ -96,9 +96,7 @@ export function parseProjectMutationRequest(value: unknown): ProjectMutationRequ
   const commandResult = commandSchema.safeParse(record.command)
   if (!commandResult.success) {
     const issue = commandResult.error.issues[0]
-    throw new Error(
-      `CG-1001 invalid mutation command: ${issue?.message ?? 'validation failed'}`,
-    )
+    throw new Error(`CG-1001 invalid mutation command: ${issue?.message ?? 'validation failed'}`)
   }
 
   return {

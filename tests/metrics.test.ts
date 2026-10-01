@@ -36,18 +36,12 @@ describe('metric editing', () => {
     )
 
     expect(project.metricDefinitions[0]?.key).toBe('assessment')
-    expect(project.provenance['/metricDefinitions/0']?.kind).toBe(
-      'teacher-entered',
-    )
+    expect(project.provenance['/metricDefinitions/0']?.kind).toBe('teacher-entered')
   })
 
   it('preserves zero, false and explicit missing null as distinct values', () => {
     let project = projectWithStudent()
-    project = addMetricDefinition(
-      project,
-      { key: 'score', label: 'Score', kind: 'number' },
-      t2,
-    )
+    project = addMetricDefinition(project, { key: 'score', label: 'Score', kind: 'number' }, t2)
     project = addMetricDefinition(
       project,
       { key: 'present', label: 'Present', kind: 'boolean' },
@@ -62,18 +56,12 @@ describe('metric editing', () => {
 
     project = setStudentMetricValue(project, 's-001', 'score', null, t3)
     expect(project.students[0]?.metrics.score).toBeNull()
-    expect(project.provenance['/students/0/metrics/score']?.kind).toBe(
-      'teacher-entered',
-    )
+    expect(project.provenance['/students/0/metrics/score']?.kind).toBe('teacher-entered')
   })
 
   it('can remove an unrecorded value without converting it to null', () => {
     let project = projectWithStudent()
-    project = addMetricDefinition(
-      project,
-      { key: 'score', label: 'Score', kind: 'number' },
-      t2,
-    )
+    project = addMetricDefinition(project, { key: 'score', label: 'Score', kind: 'number' }, t2)
     project = setStudentMetricValue(project, 's-001', 'score', null, t3)
     project = unsetStudentMetricValue(project, 's-001', 'score', t3)
 
@@ -94,9 +82,7 @@ describe('metric editing', () => {
       t2,
     )
 
-    expect(() =>
-      setStudentMetricValue(project, 's-001', 'support', 'medium', t3),
-    ).toThrow()
+    expect(() => setStudentMetricValue(project, 's-001', 'support', 'medium', t3)).toThrow()
   })
 
   it('rejects null when a metric explicitly disallows missing values', () => {
@@ -112,18 +98,12 @@ describe('metric editing', () => {
       t2,
     )
 
-    expect(() =>
-      setStudentMetricValue(project, 's-001', 'required', null, t3),
-    ).toThrow()
+    expect(() => setStudentMetricValue(project, 's-001', 'required', null, t3)).toThrow()
   })
 
   it('updates definitions safely and removes metric data when the definition is removed', () => {
     let project = projectWithStudent()
-    project = addMetricDefinition(
-      project,
-      { key: 'score', label: 'Score', kind: 'number' },
-      t2,
-    )
+    project = addMetricDefinition(project, { key: 'score', label: 'Score', kind: 'number' }, t2)
     project = setStudentMetricValue(project, 's-001', 'score', 80, t3)
     project = updateMetricDefinition(
       project,

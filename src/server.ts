@@ -116,8 +116,6 @@ function parseProjectSetup(value: unknown): ProjectSetupRequest {
   }
 }
 
-
-
 function parseProjectFromRequest(record: Record<string, unknown>) {
   const result = classGraphProjectSchema.safeParse(record.project)
   if (!result.success) {
@@ -223,7 +221,6 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
         sendJson(response, 200, { project })
         return
       }
-
 
       if (request.method === 'POST' && url.pathname === '/api/synthetic/generate') {
         const specification = parseStructuredSyntheticRequest(

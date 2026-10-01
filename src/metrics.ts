@@ -1,9 +1,4 @@
-import type {
-  ClassGraphProject,
-  MetricDefinition,
-  MetricValue,
-  ProvenanceEntry,
-} from './model.js'
+import type { ClassGraphProject, MetricDefinition, MetricValue, ProvenanceEntry } from './model.js'
 import { classGraphProjectSchema } from './schema.js'
 
 function teacherEntered(source: string): ProvenanceEntry {
@@ -25,9 +20,7 @@ function findStudentIndex(project: ClassGraphProject, studentId: string): number
 }
 
 function findMetricIndex(project: ClassGraphProject, metricKey: string): number {
-  const index = project.metricDefinitions.findIndex(
-    (definition) => definition.key === metricKey,
-  )
+  const index = project.metricDefinitions.findIndex((definition) => definition.key === metricKey)
   if (index < 0) throw new Error(`CG-2009 unknown metric definition: ${metricKey}`)
   return index
 }
@@ -63,9 +56,7 @@ export function addMetricDefinition(
   const next = cloneProject(project)
   next.metricDefinitions.push(structuredClone(definition))
   const index = next.metricDefinitions.length - 1
-  next.provenance[`/metricDefinitions/${index}`] = teacherEntered(
-    'manual-metric-definition',
-  )
+  next.provenance[`/metricDefinitions/${index}`] = teacherEntered('manual-metric-definition')
   next.updatedAt = now
 
   return validate(next)
@@ -79,16 +70,12 @@ export function updateMetricDefinition(
 ): ClassGraphProject {
   const index = findMetricIndex(project, metricKey)
   if (definition.key !== metricKey) {
-    throw new Error(
-      'CG-2011 metric keys are immutable; create a new metric to use a different key',
-    )
+    throw new Error('CG-2011 metric keys are immutable; create a new metric to use a different key')
   }
 
   const next = cloneProject(project)
   next.metricDefinitions[index] = structuredClone(definition)
-  next.provenance[`/metricDefinitions/${index}`] = teacherEntered(
-    'manual-metric-definition-edit',
-  )
+  next.provenance[`/metricDefinitions/${index}`] = teacherEntered('manual-metric-definition-edit')
   next.updatedAt = now
 
   return validate(next)
@@ -107,10 +94,7 @@ export function removeMetricDefinition(
     delete student.metrics[metricKey]
   }
 
-  const provenanceWithoutValues = removeMetricProvenance(
-    next.provenance,
-    metricKey,
-  )
+  const provenanceWithoutValues = removeMetricProvenance(next.provenance, metricKey)
   const remapped: ClassGraphProject['provenance'] = {}
 
   for (const [path, entry] of Object.entries(provenanceWithoutValues)) {
@@ -144,13 +128,10 @@ export function setStudentMetricValue(
   const next = cloneProject(project)
   const student = next.students[index]
 
-  if (!student)
-    throw new Error(`CG-9001 student index unexpectedly missing: ${studentId}`)
+  if (!student) throw new Error(`CG-9001 student index unexpectedly missing: ${studentId}`)
 
   student.metrics[metricKey] = value
-  next.provenance[metricValuePath(index, metricKey)] = teacherEntered(
-    'manual-metric-value',
-  )
+  next.provenance[metricValuePath(index, metricKey)] = teacherEntered('manual-metric-value')
   next.updatedAt = now
 
   return validate(next)

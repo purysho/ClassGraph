@@ -153,8 +153,7 @@ const requestSchema = z
     }
   })
 
-export interface StructuredSyntheticRequest
-  extends Omit<SyntheticClassSpec, 'generatedAt'> {}
+export interface StructuredSyntheticRequest extends Omit<SyntheticClassSpec, 'generatedAt'> {}
 
 export function parseStructuredSyntheticRequest(value: unknown): StructuredSyntheticRequest {
   const result = requestSchema.safeParse(value)

@@ -14,16 +14,8 @@ function analysisProject() {
   project = addStudent(project, { id: 's1', displayName: 'One' }, t0)
   project = addStudent(project, { id: 's2', displayName: 'Two' }, t0)
   project = addStudent(project, { id: 's3', displayName: 'Three' }, t0)
-  project = addMetricDefinition(
-    project,
-    { key: 'x', label: 'Metric X', kind: 'number' },
-    t0,
-  )
-  project = addMetricDefinition(
-    project,
-    { key: 'y', label: 'Metric Y', kind: 'number' },
-    t0,
-  )
+  project = addMetricDefinition(project, { key: 'x', label: 'Metric X', kind: 'number' }, t0)
+  project = addMetricDefinition(project, { key: 'y', label: 'Metric Y', kind: 'number' }, t0)
   project = addMetricDefinition(
     project,
     {

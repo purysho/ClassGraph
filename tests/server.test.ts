@@ -34,7 +34,6 @@ async function startServer(
 }
 
 describe('local app server', () => {
-
   it('serves the local teacher workspace shell without remote assets', async () => {
     const base = await startServer(undefined, 'app')
     const response = await fetch(base)
@@ -163,10 +162,11 @@ describe('local app server', () => {
         provenance: Record<string, { kind: string }>
       }
     }
-    expect(body.project.students).toEqual([{ id: 's-001', displayName: 'Student One', metrics: {} }])
+    expect(body.project.students).toEqual([
+      { id: 's-001', displayName: 'Student One', metrics: {} },
+    ])
     expect(body.project.provenance['/students/0/displayName']?.kind).toBe('teacher-entered')
   })
-
 
   it('returns descriptive project analysis and scatter data', async () => {
     const base = await startServer()
@@ -224,7 +224,6 @@ describe('local app server', () => {
     expect(scatterBody.scatter.points).toEqual([{ studentId: 's1', x: 0, y: 2 }])
     expect(scatterBody.scatter.omittedCount).toBe(1)
   })
-
 
   it('generates the same synthetic student data from the same structured specification', async () => {
     const base = await startServer()
@@ -297,5 +296,4 @@ describe('local app server', () => {
     expect(first.project.students).toEqual(second.project.students)
     expect(first.project.provenance['/students/0/metrics/score']?.kind).toBe('synthetic')
   })
-
 })

@@ -70,6 +70,8 @@ describe('structured synthetic request', () => {
     const invalid = structuredClone(valid)
     invalid.metrics[0]!.missingRate = 1.2
 
-    expect(() => parseStructuredSyntheticRequest(invalid)).toThrow('invalid synthetic specification')
+    expect(() => parseStructuredSyntheticRequest(invalid)).toThrow(
+      'invalid synthetic specification',
+    )
   })
 })
