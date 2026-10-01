@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import type { AnalysisExportV1 } from '../src/export-json.js'
 import {
-  buildAnalysisExport,
   buildSeatingPlanExport,
   safeExportStem,
   serializeAnalysisExport,
@@ -85,7 +85,7 @@ describe('Phase 3 portable exports', () => {
     const second = serializeAnalysisExport(fixture())
 
     expect(first).toBe(second)
-    const parsed = JSON.parse(first) as ReturnType<typeof buildAnalysisExport>
+    const parsed = JSON.parse(first) as AnalysisExportV1
     expect(parsed.format).toBe('classgraph-analysis')
     expect(parsed.version).toBe('1.0')
     expect(parsed.analysis.studentCount).toBe(2)
