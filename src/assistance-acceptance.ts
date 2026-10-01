@@ -19,9 +19,7 @@ function parsedProposal(value: unknown): AssistanceProposal {
 export function acceptSyntheticSpecDraft(value: unknown): StructuredSyntheticRequest {
   const proposal = parsedProposal(value)
   if (proposal.task !== 'synthetic-spec-draft') {
-    throw new Error(
-      `CG-6003 expected synthetic-spec-draft proposal, received ${proposal.task}`,
-    )
+    throw new Error(`CG-6003 expected synthetic-spec-draft proposal, received ${proposal.task}`)
   }
 
   return parseStructuredSyntheticRequest(proposal.specification)
