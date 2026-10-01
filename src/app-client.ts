@@ -1504,7 +1504,9 @@ function assistanceDisclosureHtml(request: AssistanceRequestView | null): string
 
   const disclosure = request.disclosure
   const flags = [
-    disclosure.containsStudentLevelData ? 'student-level data' : 'aggregate / non-student-level context',
+    disclosure.containsStudentLevelData
+      ? 'student-level data'
+      : 'aggregate / non-student-level context',
     disclosure.containsStudentIds ? 'student IDs' : 'no student IDs',
     disclosure.containsDisplayNames ? 'display names' : 'no display names',
     disclosure.containsFreeText ? 'free text' : 'no free text',
@@ -1692,7 +1694,14 @@ function renderAssistanceWorkspace(content: HTMLElement, status: AssistanceStatu
             <label>
               Task
               <select id="assistance-task">
-                ${(['analysis-explanation', 'report-wording-draft', 'synthetic-spec-draft', 'planning-rule-suggestions'] as AssistanceTask[])
+                ${(
+                  [
+                    'analysis-explanation',
+                    'report-wording-draft',
+                    'synthetic-spec-draft',
+                    'planning-rule-suggestions',
+                  ] as AssistanceTask[]
+                )
                   .map(
                     (task) =>
                       `<option value="${task}" ${task === assistanceTask ? 'selected' : ''}>${escapeHtml(assistanceTaskLabel(task))}</option>`,
@@ -1755,57 +1764,79 @@ function renderAssistanceWorkspace(content: HTMLElement, status: AssistanceStatu
     </div>
   `
 
-  document.querySelector<HTMLSelectElement>('#assistance-task')?.addEventListener('change', (event) => {
-    assistanceTask = (event.currentTarget as HTMLSelectElement).value as AssistanceTask
-    assistancePreview = null
-    assistanceProposalText = ''
-    assistanceAccepted = null
-    assistanceSelectedIndexes = ''
-    void renderAssistance(content)
-  })
+  document
+    .querySelector<HTMLSelectElement>('#assistance-task')
+    ?.addEventListener('change', (event) => {
+      assistanceTask = (event.currentTarget as HTMLSelectElement).value as AssistanceTask
+      assistancePreview = null
+      assistanceProposalText = ''
+      assistanceAccepted = null
+      assistanceSelectedIndexes = ''
+      void renderAssistance(content)
+    })
 
-  document.querySelector<HTMLTextAreaElement>('#assistance-prompt')?.addEventListener('input', (event) => {
-    assistancePrompt = (event.currentTarget as HTMLTextAreaElement).value
-    assistancePreview = null
-  })
+  document
+    .querySelector<HTMLTextAreaElement>('#assistance-prompt')
+    ?.addEventListener('input', (event) => {
+      assistancePrompt = (event.currentTarget as HTMLTextAreaElement).value
+      assistancePreview = null
+    })
 
-  document.querySelector<HTMLSelectElement>('#assistance-mode')?.addEventListener('change', (event) => {
-    assistanceMode = (event.currentTarget as HTMLSelectElement).value as AssistanceMode
-    assistancePreview = null
-    assistanceProposalText = ''
-    assistanceAccepted = null
-    void renderAssistance(content)
-  })
+  document
+    .querySelector<HTMLSelectElement>('#assistance-mode')
+    ?.addEventListener('change', (event) => {
+      assistanceMode = (event.currentTarget as HTMLSelectElement).value as AssistanceMode
+      assistancePreview = null
+      assistanceProposalText = ''
+      assistanceAccepted = null
+      void renderAssistance(content)
+    })
 
-  document.querySelector<HTMLButtonElement>('#preview-assistance-context')?.addEventListener('click', () => {
-    void previewAssistanceContext()
-  })
+  document
+    .querySelector<HTMLButtonElement>('#preview-assistance-context')
+    ?.addEventListener('click', () => {
+      void previewAssistanceContext()
+    })
   document.querySelector<HTMLButtonElement>('#run-assistance')?.addEventListener('click', () => {
     void runAssistanceDraft()
   })
-  document.querySelector<HTMLTextAreaElement>('#assistance-proposal-editor')?.addEventListener('input', (event) => {
-    assistanceProposalText = (event.currentTarget as HTMLTextAreaElement).value
-    assistanceAccepted = null
-  })
-  document.querySelector<HTMLInputElement>('#assistance-selected-indexes')?.addEventListener('input', (event) => {
-    assistanceSelectedIndexes = (event.currentTarget as HTMLInputElement).value
-    assistanceAccepted = null
-  })
-  document.querySelector<HTMLButtonElement>('#copy-assistance-proposal')?.addEventListener('click', () => {
-    void copyAssistanceProposal()
-  })
-  document.querySelector<HTMLButtonElement>('#accept-synthetic-proposal')?.addEventListener('click', () => {
-    void acceptSyntheticProposal()
-  })
-  document.querySelector<HTMLButtonElement>('#accept-planning-proposal')?.addEventListener('click', () => {
-    void acceptPlanningProposal()
-  })
-  document.querySelector<HTMLButtonElement>('#generate-accepted-synthetic')?.addEventListener('click', () => {
-    void generateAcceptedSynthetic()
-  })
-  document.querySelector<HTMLButtonElement>('#apply-accepted-planning')?.addEventListener('click', () => {
-    void applyAcceptedPlanning()
-  })
+  document
+    .querySelector<HTMLTextAreaElement>('#assistance-proposal-editor')
+    ?.addEventListener('input', (event) => {
+      assistanceProposalText = (event.currentTarget as HTMLTextAreaElement).value
+      assistanceAccepted = null
+    })
+  document
+    .querySelector<HTMLInputElement>('#assistance-selected-indexes')
+    ?.addEventListener('input', (event) => {
+      assistanceSelectedIndexes = (event.currentTarget as HTMLInputElement).value
+      assistanceAccepted = null
+    })
+  document
+    .querySelector<HTMLButtonElement>('#copy-assistance-proposal')
+    ?.addEventListener('click', () => {
+      void copyAssistanceProposal()
+    })
+  document
+    .querySelector<HTMLButtonElement>('#accept-synthetic-proposal')
+    ?.addEventListener('click', () => {
+      void acceptSyntheticProposal()
+    })
+  document
+    .querySelector<HTMLButtonElement>('#accept-planning-proposal')
+    ?.addEventListener('click', () => {
+      void acceptPlanningProposal()
+    })
+  document
+    .querySelector<HTMLButtonElement>('#generate-accepted-synthetic')
+    ?.addEventListener('click', () => {
+      void generateAcceptedSynthetic()
+    })
+  document
+    .querySelector<HTMLButtonElement>('#apply-accepted-planning')
+    ?.addEventListener('click', () => {
+      void applyAcceptedPlanning()
+    })
 }
 
 async function previewAssistanceContext(): Promise<void> {
@@ -1865,7 +1896,10 @@ async function runAssistanceDraft(): Promise<void> {
     assistanceSelectedIndexes = Array.from({ length: count }, (_, index) => index).join(',')
     const content = document.querySelector<HTMLElement>('#workspace-content')
     if (content) await renderAssistance(content)
-    showStatus('Proposal created. Review or edit it before any acceptance or copy action.', 'success')
+    showStatus(
+      'Proposal created. Review or edit it before any acceptance or copy action.',
+      'success',
+    )
   } catch (error) {
     showStatus(error instanceof Error ? error.message : 'Could not create assistance proposal.')
   }
@@ -1893,7 +1927,9 @@ async function copyAssistanceProposal(): Promise<void> {
     await navigator.clipboard.writeText(text)
     showStatus('Edited proposal copied. The project was not changed.', 'success')
   } catch {
-    showStatus('The browser could not copy the proposal. Select the proposal text and copy it manually.')
+    showStatus(
+      'The browser could not copy the proposal. Select the proposal text and copy it manually.',
+    )
   }
 }
 
@@ -1901,13 +1937,19 @@ async function acceptSyntheticProposal(): Promise<void> {
   clearStatus()
   try {
     const proposal = editedAssistanceProposal()
-    const response = await postJson<{ specification: unknown }>('/api/assistance/accept-synthetic', {
-      proposal,
-    })
+    const response = await postJson<{ specification: unknown }>(
+      '/api/assistance/accept-synthetic',
+      {
+        proposal,
+      },
+    )
     assistanceAccepted = response.specification
     const content = document.querySelector<HTMLElement>('#workspace-content')
     if (content) await renderAssistance(content)
-    showStatus('Specification accepted. Generation still requires the separate button below.', 'success')
+    showStatus(
+      'Specification accepted. Generation still requires the separate button below.',
+      'success',
+    )
   } catch (error) {
     showStatus(error instanceof Error ? error.message : 'Could not accept the synthetic proposal.')
   }
@@ -1952,7 +1994,9 @@ async function generateAcceptedSynthetic(): Promise<void> {
     openProject(response.project)
     showStatus('Accepted synthetic specification generated as a new project.', 'success')
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not generate the accepted specification.')
+    showStatus(
+      error instanceof Error ? error.message : 'Could not generate the accepted specification.',
+    )
   }
 }
 
