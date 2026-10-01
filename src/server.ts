@@ -5,6 +5,7 @@ import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
 import { parseProjectJson, serializeProjectJson } from './json.js'
 import { applyProjectMutation, parseProjectMutationRequest } from './project-mutations.js'
 import { classGraphProjectSchema } from './schema.js'
+import { parseStructuredSyntheticRequest } from './synthetic-request.js'
 import { generateSyntheticProject } from './synthetic.js'
 import { createEmptyProject } from './workspace.js'
 
@@ -241,6 +242,19 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
           mutation.command,
           new Date().toISOString(),
         )
+        sendJson(response, 200, { project })
+        return
+      }
+
+
+      if (request.method === 'POST' && url.pathname === '/api/synthetic/generate') {
+        const specification = parseStructuredSyntheticRequest(
+          await readJsonBody(request, maxBodyBytes),
+        )
+        const project = generateSyntheticProject({
+          ...specification,
+          generatedAt: new Date().toISOString(),
+        })
         sendJson(response, 200, { project })
         return
       }
