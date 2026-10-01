@@ -20,7 +20,7 @@ The existing UI-independent core remains authoritative for schema validation, pr
 - [x] P1.5 — Editable student roster + provenance inspection
 - [x] P1.6 — Overview statistics + distribution/comparison views
 - [x] P1.7 — Synthetic class creation from structured parameters
-- [ ] P1.8 — Phase 1 quality pass, tests, documentation, PR
+- [x] P1.8 — Phase 1 quality pass, tests, documentation, PR
 
 ## Completed work
 
@@ -206,6 +206,34 @@ Completed behaviour:
 - the older fixed-demo synthetic endpoint and its obsolete coverage were removed so there is one authoritative generation path;
 - builder styling is fully local/offline and adds no runtime dependency.
 
+### P1.8 — Phase 1 quality pass
+
+**Status:** Complete.
+
+Quality and integration work completed:
+
+- reconciled the main-only PR #2 React/Vite/Recharts prototype as repository history while retaining the lean Phase 1 tree; the branch is now `0` commits behind `main`;
+- removed the superseded React/Vite/Recharts implementation and returned the shipped dependency set to the lean TypeScript/Node/Zod core;
+- removed all temporary formatting workflows after they served their one-time repair purpose; only `tests.yml` and `dependency-check.yml` remain;
+- applied the repository's pinned Prettier formatting and repaired strict ESLint/typecheck findings;
+- fixed the local HTTP boundary so `ClassGraphImportError.code` remains `CG-1001` instead of being flattened to `CG-9001`;
+- added/retained local UI-shell smoke coverage;
+- refreshed `README.md`, `DESIGN.md`, and `SECURITY.md` for the Phase 1 architecture;
+- updated PR #3 to the completed Phase 1 scope and marked it ready for review.
+
+Verified product head: `ae302c194535f51e699e8c1a027aefe1932a822d`.
+
+Permanent GitHub Actions results on that head:
+
+- Dependency check: **success** — run `36850169318`;
+- `npm ci`: **success**;
+- `npm run format:check`: **success**;
+- `npm run lint`: **success**;
+- `npm run typecheck`: **success**;
+- `npm test`: **success — 46/46 tests across 11 test files**;
+- `npm run build`: **success** — Tests run `36850169372`.
+
 ## Next exact step
 
-Run **P1.8 — Phase 1 quality pass**. Reconcile the one-commit main-branch divergence, run/repair format, lint, strict typecheck, tests, build, and dependency audit, refresh README/PR documentation, then record the exact green head and check results here.
+Phase 1 is complete. The next implementation phase in `DESIGN.md` is **Phase 2 — room, seating, and grouping**: room/grid editing, manual seat locking, explicit hard/soft rules, deterministic candidate generation, multiple comparable plans, and explainable trade-offs.
+
