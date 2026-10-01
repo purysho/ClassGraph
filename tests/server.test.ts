@@ -564,14 +564,14 @@ describe('local app server', () => {
         label: 'Fake provider',
         endpointHost: 'provider.example',
       }),
-      execute: async (request, options) => {
+      execute: (request, options) => {
         if (!options.confirmed) {
-          throw new Error(
-            'CG-6007 explicit confirmation is required before sending assistance context',
+          return Promise.reject(
+            new Error('CG-6007 explicit confirmation is required before sending assistance context'),
           )
         }
         callCount += 1
-        return {
+        return Promise.resolve({
           version: '1.0',
           proposalId: 'fake-proposal',
           requestId: request.requestId,
@@ -583,7 +583,7 @@ describe('local app server', () => {
           text: 'Descriptive draft.',
           sourceMetricKeys: [],
           caveats: ['No causal claim.'],
-        }
+        })
       },
     }
 
