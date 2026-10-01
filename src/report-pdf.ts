@@ -61,7 +61,11 @@ interface PdfCursor {
   pageHeight: number
 }
 
-function newPortraitPage(document: PdfDocumentAdapter, regular: PdfFontAdapter, bold: PdfFontAdapter): PdfCursor {
+function newPortraitPage(
+  document: PdfDocumentAdapter,
+  regular: PdfFontAdapter,
+  bold: PdfFontAdapter,
+): PdfCursor {
   const page = document.addPage(A4_PORTRAIT)
   return {
     document,
