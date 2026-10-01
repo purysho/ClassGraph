@@ -196,6 +196,32 @@ interface GroupingGenerationView {
   attempts: number
 }
 
+interface RelationshipGraphNodeView {
+  studentId: string
+  label: string
+  x: number
+  y: number
+  focused: boolean
+  connectedToFocus: boolean
+}
+
+interface RelationshipGraphEdgeView {
+  relationshipId: string
+  fromStudentId: string
+  toStudentId: string
+  type: RelationshipType
+  label?: string
+  directed: boolean
+  weight?: number
+  provenance?: ProvenanceEntry
+}
+
+interface RelationshipGraphView {
+  focusStudentId?: string
+  nodes: RelationshipGraphNodeView[]
+  edges: RelationshipGraphEdgeView[]
+}
+
 interface ClassGraphProject {
   schemaVersion: string
   projectId: string
@@ -343,6 +369,7 @@ let selectedGraphMetricKey: string | null = null
 let selectedScatterX: string | null = null
 let selectedScatterY: string | null = null
 let selectedRelationshipTypeFilter: RelationshipType | 'all' = 'all'
+let selectedRelationshipFocusStudentId: string | null = null
 let seatingGeneration: SeatingGenerationView | null = null
 let groupingGeneration: GroupingGenerationView | null = null
 let syntheticDraftProjectId = ''
@@ -3059,6 +3086,37 @@ function renderRelationships(content: HTMLElement): void {
         ${canAdd ? '' : '<p class="report-note">Add at least two students before recording a relationship.</p>'}
       </article>
 
+      <article class="panel relationship-graph-panel">
+        <div class="analysis-toolbar">
+          <div>
+            <p class="eyebrow">Deterministic network</p>
+            <h2>Explicit edges only</h2>
+          </div>
+          <label class="compact-label">
+            Focus student
+            <select id="relationship-focus">
+              ${optionHtml('', 'Whole class', selectedRelationshipFocusStudentId === null)}
+              ${project.students
+                .map((student) =>
+                  optionHtml(
+                    student.id,
+                    studentOptionLabel(student),
+                    student.id === selectedRelationshipFocusStudentId,
+                  ),
+                )
+                .join('')}
+            </select>
+          </label>
+        </div>
+        <p>
+          Node positions are deterministic. Focusing a student only rearranges the same explicit
+          edges so direct recorded neighbours are easier to inspect; it does not infer new links.
+        </p>
+        <div id="relationship-graph-stage" class="relationship-graph-stage">
+          <div class="empty-analysis">Building the explicit relationship graph…</div>
+        </div>
+      </article>
+
       <article class="panel">
         <div class="analysis-toolbar">
           <div>
@@ -3105,6 +3163,7 @@ function renderRelationships(content: HTMLElement): void {
   `
 
   bindRelationshipEvents()
+  void loadRelationshipGraph()
 }
 
 function readRelationshipField<T extends HTMLInputElement | HTMLSelectElement>(
@@ -3114,7 +3173,125 @@ function readRelationshipField<T extends HTMLInputElement | HTMLSelectElement>(
   return document.querySelector<T>(`[${selector}="${CSS.escape(relationshipId)}"]`)
 }
 
+function relationshipGraphClass(type: RelationshipType): string {
+  return `relationship-edge-${type}`
+}
+
+function renderRelationshipGraphSvg(graph: RelationshipGraphView): string {
+  if (graph.nodes.length === 0) {
+    return '<div class="empty-analysis">Add students to display the relationship graph.</div>'
+  }
+
+  const coordinates = new Map(
+    graph.nodes.map((node) => [node.studentId, { x: node.x * 1000, y: node.y * 600 }]),
+  )
+
+  const edges = graph.edges
+    .map((edge) => {
+      const from = coordinates.get(edge.fromStudentId)
+      const to = coordinates.get(edge.toStudentId)
+      if (!from || !to) return ''
+      const titleParts = [
+        edge.label || edge.type,
+        edge.directed ? 'directed' : 'undirected',
+        edge.provenance?.kind ? `source: ${edge.provenance.kind}` : '',
+      ].filter(Boolean)
+      return `
+        <line
+          class="relationship-edge ${relationshipGraphClass(edge.type)}"
+          x1="${from.x}"
+          y1="${from.y}"
+          x2="${to.x}"
+          y2="${to.y}"
+          ${edge.directed ? 'marker-end="url(#relationship-arrow)"' : ''}
+        >
+          <title>${escapeHtml(titleParts.join(' · '))}</title>
+        </line>
+      `
+    })
+    .join('')
+
+  const nodes = graph.nodes
+    .map((node) => {
+      const x = node.x * 1000
+      const y = node.y * 600
+      const classes = [
+        'relationship-node',
+        node.focused ? 'focused' : '',
+        node.connectedToFocus ? 'connected' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+      return `
+        <g class="${classes}" transform="translate(${x} ${y})">
+          <circle r="${node.focused ? 29 : 23}"></circle>
+          <text y="42" text-anchor="middle">${escapeHtml(node.label)}</text>
+          <title>${escapeHtml(node.studentId)}</title>
+        </g>
+      `
+    })
+    .join('')
+
+  return `
+    <svg
+      class="relationship-graph"
+      viewBox="0 0 1000 600"
+      role="img"
+      aria-label="Explicit relationship network. A table equivalent appears below."
+    >
+      <defs>
+        <marker
+          id="relationship-arrow"
+          markerWidth="8"
+          markerHeight="8"
+          refX="7"
+          refY="3"
+          orient="auto"
+          markerUnits="strokeWidth"
+        >
+          <path d="M0,0 L0,6 L7,3 z"></path>
+        </marker>
+      </defs>
+      ${edges}
+      ${nodes}
+    </svg>
+  `
+}
+
+async function loadRelationshipGraph(): Promise<void> {
+  if (!project || activeView !== 'relationships') return
+  const sourceProject = project
+  const stage = document.querySelector<HTMLElement>('#relationship-graph-stage')
+  if (!stage) return
+
+  try {
+    const response = await postJson<{ graph: RelationshipGraphView }>('/api/relationships/graph', {
+      project,
+      ...(selectedRelationshipFocusStudentId
+        ? { focusStudentId: selectedRelationshipFocusStudentId }
+        : {}),
+    })
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = renderRelationshipGraphSvg(response.graph)
+  } catch (error) {
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = `
+      <div class="empty-analysis">
+        ${escapeHtml(error instanceof Error ? error.message : 'Could not build the relationship graph.')}
+      </div>
+    `
+  }
+}
+
 function bindRelationshipEvents(): void {
+  document
+    .querySelector<HTMLSelectElement>('#relationship-focus')
+    ?.addEventListener('change', (event) => {
+      const value = (event.currentTarget as HTMLSelectElement).value
+      selectedRelationshipFocusStudentId = value || null
+      void loadRelationshipGraph()
+    })
+
   document
     .querySelector<HTMLSelectElement>('#relationship-type-filter')
     ?.addEventListener('change', (event) => {
