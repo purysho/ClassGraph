@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test:
@@ -18,19 +18,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Apply repository formatting
-        run: npx prettier --write .
-      - name: Commit formatting if needed
-        run: |
-          if ! git diff --quiet; then
-            git config user.name "classgraph-ci"
-            git config user.email "actions@users.noreply.github.com"
-            git add .
-            git commit -m "style: apply Phase 4 formatting"
-            git push origin HEAD:feat/phase-4-relationships
-          fi
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
