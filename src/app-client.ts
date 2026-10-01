@@ -816,57 +816,52 @@ function buildSyntheticSpecification(): Record<string, unknown> {
   })
 
   const metrics = syntheticDraftMetrics.map((metric) => {
-    if (metric.kind === 'number') {
-      const distribution =
-        metric.distribution === 'uniform'
-          ? {
-              type: 'uniform',
-              min: metric.min,
-              max: metric.max,
-            }
-          : {
-              type: 'normal',
-              mean: metric.mean,
-              standardDeviation: metric.standardDeviation,
-              min: metric.min,
-              max: metric.max,
-            }
-      return {
-        key: metric.key,
-        kind: metric.kind,
-        distribution,
-        missingRate: metric.missingRate,
+    switch (metric.kind) {
+      case 'number': {
+        const distribution =
+          metric.distribution === 'uniform'
+            ? {
+                type: 'uniform' as const,
+                min: metric.min,
+                max: metric.max,
+              }
+            : {
+                type: 'normal' as const,
+                mean: metric.mean,
+                standardDeviation: metric.standardDeviation,
+                min: metric.min,
+                max: metric.max,
+              }
+        return {
+          key: metric.key,
+          kind: metric.kind,
+          distribution,
+          missingRate: metric.missingRate,
+        }
       }
+      case 'category':
+      case 'ordinal':
+        return {
+          key: metric.key,
+          kind: metric.kind,
+          values: metric.values,
+          missingRate: metric.missingRate,
+        }
+      case 'boolean':
+        return {
+          key: metric.key,
+          kind: metric.kind,
+          trueRate: metric.trueRate,
+          missingRate: metric.missingRate,
+        }
+      case 'text':
+        return {
+          key: metric.key,
+          kind: metric.kind,
+          value: metric.value,
+          missingRate: metric.missingRate,
+        }
     }
-
-    if (metric.kind === 'category' || metric.kind === 'ordinal') {
-      return {
-        key: metric.key,
-        kind: metric.kind,
-        values: metric.values,
-        missingRate: metric.missingRate,
-      }
-    }
-
-    if (metric.kind === 'boolean') {
-      return {
-        key: metric.key,
-        kind: metric.kind,
-        trueRate: metric.trueRate,
-        missingRate: metric.missingRate,
-      }
-    }
-
-    if (metric.kind === 'text') {
-      return {
-        key: metric.key,
-        kind: metric.kind,
-        value: metric.value,
-        missingRate: metric.missingRate,
-      }
-    }
-
-    throw new Error('Unsupported synthetic metric kind.')
   })
 
   return {
