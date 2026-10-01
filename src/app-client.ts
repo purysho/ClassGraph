@@ -126,6 +126,40 @@ interface ScatterView {
 
 type WorkspaceView = 'overview' | 'students' | 'graphs'
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
+type SyntheticDraftMetric =
+  | {
+      key: string
+      label: string
+      kind: 'number'
+      missingRate: number
+      distribution: 'normal' | 'uniform'
+      min: number
+      max: number
+      mean: number
+      standardDeviation: number
+    }
+  | {
+      key: string
+      label: string
+      kind: 'category' | 'ordinal'
+      missingRate: number
+      values: Array<{ value: string; weight: number }>
+    }
+  | {
+      key: string
+      label: string
+      kind: 'boolean'
+      missingRate: number
+      trueRate: number
+    }
+  | {
+      key: string
+      label: string
+      kind: 'text'
+      missingRate: number
+      value: string
+    }
+
 
 const root = document.querySelector<HTMLElement>('#app')
 if (!root) throw new Error('ClassGraph could not find the application root.')
@@ -136,6 +170,36 @@ let selectedProvenanceStudentId: string | null = null
 let selectedGraphMetricKey: string | null = null
 let selectedScatterX: string | null = null
 let selectedScatterY: string | null = null
+let syntheticDraftProjectId = ''
+let syntheticDraftTitle = 'Synthetic Class'
+let syntheticDraftStudentCount = 36
+let syntheticDraftSeed = 'classgraph-demo'
+let syntheticDraftMetrics: SyntheticDraftMetric[] = [
+  {
+    key: 'assessment',
+    label: 'Assessment',
+    kind: 'number',
+    missingRate: 0.05,
+    distribution: 'normal',
+    min: 0,
+    max: 100,
+    mean: 70,
+    standardDeviation: 12,
+  },
+  {
+    key: 'participation',
+    label: 'Participation',
+    kind: 'ordinal',
+    missingRate: 0.05,
+    values: [
+      { value: '1', weight: 1 },
+      { value: '2', weight: 2 },
+      { value: '3', weight: 4 },
+      { value: '4', weight: 2 },
+      { value: '5', weight: 1 },
+    ],
+  },
+]
 
 function escapeHtml(value: string): string {
   return value
@@ -285,24 +349,20 @@ function renderSetup(): void {
           <article class="setup-card">
             <div class="card-number">03</div>
             <h3>Generate a class</h3>
-            <p>Create a reproducible fictional roster for testing, planning, or demonstrations.</p>
-            <form id="synthetic-form" class="stack-form">
-              <label>
-                Class name
-                <input name="title" required value="Synthetic Class" />
-              </label>
-              <div class="two-col">
-                <label>
-                  Students
-                  <input name="studentCount" type="number" min="1" max="500" value="36" required />
-                </label>
-                <label>
-                  Seed
-                  <input name="seed" value="classgraph-demo" required />
-                </label>
+            <p>
+              Build a reviewed synthetic specification with explicit distributions, value weights,
+              missing rates, and a reproducible seed.
+            </p>
+            <div class="stack-form">
+              <div class="generator-summary">
+                <span><b>Seeded</b> reproducibility</span>
+                <span><b>Explicit</b> metric rules</span>
+                <span><b>Synthetic</b> provenance</span>
               </div>
-              <button class="secondary" type="submit">Generate class</button>
-            </form>
+              <button id="configure-synthetic" class="secondary" type="button">
+                Configure generator
+              </button>
+            </div>
           </article>
         </div>
       </section>
@@ -321,11 +381,10 @@ function renderSetup(): void {
   })
 
   document
-    .querySelector<HTMLFormElement>('#synthetic-form')
-    ?.addEventListener('submit', (event) => {
-      event.preventDefault()
-      const form = event.currentTarget as HTMLFormElement
-      void createSyntheticClass(new FormData(form))
+    .querySelector<HTMLButtonElement>('#configure-synthetic')
+    ?.addEventListener('click', () => {
+      syntheticDraftProjectId = projectId()
+      renderSyntheticBuilder()
     })
 }
 
@@ -363,20 +422,481 @@ async function importProject(): Promise<void> {
   }
 }
 
-async function createSyntheticClass(formData: FormData): Promise<void> {
-  clearStatus()
-  const count = Number(asString(formData, 'studentCount'))
+
+function renderSyntheticBuilder(): void {
+  root.innerHTML = `
+    <main class="generator-shell">
+      <header class="generator-header">
+        <div>
+          <p class="eyebrow">Structured synthetic generation</p>
+          <h1>Build the class specification</h1>
+          <p>
+            Nothing here describes real students. Review the full deterministic specification
+            before ClassGraph creates fictional records.
+          </p>
+        </div>
+        <button id="back-to-setup" class="ghost compact" type="button">Back</button>
+      </header>
+
+      <div id="status" class="status" hidden></div>
+
+      <section class="generator-grid">
+        <article class="panel generator-config">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Class</p>
+              <h2>Generation settings</h2>
+            </div>
+            <span class="schema-badge">Synthetic only</span>
+          </div>
+
+          <div class="generator-base-grid">
+            <label>
+              Class name
+              <input id="synthetic-title" value="${escapeHtml(syntheticDraftTitle)}" />
+            </label>
+            <label>
+              Students
+              <input
+                id="synthetic-count"
+                type="number"
+                min="1"
+                max="500"
+                value="${syntheticDraftStudentCount}"
+              />
+            </label>
+            <label>
+              Seed
+              <input id="synthetic-seed" value="${escapeHtml(syntheticDraftSeed)}" />
+            </label>
+          </div>
+
+          <div class="draft-metric-list">
+            ${syntheticDraftMetrics.map((metric, index) => renderSyntheticDraftMetric(metric, index)).join('')}
+          </div>
+
+          <form id="add-synthetic-metric" class="synthetic-metric-form">
+            <div class="form-heading">
+              <div>
+                <p class="eyebrow">Add synthetic metric</p>
+                <h3>Define how fictional values are generated</h3>
+              </div>
+            </div>
+
+            <div class="metric-form-grid synthetic-common-grid">
+              <label>
+                Key
+                <input name="key" required placeholder="engagement" />
+              </label>
+              <label>
+                Label
+                <input name="label" required placeholder="Engagement" />
+              </label>
+              <label>
+                Type
+                <select id="synthetic-kind" name="kind">
+                  <option value="number">Number</option>
+                  <option value="category">Category</option>
+                  <option value="ordinal">Ordinal</option>
+                  <option value="boolean">Yes / No</option>
+                  <option value="text">Text</option>
+                </select>
+              </label>
+              <label>
+                Missing rate
+                <input name="missingRate" type="number" min="0" max="1" step="0.01" value="0" />
+              </label>
+            </div>
+
+            <div id="synthetic-number-fields" class="synthetic-kind-fields">
+              <label>
+                Distribution
+                <select name="distribution">
+                  <option value="normal">Normal</option>
+                  <option value="uniform">Uniform</option>
+                </select>
+              </label>
+              <label>
+                Minimum
+                <input name="min" type="number" step="any" value="0" />
+              </label>
+              <label>
+                Maximum
+                <input name="max" type="number" step="any" value="100" />
+              </label>
+              <label>
+                Mean
+                <input name="mean" type="number" step="any" value="70" />
+              </label>
+              <label>
+                Standard deviation
+                <input name="standardDeviation" type="number" min="0.000001" step="any" value="12" />
+              </label>
+            </div>
+
+            <div id="synthetic-values-fields" class="synthetic-kind-fields" hidden>
+              <label class="wide-label">
+                Values and weights
+                <input name="values" placeholder="low:1, medium:3, high:1" />
+                <small>Use value:weight pairs. Weight must be greater than zero.</small>
+              </label>
+            </div>
+
+            <div id="synthetic-boolean-fields" class="synthetic-kind-fields" hidden>
+              <label>
+                True rate
+                <input name="trueRate" type="number" min="0" max="1" step="0.01" value="0.5" />
+              </label>
+            </div>
+
+            <div id="synthetic-text-fields" class="synthetic-kind-fields" hidden>
+              <label class="wide-label">
+                Generated text
+                <input name="textValue" placeholder="Optional fixed synthetic text" />
+              </label>
+            </div>
+
+            <button class="secondary compact" type="submit">Add metric to specification</button>
+          </form>
+        </article>
+
+        <aside class="panel generator-preview">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Review before generation</p>
+              <h2>Exact specification</h2>
+            </div>
+          </div>
+          <p>
+            This is the machine-readable input ClassGraph will use. The same seed and specification
+            reproduce the same student values.
+          </p>
+          <pre id="synthetic-preview"></pre>
+          <button id="generate-structured-class" class="primary" type="button">
+            Generate synthetic class
+          </button>
+        </aside>
+      </section>
+    </main>
+  `
+
+  bindSyntheticBuilder()
+  refreshSyntheticPreview()
+}
+
+function renderSyntheticDraftMetric(metric: SyntheticDraftMetric, index: number): string {
+  let description = ''
+
+  if (metric.kind === 'number') {
+    description =
+      metric.distribution === 'normal'
+        ? `normal · mean ${metric.mean} · SD ${metric.standardDeviation} · ${metric.min}–${metric.max}`
+        : `uniform · ${metric.min}–${metric.max}`
+  } else if (metric.kind === 'category' || metric.kind === 'ordinal') {
+    description = metric.values.map((item) => `${item.value}×${item.weight}`).join(', ')
+  } else if (metric.kind === 'boolean') {
+    description = `true rate ${metric.trueRate}`
+  } else {
+    description = metric.value ? `fixed text: ${metric.value}` : 'empty text'
+  }
+
+  return `
+    <div class="draft-metric">
+      <div>
+        <b>${escapeHtml(metric.label)}</b>
+        <span>${escapeHtml(metric.key)} · ${escapeHtml(metric.kind)}</span>
+        <small>${escapeHtml(description)} · missing rate ${metric.missingRate}</small>
+      </div>
+      <button
+        type="button"
+        class="icon-button danger-text"
+        data-remove-synthetic-metric="${index}"
+        title="Remove synthetic metric"
+      >×</button>
+    </div>
+  `
+}
+
+function bindSyntheticBuilder(): void {
+  document.querySelector<HTMLButtonElement>('#back-to-setup')?.addEventListener('click', () => {
+    renderSetup()
+  })
+
+  const title = document.querySelector<HTMLInputElement>('#synthetic-title')
+  const count = document.querySelector<HTMLInputElement>('#synthetic-count')
+  const seed = document.querySelector<HTMLInputElement>('#synthetic-seed')
+
+  const syncBase = () => {
+    syntheticDraftTitle = title?.value.trim() || 'Synthetic Class'
+    syntheticDraftStudentCount = Number(count?.value ?? 36)
+    syntheticDraftSeed = seed?.value.trim() || 'classgraph-demo'
+    refreshSyntheticPreview()
+  }
+
+  title?.addEventListener('input', syncBase)
+  count?.addEventListener('input', syncBase)
+  seed?.addEventListener('input', syncBase)
+
+  const kindSelect = document.querySelector<HTMLSelectElement>('#synthetic-kind')
+  kindSelect?.addEventListener('change', () => {
+    updateSyntheticFieldVisibility(kindSelect.value as MetricKind)
+  })
+  updateSyntheticFieldVisibility((kindSelect?.value as MetricKind | undefined) ?? 'number')
+
+  document
+    .querySelector<HTMLFormElement>('#add-synthetic-metric')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const form = event.currentTarget as HTMLFormElement
+      try {
+        const metric = syntheticDraftMetricFromForm(new FormData(form))
+        if (syntheticDraftMetrics.some((item) => item.key === metric.key)) {
+          throw new Error(`Metric key already exists: ${metric.key}`)
+        }
+        syntheticDraftMetrics.push(metric)
+        renderSyntheticBuilder()
+      } catch (error) {
+        showStatus(error instanceof Error ? error.message : 'Could not add synthetic metric.')
+      }
+    })
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>(
+    '[data-remove-synthetic-metric]',
+  )) {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.removeSyntheticMetric)
+      if (!Number.isInteger(index)) return
+      syntheticDraftMetrics.splice(index, 1)
+      renderSyntheticBuilder()
+    })
+  }
+
+  document
+    .querySelector<HTMLButtonElement>('#generate-structured-class')
+    ?.addEventListener('click', () => {
+      void generateStructuredClass()
+    })
+}
+
+function updateSyntheticFieldVisibility(kind: MetricKind): void {
+  const numberFields = document.querySelector<HTMLElement>('#synthetic-number-fields')
+  const valueFields = document.querySelector<HTMLElement>('#synthetic-values-fields')
+  const booleanFields = document.querySelector<HTMLElement>('#synthetic-boolean-fields')
+  const textFields = document.querySelector<HTMLElement>('#synthetic-text-fields')
+
+  if (numberFields) numberFields.hidden = kind !== 'number'
+  if (valueFields) valueFields.hidden = kind !== 'category' && kind !== 'ordinal'
+  if (booleanFields) booleanFields.hidden = kind !== 'boolean'
+  if (textFields) textFields.hidden = kind !== 'text'
+}
+
+function syntheticDraftMetricFromForm(data: FormData): SyntheticDraftMetric {
+  const key = asString(data, 'key')
+  const label = asString(data, 'label')
+  const kind = asString(data, 'kind') as MetricKind
+  const missingRate = Number(asString(data, 'missingRate') || '0')
+
+  if (!key || !/^[a-z0-9][a-z0-9._-]*$/i.test(key)) {
+    throw new Error('Metric key must use letters, numbers, dots, underscores, or hyphens.')
+  }
+  if (!label) throw new Error('Metric label is required.')
+  if (!Number.isFinite(missingRate) || missingRate < 0 || missingRate > 1) {
+    throw new Error('Missing rate must be between 0 and 1.')
+  }
+
+  if (kind === 'number') {
+    const distribution = asString(data, 'distribution') as 'normal' | 'uniform'
+    const min = Number(asString(data, 'min'))
+    const max = Number(asString(data, 'max'))
+    const mean = Number(asString(data, 'mean'))
+    const standardDeviation = Number(asString(data, 'standardDeviation'))
+
+    if (![min, max, mean, standardDeviation].every(Number.isFinite)) {
+      throw new Error('Numeric generator settings must be valid numbers.')
+    }
+    if (min > max) throw new Error('Minimum cannot be greater than maximum.')
+    if (distribution === 'normal' && standardDeviation <= 0) {
+      throw new Error('Standard deviation must be greater than zero.')
+    }
+
+    return {
+      key,
+      label,
+      kind,
+      missingRate,
+      distribution,
+      min,
+      max,
+      mean,
+      standardDeviation,
+    }
+  }
+
+  if (kind === 'category' || kind === 'ordinal') {
+    const values = parseWeightedValues(asString(data, 'values'))
+    return { key, label, kind, missingRate, values }
+  }
+
+  if (kind === 'boolean') {
+    const trueRate = Number(asString(data, 'trueRate'))
+    if (!Number.isFinite(trueRate) || trueRate < 0 || trueRate > 1) {
+      throw new Error('True rate must be between 0 and 1.')
+    }
+    return { key, label, kind, missingRate, trueRate }
+  }
+
+  return {
+    key,
+    label,
+    kind: 'text',
+    missingRate,
+    value: asString(data, 'textValue'),
+  }
+}
+
+function parseWeightedValues(input: string): Array<{ value: string; weight: number }> {
+  const values = input
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const separator = part.lastIndexOf(':')
+      const value = separator >= 0 ? part.slice(0, separator).trim() : part
+      const weightText = separator >= 0 ? part.slice(separator + 1).trim() : '1'
+      const weight = Number(weightText)
+      if (!value || !Number.isFinite(weight) || weight <= 0) {
+        throw new Error('Values must use value:weight pairs with positive weights.')
+      }
+      return { value, weight }
+    })
+
+  if (values.length === 0) {
+    throw new Error('Category and ordinal metrics require at least one value.')
+  }
+
+  return values
+}
+
+function buildSyntheticSpecification(): Record<string, unknown> {
+  if (!syntheticDraftProjectId) syntheticDraftProjectId = projectId()
+  if (
+    !Number.isInteger(syntheticDraftStudentCount) ||
+    syntheticDraftStudentCount < 1 ||
+    syntheticDraftStudentCount > 500
+  ) {
+    throw new Error('Student count must be an integer from 1 to 500.')
+  }
+  if (!syntheticDraftTitle.trim()) throw new Error('Class name is required.')
+  if (!syntheticDraftSeed.trim()) throw new Error('Seed is required.')
+
+  const metricDefinitions = syntheticDraftMetrics.map((metric) => {
+    if (metric.kind === 'number') {
+      return {
+        key: metric.key,
+        label: metric.label,
+        kind: metric.kind,
+        numberScale: { min: metric.min, max: metric.max },
+      }
+    }
+    if (metric.kind === 'category') {
+      return {
+        key: metric.key,
+        label: metric.label,
+        kind: metric.kind,
+        categories: metric.values.map((item) => item.value),
+      }
+    }
+    if (metric.kind === 'ordinal') {
+      return {
+        key: metric.key,
+        label: metric.label,
+        kind: metric.kind,
+        ordinalScale: metric.values.map((item) => item.value),
+      }
+    }
+    return { key: metric.key, label: metric.label, kind: metric.kind }
+  })
+
+  const metrics = syntheticDraftMetrics.map((metric) => {
+    if (metric.kind === 'number') {
+      const distribution =
+        metric.distribution === 'uniform'
+          ? {
+              type: 'uniform',
+              min: metric.min,
+              max: metric.max,
+            }
+          : {
+              type: 'normal',
+              mean: metric.mean,
+              standardDeviation: metric.standardDeviation,
+              min: metric.min,
+              max: metric.max,
+            }
+      return {
+        key: metric.key,
+        kind: metric.kind,
+        distribution,
+        missingRate: metric.missingRate,
+      }
+    }
+
+    if (metric.kind === 'category' || metric.kind === 'ordinal') {
+      return {
+        key: metric.key,
+        kind: metric.kind,
+        values: metric.values,
+        missingRate: metric.missingRate,
+      }
+    }
+
+    if (metric.kind === 'boolean') {
+      return {
+        key: metric.key,
+        kind: metric.kind,
+        trueRate: metric.trueRate,
+        missingRate: metric.missingRate,
+      }
+    }
+
+    return {
+      key: metric.key,
+      kind: metric.kind,
+      value: metric.value,
+      missingRate: metric.missingRate,
+    }
+  })
+
+  return {
+    projectId: syntheticDraftProjectId,
+    title: syntheticDraftTitle,
+    studentCount: syntheticDraftStudentCount,
+    seed: syntheticDraftSeed,
+    metricDefinitions,
+    metrics,
+  }
+}
+
+function refreshSyntheticPreview(): void {
+  const preview = document.querySelector<HTMLElement>('#synthetic-preview')
+  if (!preview) return
 
   try {
-    const response = await postJson<ProjectResponse>('/api/synthetic/basic', {
-      projectId: projectId(),
-      title: asString(formData, 'title'),
-      studentCount: count,
-      seed: asString(formData, 'seed'),
-    })
+    preview.textContent = JSON.stringify(buildSyntheticSpecification(), null, 2)
+  } catch (error) {
+    preview.textContent = error instanceof Error ? error.message : 'Specification is incomplete.'
+  }
+}
+
+async function generateStructuredClass(): Promise<void> {
+  clearStatus()
+
+  try {
+    const specification = buildSyntheticSpecification()
+    const response = await postJson<ProjectResponse>('/api/synthetic/generate', specification)
     openProject(response.project)
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not generate the class.')
+    showStatus(error instanceof Error ? error.message : 'Could not generate the synthetic class.')
   }
 }
 
