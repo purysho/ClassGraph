@@ -1,10 +1,4 @@
-import {
-  PDFDocument,
-  StandardFonts,
-  rgb,
-  type PDFFont,
-  type PDFPage,
-} from '@cantoo/pdf-lib'
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from '@cantoo/pdf-lib'
 import { ClassGraphExportError } from './export-errors.js'
 import type { ClassGraphProject, PlanningSeatAssignment, SeatDefinition } from './model.js'
 import { buildHumanReport, type HumanReportTable } from './report-content.js'
@@ -147,7 +141,9 @@ export async function generatePdfReport(project: ClassGraphProject): Promise<Uin
   return document.save()
 }
 
-function seatAssignmentMap(assignments: PlanningSeatAssignment[]): Map<string, PlanningSeatAssignment> {
+function seatAssignmentMap(
+  assignments: PlanningSeatAssignment[],
+): Map<string, PlanningSeatAssignment> {
   return new Map(assignments.map((assignment) => [assignment.seatId, assignment]))
 }
 

@@ -23,7 +23,10 @@ export interface HumanReport {
 function numberText(value: number | null): string {
   if (value === null) return '—'
   if (Number.isInteger(value)) return String(value)
-  return value.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1')
+  return value
+    .toFixed(2)
+    .replace(/\.00$/, '')
+    .replace(/(\.\d)0$/, '$1')
 }
 
 function metricValueText(project: ClassGraphProject, studentId: string, metricKey: string): string {
@@ -95,7 +98,16 @@ function metricSummaryTables(project: ClassGraphProject): HumanReportTable[] {
   return [
     {
       title: 'Metric summaries',
-      headers: ['Metric', 'Kind', 'Recorded', 'Missing', 'Min', 'Max / Counts', 'Mean / Counts', 'Median'],
+      headers: [
+        'Metric',
+        'Kind',
+        'Recorded',
+        'Missing',
+        'Min',
+        'Max / Counts',
+        'Mean / Counts',
+        'Median',
+      ],
       rows,
     },
   ]
