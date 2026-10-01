@@ -1,7 +1,6 @@
 import type {
   ClassGraphProject,
   HardPlanningRule,
-  PlanningRule,
   PlanningSeatAssignment,
   SeatDefinition,
   SoftPlanningRule,
