@@ -407,4 +407,87 @@ describe('local app server', () => {
       2, 2, 2,
     ])
   })
+
+  it('serves all Phase 3 exports with safe download headers and no-store', async () => {
+    const base = await startServer()
+    let project = createEmptyProject({
+      projectId: 'export-api',
+      title: 'Grade 5 / English',
+      now: '2026-10-01T10:00:00.000Z',
+    })
+
+    const mutate = async (command: Record<string, unknown>) => {
+      const response = await fetch(`${base}/api/project/mutate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, command }),
+      })
+      expect(response.status).toBe(200)
+      project = ((await response.json()) as { project: typeof project }).project
+    }
+
+    await mutate({ type: 'add-student', student: { id: 's1', displayName: 'Student One' } })
+    await mutate({ type: 'set-grid-room', rows: 1, columns: 1, front: 'top' })
+    await mutate({
+      type: 'set-seat-assignment',
+      studentId: 's1',
+      seatId: 'seat-r1-c1',
+      locked: true,
+    })
+
+    const cases = [
+      ['/api/export/project-json', 'application/json', '.classgraph.json'],
+      ['/api/export/analysis-json', 'application/json', '-analysis.json'],
+      ['/api/export/seating-json', 'application/json', '-seating-plan.json'],
+      ['/api/export/eduboard-json', 'application/json', '-eduboard-handback.json'],
+      [
+        '/api/export/docx',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '-report.docx',
+      ],
+      ['/api/export/pdf', 'application/pdf', '-report.pdf'],
+      ['/api/export/seating-pdf', 'application/pdf', '-seating-plan.pdf'],
+    ] as const
+
+    for (const [path, contentType, suffix] of cases) {
+      const response = await fetch(`${base}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project }),
+      })
+      expect(response.status, path).toBe(200)
+      expect(response.headers.get('content-type')).toContain(contentType)
+      expect(response.headers.get('cache-control')).toBe('no-store')
+      expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+      expect(response.headers.get('referrer-policy')).toBe('no-referrer')
+      const disposition = response.headers.get('content-disposition') ?? ''
+      expect(disposition).toContain('attachment;')
+      expect(disposition).toContain(suffix)
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      expect(bytes.length, path).toBeGreaterThan(20)
+    }
+  })
+
+  it('keeps Phase 3 export routes POST-only and returns coded PDF Unicode errors', async () => {
+    const base = await startServer()
+    const project = createEmptyProject({
+      projectId: 'unicode-export',
+      title: 'Grade 5 英语',
+      now: '2026-10-01T10:00:00.000Z',
+    })
+
+    const getResponse = await fetch(`${base}/api/export/pdf`)
+    expect(getResponse.status).toBe(404)
+
+    const pdfResponse = await fetch(`${base}/api/export/pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project }),
+    })
+    expect(pdfResponse.status).toBe(400)
+    const body = (await pdfResponse.json()) as { error: { code: string; message: string } }
+    expect(body.error.code).toBe('CG-5004')
+    expect(body.error.message).toContain('Unicode')
+  })
+
 })
