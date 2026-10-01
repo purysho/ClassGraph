@@ -18,7 +18,7 @@ The existing UI-independent core remains authoritative for schema validation, pr
 - [x] P1.3 — Local app server + JSON import/export endpoints
 - [x] P1.4 — Teacher-facing UI shell and project setup
 - [x] P1.5 — Editable student roster + provenance inspection
-- [ ] P1.6 — Overview statistics + distribution/comparison views
+- [x] P1.6 — Overview statistics + distribution/comparison views
 - [ ] P1.7 — Synthetic class creation from structured parameters
 - [ ] P1.8 — Phase 1 quality pass, tests, documentation, PR
 
