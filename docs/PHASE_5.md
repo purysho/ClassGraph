@@ -3,7 +3,7 @@
 **Phase:** 5 — Optional Assistance Layer  
 **Branch:** `feat/phase-5-assistance`  
 **Base:** `feat/phase-4-relationships` @ `3872081dc33068e373b26d0f0324a9e680101686`  
-**Status:** In progress  
+**Status:** Implementation complete; Gate 5 validation in progress  
 **Last updated:** 2026-10-02
 
 ## Purpose
@@ -69,52 +69,70 @@ Verification: run `36914523052` — format, lint, strict typecheck, **134/134 te
 
 ### P5.1 — Synthetic-spec drafting
 
-- [ ] Reuse the existing structured synthetic-generation schema.
-- [ ] Accept natural-language teacher intent only as draft input.
-- [ ] Produce an editable proposed specification plus warnings/assumptions.
-- [ ] Never generate students until the structured proposal is explicitly accepted.
-- [ ] Add tests for unsupported/ambiguous requests and provenance boundaries.
+- [x] Reuse the existing structured synthetic-generation schema.
+- [x] Accept natural-language teacher intent only as draft input.
+- [x] Produce an editable proposed specification plus warnings/assumptions.
+- [x] Never generate students until the structured proposal is explicitly accepted.
+- [x] Add tests for unsupported/ambiguous requests and provenance boundaries.
 
 ### P5.2 — Analysis explanation drafts
 
-- [ ] Explain only existing descriptive analysis outputs.
-- [ ] Include missing-data caveats.
-- [ ] Include association-is-not-causation language where relevant.
-- [ ] Do not invent causal, diagnostic, behavioural, or predictive interpretations.
-- [ ] Add tests.
+- [x] Explain only existing descriptive analysis outputs.
+- [x] Include missing-data caveats.
+- [x] Include association-is-not-causation language where relevant.
+- [x] Do not invent causal, diagnostic, behavioural, or predictive interpretations.
+- [x] Add tests.
 
 ### P5.3 — Report wording drafts
 
-- [ ] Draft wording from the canonical report snapshot.
-- [ ] Preserve provenance/missingness/limitations.
-- [ ] Keep generated prose outside canonical project data unless explicitly copied/exported.
-- [ ] Add tests.
+- [x] Draft wording from the canonical report snapshot.
+- [x] Preserve provenance/missingness/limitations.
+- [x] Keep generated prose outside canonical project data unless explicitly copied/exported.
+- [x] Add tests.
 
 ### P5.4 — Planning-rule suggestions
 
-- [ ] Suggest only explicit existing rule types.
-- [ ] Identify input fields/relationships used.
-- [ ] Show whether each suggestion is hard or soft and why.
-- [ ] Keep suggestions separate from persisted planning rules until explicit acceptance.
-- [ ] Never infer a relationship edge in order to justify a rule.
-- [ ] Add tests.
+- [x] Suggest only explicit existing rule types.
+- [x] Identify input fields/relationships used.
+- [x] Show whether each suggestion is hard or soft and why.
+- [x] Keep suggestions separate from persisted planning rules until explicit acceptance.
+- [x] Never infer a relationship edge in order to justify a rule.
+- [x] Add tests.
 
 ### P5.5 — Assistance workspace
 
-- [ ] Show provider/offline status.
-- [ ] Show exactly what context will be sent before any network call.
-- [ ] Provide preview/edit/apply-or-copy workflow.
-- [ ] Keep core workflows available with assistance disabled.
-- [ ] Add accessible status/error states.
+- [x] Show provider/offline status.
+- [x] Show exactly what context will be sent before any network call.
+- [x] Provide preview/edit/apply-or-copy workflow.
+- [x] Keep core workflows available with assistance disabled.
+- [x] Add accessible status/error states.
 
 ### P5.6 — Optional provider boundary
 
-- [ ] Implement a provider interface with no provider enabled by default.
-- [ ] Keep secrets out of ClassGraph project/export state.
-- [ ] Require explicit network action for every request.
-- [ ] Prefer direct HTTPS implementation or existing platform primitives before adding an SDK.
-- [ ] Add timeout/size/error handling.
-- [ ] Add provider-boundary tests with local fakes only; CI must not require a network key.
+- [x] Implement a provider interface with no provider enabled by default.
+- [x] Keep secrets out of ClassGraph project/export state.
+- [x] Require explicit network action for every request.
+- [x] Prefer direct HTTPS implementation or existing platform primitives before adding an SDK.
+- [x] Add timeout/size/error handling.
+- [x] Add provider-boundary tests with local fakes only; CI must not require a network key.
+
+
+## Phase 5 implementation checkpoint
+
+Implemented before Gate 5:
+
+- `src/assistance-contract.ts` and `src/assistance-acceptance.ts` define versioned proposal/disclosure and explicit acceptance boundaries.
+- `src/assistance-synthetic.ts`, `src/assistance-analysis.ts`, `src/assistance-report.ts`, and `src/assistance-planning.ts` provide deterministic local drafts with conservative safety rules.
+- `src/assistance-context.ts` builds task-specific disclosure context, using aggregate/redacted data where student-level detail is unnecessary.
+- `src/assistance-provider.ts` implements the optional direct-HTTPS provider boundary with no provider enabled by default, environment-only credentials, explicit confirmation, timeout, response-size cap, and validated responses.
+- `src/assistance-service.ts` keeps provider/offline execution behind one request/proposal contract.
+- `src/server.ts` exposes local status/preview/run/accept endpoints. Acceptance validates proposals but does not silently generate students or persist rules.
+- `src/server-main.ts` reads optional provider configuration from `CLASSGRAPH_ASSISTANCE_URL`, `CLASSGRAPH_ASSISTANCE_PROVIDER_LABEL`, and `CLASSGRAPH_ASSISTANCE_TOKEN`.
+- The Assistance workspace shows offline/provider status, exact network disclosure context, per-request confirmation, editable/copyable drafts, and explicit selected-rule application.
+- Provider, local-draft, contract, and server tests use local fakes only. CI does not require an external provider or key.
+- No provider SDK or other Phase 5 runtime dependency was added.
+
+The first full implementation test pass reached 148/149 tests; the sole failure was an exact caveat wording assertion. The text was tightened to say missing values "are not imputed" explicitly. Final Gate 5 results are recorded below after the final branch/PR checks.
 
 ### P5.7 — Gate 5
 
