@@ -193,7 +193,6 @@ export function removeRelationship(
 
   const next = cloneProject(project)
   next.relationships?.splice(index, 1)
-  if (next.relationships?.length === 0) delete next.relationships
   next.provenance = remapRelationshipProvenanceAfterRemoval(next.provenance, index)
   next.updatedAt = now
 
