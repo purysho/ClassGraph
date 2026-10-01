@@ -59,7 +59,7 @@ describe('structured synthetic request', () => {
       kind: 'category',
       values: [{ value: 'A', weight: 1 }],
       missingRate: 0,
-    } as never
+    }
 
     expect(() => parseStructuredSyntheticRequest(invalid)).toThrow(
       'synthetic metric kind does not match definition',
