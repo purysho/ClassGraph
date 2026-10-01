@@ -14,18 +14,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Publish bootstrap lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: classgraph-package-lock
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 1
+          cache: npm
+      - run: npm ci
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
