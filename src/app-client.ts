@@ -3000,8 +3000,11 @@ function renderRelationshipRows(): string {
 function renderRelationships(content: HTMLElement): void {
   if (!project) return
 
-  const studentOptions = project.students
-    .map((student) => optionHtml(student.id, studentOptionLabel(student), false))
+  const fromStudentOptions = project.students
+    .map((student, index) => optionHtml(student.id, studentOptionLabel(student), index === 0))
+    .join('')
+  const toStudentOptions = project.students
+    .map((student, index) => optionHtml(student.id, studentOptionLabel(student), index === 1))
     .join('')
   const canAdd = project.students.length >= 2
 
@@ -3025,11 +3028,11 @@ function renderRelationships(content: HTMLElement): void {
         <form id="add-relationship-form" class="relationship-form">
           <label>
             From
-            <select name="fromStudentId" ${canAdd ? '' : 'disabled'}>${studentOptions}</select>
+            <select name="fromStudentId" ${canAdd ? '' : 'disabled'}>${fromStudentOptions}</select>
           </label>
           <label>
             To
-            <select name="toStudentId" ${canAdd ? '' : 'disabled'}>${studentOptions}</select>
+            <select name="toStudentId" ${canAdd ? '' : 'disabled'}>${toStudentOptions}</select>
           </label>
           <label>
             Type
