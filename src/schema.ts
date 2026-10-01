@@ -100,7 +100,7 @@ const roomSchema = z
     layout: z.enum(['grid', 'custom']),
     rows: z.number().int().positive().optional(),
     columns: z.number().int().positive().optional(),
-    seats: z.array(seatSchema),
+    seats: z.array(seatSchema).max(1000),
   })
   .superRefine((room, ctx) => {
     if (room.layout === 'grid' && (room.rows === undefined || room.columns === undefined)) {
@@ -108,6 +108,92 @@ const roomSchema = z
         code: 'custom',
         message: 'grid rooms require rows and columns',
       })
+      return
+    }
+
+    if (
+      room.layout === 'grid' &&
+      room.rows !== undefined &&
+      room.columns !== undefined &&
+      room.rows * room.columns > 1000
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['seats'],
+        message: 'grid rooms cannot exceed 1000 seats',
+      })
+    }
+
+    const seatIds = new Set<string>()
+    const gridPositions = new Set<string>()
+
+    for (const [index, seat] of room.seats.entries()) {
+      if (seatIds.has(seat.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['seats', index, 'id'],
+          message: `duplicate seat id: ${seat.id}`,
+        })
+      }
+      seatIds.add(seat.id)
+
+      if (room.layout === 'grid') {
+        if (seat.row === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['seats', index, 'row'],
+            message: 'grid seats require a row',
+          })
+        }
+        if (seat.column === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['seats', index, 'column'],
+            message: 'grid seats require a column',
+          })
+        }
+
+        if (
+          seat.row !== undefined &&
+          room.rows !== undefined &&
+          seat.row >= room.rows
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['seats', index, 'row'],
+            message: `seat row is outside configured room rows: ${seat.id}`,
+          })
+        }
+        if (
+          seat.column !== undefined &&
+          room.columns !== undefined &&
+          seat.column >= room.columns
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['seats', index, 'column'],
+            message: `seat column is outside configured room columns: ${seat.id}`,
+          })
+        }
+
+        if (seat.row !== undefined && seat.column !== undefined) {
+          const key = `${seat.row}:${seat.column}`
+          if (gridPositions.has(key)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['seats', index],
+              message: `duplicate grid seat position: ${key}`,
+            })
+          }
+          gridPositions.add(key)
+        }
+      } else if (seat.x === undefined || seat.y === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['seats', index],
+          message: 'custom room seats require x and y coordinates',
+        })
+      }
     }
   })
 
