@@ -553,6 +553,42 @@ describe('local app server', () => {
     expect(project.students).toEqual([])
   })
 
+  it('accepts assistance outputs without silently applying them', async () => {
+    const base = await startServer()
+    const project = createEmptyProject({
+      projectId: 'assist-accept',
+      title: 'Assistance Acceptance',
+      now: '2026-10-02T01:00:00.000Z',
+    })
+
+    const draftResponse = await fetch(`${base}/api/assistance/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project,
+        task: 'synthetic-spec-draft',
+        mode: 'offline',
+        requestId: 'accept-synthetic',
+        prompt: '12 students; metric Assessment mean 70 sd 10 range 0-100',
+      }),
+    })
+    expect(draftResponse.status).toBe(200)
+    const draft = (await draftResponse.json()) as { proposal: unknown }
+
+    const acceptedResponse = await fetch(`${base}/api/assistance/accept-synthetic`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proposal: draft.proposal }),
+    })
+    expect(acceptedResponse.status).toBe(200)
+    const accepted = (await acceptedResponse.json()) as {
+      specification: { studentCount: number; students?: unknown[] }
+    }
+    expect(accepted.specification.studentCount).toBe(12)
+    expect(accepted.specification.students).toBeUndefined()
+    expect(project.students).toEqual([])
+  })
+
   it('previews network disclosure and requires explicit confirmation before provider execution', async () => {
     let callCount = 0
     const provider: AssistanceProvider = {
