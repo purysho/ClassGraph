@@ -31,12 +31,14 @@
 ## Phase 4 slices
 
 ### P4.0 — Branch + recovery/architecture contract
+
 - [x] Verify earlier phase PRs remain unmerged.
 - [x] Create `feat/phase-4-relationships` from exact Phase 3 head.
 - [x] Create this recovery log.
 - [ ] Reconcile exact current relationship schema/model and mutation patterns before implementation.
 
 ### P4.1 — Explicit relationship CRUD/schema/service
+
 - [ ] Add/edit/remove relationship records.
 - [ ] Validate student references, type, directedness, weight and provenance.
 - [ ] Define duplicate/self-edge behavior.
@@ -44,12 +46,14 @@
 - [ ] Add tests.
 
 ### P4.2 — Relationship table
+
 - [ ] Accessible tabular equivalent first.
 - [ ] Filter by relationship type.
 - [ ] Show source/provenance clearly.
 - [ ] Add tests.
 
 ### P4.3 — Deterministic relationship graph
+
 - [ ] Explicit/synthetic edges only.
 - [ ] Deterministic layout.
 - [ ] Labels/types and selected-student focus.
@@ -58,18 +62,21 @@
 - [ ] Add tests.
 
 ### P4.4 — Network comparison
+
 - [ ] Compare explicit saved groups/scenarios.
 - [ ] Descriptive counts only.
 - [ ] No claim that edge density/count is educationally better unless an explicit authored rule says so.
 - [ ] Add tests.
 
 ### P4.5 — Repeat-neighbour history
+
 - [ ] Use only explicitly stored historical approved seating.
 - [ ] Do not infer/reconstruct missing history.
 - [ ] Separate history from current candidate state.
 - [ ] Add tests.
 
 ### P4.6 — Saved scenarios
+
 - [ ] Save approved/current planning snapshots.
 - [ ] Deterministic IDs/versioning.
 - [ ] Explicit comparison dimensions.
@@ -77,6 +84,7 @@
 - [ ] Add tests.
 
 ### P4.7 — UI polish + persistence
+
 - [ ] Relationship workspace.
 - [ ] Scenario comparison.
 - [ ] Provenance visibility.
@@ -84,6 +92,7 @@
 - [ ] Accessible table equivalents.
 
 ### P4.8 — Gate 4
+
 - [ ] `npm run format:check`
 - [ ] `npm run lint`
 - [ ] `npm run typecheck`
