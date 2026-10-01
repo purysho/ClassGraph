@@ -1,9 +1,6 @@
 import { z } from 'zod'
 import type { ClassGraphProject } from './model.js'
-import {
-  recordApprovedSeatingHistory,
-  removeApprovedSeatingHistory,
-} from './planning-history.js'
+import { recordApprovedSeatingHistory, removeApprovedSeatingHistory } from './planning-history.js'
 import { removePlanningScenario, savePlanningScenario } from './planning-scenarios.js'
 import {
   addMetricDefinition,
