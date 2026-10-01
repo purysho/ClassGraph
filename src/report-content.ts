@@ -68,7 +68,7 @@ function metricSummaryTables(project: ClassGraphProject): HumanReportTable[] {
     if (metric.kind === 'number') {
       return [
         metric.label,
-        metric.sourceKind ?? 'number',
+        'number',
         String(metric.summary.recordedCount),
         String(metric.summary.missingCount),
         numberText(metric.summary.min),
