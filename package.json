@@ -8,6 +8,8 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "npm run build && node dist/server-main.js",
+    "start": "node dist/server-main.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
