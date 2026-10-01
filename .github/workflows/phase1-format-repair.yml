@@ -1,0 +1,48 @@
+name: Phase 1 format repair
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/phase-1-ui'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply pinned Prettier
+        run: |
+          npx prettier --write \
+            app/styles.css \
+            src/app-client.ts \
+            src/metrics.ts \
+            src/project-mutations.ts \
+            src/server.ts \
+            src/synthetic-request.ts \
+            src/workspace.ts \
+            tests/analysis-view.test.ts \
+            tests/metrics.test.ts \
+            tests/server.test.ts \
+            tests/synthetic-request.test.ts
+      - name: Commit formatter-only repair
+        run: |
+          if git diff --quiet; then
+            echo "No formatting changes needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/styles.css src tests
+          git commit -m "style: apply Phase 1 Prettier repair"
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
