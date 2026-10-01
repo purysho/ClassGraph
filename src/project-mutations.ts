@@ -6,6 +6,7 @@ import {
   setStudentMetricValue,
   unsetStudentMetricValue,
 } from './metrics.js'
+import { setGridRoom, setSeatEnabled, setSeatTags } from './room.js'
 import { classGraphProjectSchema } from './schema.js'
 import { addStudent, removeStudent, updateStudent } from './workspace.js'
 
@@ -70,6 +71,21 @@ const commandSchema = z.discriminatedUnion('type', [
     studentId: z.string().min(1),
     metricKey: z.string().min(1),
   }),
+  z.object({
+    type: z.literal('set-grid-room'),
+    rows: z.number().int().positive(),
+    columns: z.number().int().positive(),
+  }),
+  z.object({
+    type: z.literal('set-seat-enabled'),
+    seatId: z.string().min(1),
+    enabled: z.boolean(),
+  }),
+  z.object({
+    type: z.literal('set-seat-tags'),
+    seatId: z.string().min(1),
+    tags: z.array(z.string()),
+  }),
 ])
 
 export type ProjectMutationCommand = z.infer<typeof commandSchema>
@@ -131,5 +147,11 @@ export function applyProjectMutation(
       )
     case 'unset-metric-value':
       return unsetStudentMetricValue(project, command.studentId, command.metricKey, now)
+    case 'set-grid-room':
+      return setGridRoom(project, command.rows, command.columns, now)
+    case 'set-seat-enabled':
+      return setSeatEnabled(project, command.seatId, command.enabled, now)
+    case 'set-seat-tags':
+      return setSeatTags(project, command.seatId, command.tags, now)
   }
 }
