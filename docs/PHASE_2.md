@@ -53,14 +53,14 @@ interface SeatDefinition {
 
 - [x] P2.0 — Phase 2 branch, recovery log, architecture checkpoint
 - [x] P2.1 — Room/grid core service and stronger room invariants
-- [ ] P2.2 — Room editor UI: dimensions, disabled seats, tags, front/back orientation
-- [ ] P2.3 — Manual seating state, assignment table, locks, and local mutation API
-- [ ] P2.4 — Explicit planning-rule schema: hard constraints vs soft objectives
-- [ ] P2.5 — Deterministic seating candidate engine and infeasibility reporting
-- [ ] P2.6 — Three-candidate comparison with visible score components/trade-offs
-- [ ] P2.7 — Lock-and-rerun plus deterministic grouping candidates
-- [ ] P2.8 — Seating/grouping UI polish, accessible table equivalents, persistence
-- [ ] P2.9 — Gate 2 quality pass, documentation, tests, PR
+- [x] P2.2 — Room editor UI: dimensions, disabled seats, tags, front/back orientation
+- [x] P2.3 — Manual seating state, assignment table, locks, and local mutation API
+- [x] P2.4 — Explicit planning-rule schema: hard constraints vs soft objectives
+- [x] P2.5 — Deterministic seating candidate engine and infeasibility reporting
+- [x] P2.6 — Three-candidate comparison with visible score components/trade-offs
+- [x] P2.7 — Lock-and-rerun plus deterministic grouping candidates
+- [x] P2.8 — Seating/grouping UI polish, accessible table equivalents, persistence
+- [x] P2.9 — Gate 2 quality pass, documentation, tests, PR
 
 ## Planned rule vocabulary
 
@@ -174,87 +174,164 @@ Read-only Phase 2 branch check run `36852759750`:
 
 ### P2.2 — Room editor UI
 
-Add a real `Seating` workspace instead of the Phase 1 placeholder:
+**Status:** Complete.
 
-- rows/columns controls;
-- visual grid;
+Implemented a real `Seating` workspace in `src/app-client.ts` and `app/styles.css`.
+
+Completed behaviour:
+
+- create/resize a grid room from rows/columns;
+- explicit front-of-room orientation (`top`, `bottom`, `left`, `right`);
+- visual seat grid with enabled/disabled/occupied states;
 - enable/disable seats;
-- add/remove tags;
-- explicit front-of-room orientation;
-- capacity warning when enabled seats < students;
-- table equivalent for every seat.
+- edit comma-separated seat tags;
+- capacity warning when enabled seats are fewer than roster students;
+- stable one-based teacher labels over zero-based stored coordinates;
+- full seat table equivalent;
+- room changes persist only through typed project mutations.
 
 ### P2.3 — Manual seating + locks
 
-Introduce planning state separate from room geometry:
+**Status:** Complete.
 
-- manual student → seat assignment;
-- unassigned-student list;
-- no duplicate occupancy;
-- assignment table;
-- lock/unlock selected assignments;
-- mutation API and schema validation.
+Implemented manual planning state in `src/planning-state.ts` plus UI controls.
 
-### P2.4 — Planning rule schema
+Completed behaviour:
 
-Replace `planning.rules?: unknown[]` with a versioned explicit rule contract while preserving Exchange compatibility deliberately.
+- student → seat assignments stored separately from room geometry;
+- duplicate occupancy rejected;
+- disabled-seat assignment rejected;
+- unassigned-student strip;
+- drag/drop seating for mouse users;
+- select-based assignment table retained as an accessible fallback;
+- per-student assignment locks;
+- locked assignments survive candidate reruns;
+- teacher-approved candidate assignments persist with teacher-entered provenance.
 
-Rules must specify:
+### P2.4 — Explicit planning-rule schema
 
-- stable rule ID;
-- hard vs soft;
-- exact student/seat/metric references;
-- options required for evaluation;
-- teacher-authored provenance.
+**Status:** Complete.
+
+Exchange v1 planning now has a typed rule contract rather than `unknown[]`.
+
+Hard rules:
+
+- `fixed-seat`;
+- `keep-apart` with orthogonal or diagonal-inclusive neighbour mode;
+- `seat-tag-required`.
+
+Soft objectives:
+
+- `prefer-together`;
+- `prefer-apart`;
+- `prefer-seat-tag`;
+- `balance-metric-by-row` for explicit numeric/ordinal metrics.
+
+Schema validation covers:
+
+- duplicate rule IDs;
+- unknown student/seat/metric references;
+- same-student pair endpoints;
+- invalid balance metric kinds;
+- duplicate assignments/occupancy;
+- invalid group membership/locks.
+
+Manual rules are provenance-marked and removable through the typed mutation API.
 
 ### P2.5 — Deterministic seating engine
 
-Build the first search engine with:
+**Status:** Complete.
 
-- seeded deterministic initialisation/search;
-- enabled-seat capacity check;
-- hard-constraint feasibility evaluation;
-- soft-objective component evaluation;
-- explanation of infeasible hard constraints;
-- no hidden inferred values.
+Implemented `src/planning.ts`.
 
-### P2.6 — Candidate comparison
+Completed behaviour:
 
-Return at least three distinct candidates when feasible:
+- deterministic seeded candidate generation;
+- teacher locks and fixed-seat constraints applied before search;
+- enabled-seat capacity preflight;
+- hard constraints evaluated independently from soft objectives;
+- impossible tag/capacity/assignment conditions explained before search;
+- search exhaustion reports which hard rules repeatedly failed without falsely claiming a mathematical proof of impossibility;
+- numeric/ordinal row-balance ignores unavailable values and states how many were ignored;
+- no hidden student attribute is generated or inferred.
 
-- same hard-constraint status;
-- component penalties;
-- visible trade-offs;
-- assignment differences;
-- reproducible seed/configuration.
+### P2.6 — Three-candidate comparison
+
+**Status:** Complete.
+
+The engine/UI now:
+
+- returns up to three distinct feasible candidates by default;
+- keeps the seed/configuration visible;
+- shows hard-constraint status and messages;
+- shows every soft-objective penalty component;
+- shows the total penalty only alongside its components;
+- exposes assignment tables for each candidate;
+- provides short trade-off explanations;
+- lets the teacher explicitly apply a chosen candidate.
+
+No candidate is described as educationally optimal or as improving learning outcomes.
 
 ### P2.7 — Lock-and-rerun + grouping
 
-- preserve teacher-locked assignments;
-- rerun only unlocked students/seats;
-- add explicit group definitions and deterministic grouping candidates;
-- reuse the same hard/soft rule principles rather than creating a separate opaque optimiser.
+**Status:** Complete.
+
+Implemented `src/grouping.ts`.
+
+Completed behaviour:
+
+- seat locks are preserved while unlocked assignments rerun;
+- deterministic grouping candidates from explicit group count + seed;
+- optional balance on one teacher-selected numeric/ordinal metric;
+- missing metric values are ignored and counted;
+- group-size and metric-balance penalties stay separate and visible;
+- existing locked group members remain in their groups on rerun;
+- candidate groups can be explicitly applied;
+- saved group members can be locked/unlocked.
 
 ### P2.8 — UI/persistence polish
 
-- seating visual + table;
-- grouping visual + table;
-- candidate comparison;
-- constraint violation table;
-- provenance/source indicators;
-- JSON round-trip of planning configuration/approved assignments.
+**Status:** Complete.
+
+Completed Phase 2 teacher-facing surfaces:
+
+- room visual + seat table;
+- manual seating visual + assignment table;
+- drag/drop plus keyboard/select fallback;
+- hard/soft rule table;
+- infeasibility panel;
+- three-candidate comparison;
+- hard-constraint and objective-component tables;
+- grouping visual + assignment table;
+- source/provenance retained in canonical project JSON;
+- planning rules, assignments, groups, locks, seed, room orientation and seat tags round-trip through Exchange v1 JSON.
+
+Custom-room **editing** remains out of scope; the schema continues to validate imported custom geometry.
 
 ### P2.9 — Gate 2 quality pass
 
-Gate 2 passes only when:
+**Status:** Complete.
+
+Verified product head: `c4fd60ee997e5606d5c9093978244d4fee260d78`.
+
+Read-only Phase 2 quality run `36899749010`:
+
+- `npm ci`: **success**;
+- `npm run format:check`: **success**;
+- `npm run lint`: **success**;
+- `npm run typecheck`: **success**;
+- `npm test`: **success — 77/77 tests across 15 files**;
+- `npm run build`: **success**;
+- `npm audit --omit=dev --audit-level=high`: **success**.
+
+Gate 2 requirements are met:
 
 - hard/soft rules are structurally distinct;
-- infeasible plans are explained;
-- candidate plans are reproducible;
+- infeasible/search-failure states are explained rather than silently violated;
+- seating/grouping candidates are reproducible;
 - every score component is visible;
-- no student trait is silently invented;
-- formatting/lint/strict typecheck/tests/build/dependency audit are green;
-- Phase 2 recovery/documentation is current.
+- missing values are never silently imputed;
+- no hidden student trait is inferred.
 
 ## Out of scope for Phase 2
 
@@ -270,4 +347,4 @@ Do not pull later phases forward unless required by Phase 2 correctness:
 
 ## Next exact step
 
-Implement **P2.2 — Room editor UI**. Replace the disabled Seating placeholder with a local room editor for rows/columns, visual grid, seat enable/disable, seat tags, capacity warnings, explicit front-of-room orientation, and a seat table equivalent. Keep all persistence through the typed room mutation boundary.
+Phase 2 and Gate 2 are complete. Proceed to **Phase 3 — reports and portable exports**: DOCX report, PDF report/print layout, seating-plan export, analysis JSON, and EduBoard interchange adapter tests.
