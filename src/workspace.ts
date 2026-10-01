@@ -235,8 +235,6 @@ export function removeStudent(
     if (remove) removedRelationshipIndexes.add(relationshipIndex)
     return !remove
   })
-  if (next.relationships?.length === 0) delete next.relationships
-
   next.provenance = remapStudentProvenance(next, index)
   if (removedRelationshipIndexes.size > 0) {
     next.provenance = remapRelationshipProvenance(next.provenance, removedRelationshipIndexes)
