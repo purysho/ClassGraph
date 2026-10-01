@@ -14,7 +14,7 @@ The existing UI-independent core remains authoritative for schema validation, pr
 
 - [x] P1.0 — Recovery log and Phase 1 architecture checkpoint
 - [x] P1.1 — Project workspace service: create, update metadata, add/remove/edit students
-- [ ] P1.2 — Metric-definition editing and safe typed value editing
+- [x] P1.2 — Metric-definition editing and safe typed value editing
 - [ ] P1.3 — Local app server + JSON import/export endpoints
 - [ ] P1.4 — Teacher-facing UI shell and project setup
 - [ ] P1.5 — Editable student roster + provenance inspection
@@ -53,6 +53,25 @@ Completed behaviour:
 
 Public exports were updated through `src/index.ts`.
 
+### P1.2 — Metric definitions and typed values
+
+**Status:** Complete.
+
+Implemented `src/metrics.ts` and `tests/metrics.test.ts`.
+
+Completed behaviour:
+
+- add/update/remove metric definitions through schema-validated immutable operations;
+- prevent duplicate metric keys;
+- keep metric keys immutable once created so existing data/provenance cannot be silently re-keyed;
+- set typed student metric values with teacher-entered provenance;
+- preserve `0` and `false` as real values;
+- preserve explicit `null` as a deliberate missing value;
+- support removing a value entirely when it was never/should no longer be recorded;
+- reject invalid category/ordinal/type/range values through the canonical runtime schema;
+- remove associated student metric data/provenance when a definition is deleted;
+- remap metric-definition provenance indices after deletion.
+
 ## Next exact step
 
-Implement **P1.2 — Metric-definition editing and safe typed value editing**. It must validate metric definitions before applying them, distinguish a deliberately missing value (`null`) from zero/false/empty text, and attach teacher-entered provenance to each edited metric value.
+Implement **P1.3 — Local app server + JSON import/export endpoints** using only Node's standard library plus the existing ClassGraph core. It must bind to loopback by default, never expose student data to the LAN automatically, serve the local UI, validate imported JSON through `parseProjectJson`, and export through `serializeProjectJson`.
