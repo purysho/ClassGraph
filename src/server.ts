@@ -52,7 +52,7 @@ async function readBody(request: IncomingMessage, maxBodyBytes: number): Promise
   let total = 0
 
   for await (const chunk of request) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    const buffer = Buffer.from(chunk)
     total += buffer.length
     if (total > maxBodyBytes) {
       throw new Error('CG-1002 request body is too large')
