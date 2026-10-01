@@ -2,6 +2,10 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
+import {
+  acceptPlanningRuleSuggestions,
+  acceptSyntheticSpecDraft,
+} from './assistance-acceptance.js'
 import type { AssistanceExecutionMode, AssistanceTask } from './assistance-contract.js'
 import type { AssistanceProvider } from './assistance-provider.js'
 import {
@@ -188,6 +192,17 @@ function optionalBoolean(record: Record<string, unknown>, key: string): boolean 
   return value
 }
 
+function requiredIndexArray(record: Record<string, unknown>, key: string): number[] {
+  const value = record[key]
+  if (
+    !Array.isArray(value) ||
+    value.some((item) => typeof item !== 'number' || !Number.isInteger(item) || item < 0)
+  ) {
+    throw new Error(`CG-6001 ${key} must be an array of non-negative integer indexes`)
+  }
+  return value
+}
+
 function parseProjectSetup(value: unknown): ProjectSetupRequest {
   const record = expectRecord(value)
   const classInfoValue = record.classInfo
@@ -331,6 +346,23 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
             assistanceProvider,
           )
           sendJson(response, 200, result)
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/assistance/accept-synthetic') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const specification = acceptSyntheticSpecDraft(record.proposal)
+          sendJson(response, 200, { specification })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/assistance/accept-planning') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const accepted = acceptPlanningRuleSuggestions(
+            record.proposal,
+            requiredIndexArray(record, 'selectedIndexes'),
+          )
+          sendJson(response, 200, { accepted })
           return
         }
 
