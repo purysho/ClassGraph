@@ -1289,7 +1289,7 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
                 .join('')}
             </select>
           </label>
-          <button id="load-scatter" class="secondary compact" type="button">Compare</button>
+          <button id="load-scatter" class="secondary compact" type="button" ${numericMetrics.length < 2 ? 'disabled' : ''}>Compare</button>
         </div>
       </div>
       <div id="scatter-result">
@@ -1489,6 +1489,12 @@ async function loadScatter(): Promise<void> {
   if (!project || !selectedScatterX || !selectedScatterY) return
   const target = document.querySelector<HTMLElement>('#scatter-result')
   if (!target) return
+
+  if (selectedScatterX === selectedScatterY) {
+    target.innerHTML =
+      '<p class="muted">Choose two different numeric metrics for a useful comparison.</p>'
+    return
+  }
 
   target.innerHTML = '<p class="muted">Building scatter view…</p>'
 
