@@ -4,7 +4,7 @@ ClassGraph is designed as a local-first application that may contain student inf
 
 ## Current pre-release architecture
 
-Phase 0 provides the UI-independent schema/generation/analysis core. Phase 1 adds a small local HTTP boundary and browser interface. Phase 2 adds UI-independent room/planning/grouping services and read-only candidate-generation endpoints; candidate data is not persisted until the teacher explicitly applies it through a validated project mutation.
+Phase 0 provides the UI-independent schema/generation/analysis core. Phase 1 adds a small local HTTP boundary and browser interface. Phase 2 adds UI-independent room/planning/grouping services and read-only candidate-generation endpoints; candidate data is not persisted until the teacher explicitly applies it through a validated project mutation. Phase 3 adds UI-independent report/export services and POST-only local download endpoints; export generation is a read-only snapshot and does not persist a server-side copy.
 
 The local server binds to `127.0.0.1` by default. No internet connection is required for the core teacher workflow. A teacher can explicitly override `CLASSGRAPH_HOST`, but a non-loopback host may expose the app and student data to other devices on the network and should only be used deliberately on a trusted network.
 
@@ -16,6 +16,10 @@ The local server binds to `127.0.0.1` by default. No internet connection is requ
 - Local HTTP request bodies are size-capped and project mutations are schema-validated before core operations run.
 - Room geometry, seat assignments, locks, groups, and planning rules are validated against existing student/seat/metric references before persistence.
 - Candidate-generation endpoints do not mutate the project; seating/grouping choices persist only after an explicit teacher action.
+- Report/export endpoints validate the project again, generate bytes in memory, and return them directly; normal export does not write a persistent server-side report copy.
+- Export filenames are sanitised and responses use explicit MIME types plus `no-store`, `nosniff`, and `no-referrer` protections.
+- PDF export never silently transliterates or substitutes unsupported Unicode. Built-in-font-incompatible text fails with `CG-5004`; DOCX remains the full-Unicode report option.
+- EduBoard hand-back keeps source-safe values, derived analysis, synthetic paths, and approved planning in separate sections. It requires explicit target-class selection and exact student-ID mapping before any future EduBoard write path.
 - UI assets are served from an explicit allow-list rather than arbitrary filesystem paths.
 - Local responses use no-store, nosniff, and no-referrer protections; the app does not enable cross-origin access by default.
 - Core operation must not require remote scripts, fonts, APIs, or accounts.
