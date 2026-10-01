@@ -1,5 +1,6 @@
 export * from './analysis.js'
 export * from './json.js'
+export * from './metrics.js'
 export * from './model.js'
 export * from './random.js'
 export * from './schema.js'
