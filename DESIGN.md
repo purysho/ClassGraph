@@ -773,4 +773,4 @@ Proceed only when:
 
 ## 16. Immediate implementation instruction
 
-> Phase 0–3 are complete once Gate 3 verification is recorded. Preserve the lean local architecture. Phase 4 may add explicit relationship-network and advanced comparison features only when they remain grounded in teacher-supplied/synthetic edges and retain table equivalents. Do not infer social relationships from unrelated student data.
+> Phase 0–3 are complete and Gate 3 passed. Preserve the lean local architecture. Proceed to Phase 4 only with explicit relationship-network and advanced-comparison features grounded in teacher-supplied or clearly synthetic edges, with accessible table equivalents. Do not infer social relationships from unrelated student data.
