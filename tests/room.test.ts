@@ -4,6 +4,7 @@ import {
   gridSeatId,
   roomCapacity,
   setGridRoom,
+  setRoomFront,
   setSeatEnabled,
   setSeatTags,
 } from '../src/room.js'
@@ -80,4 +81,14 @@ describe('room grid service', () => {
     expect(() => createGridRoom(100, 100)).toThrow('CG-4002')
     expect(() => setSeatEnabled(emptyProject(), 'missing-seat', false, t1)).toThrow('CG-4003')
   })
+
+  it('stores and updates explicit front-of-room orientation', () => {
+    let project = setGridRoom(emptyProject(), 2, 2, t1, 'left')
+    expect(project.room?.front).toBe('left')
+
+    project = setRoomFront(project, 'bottom', t2)
+    expect(project.room?.front).toBe('bottom')
+    expect(project.provenance['/room/front']?.kind).toBe('teacher-entered')
+  })
+
 })
