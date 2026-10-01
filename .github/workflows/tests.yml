@@ -19,10 +19,12 @@ jobs:
         with:
           node-version: 22
       - run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Format working tree for validation
-        run: npm run format
-      - name: Show formatter changes
-        run: git diff
+      - name: Emit bootstrap lockfile
+        run: |
+          echo CLASSGRAPH_LOCKFILE_BEGIN
+          gzip -c package-lock.json | base64 -w 76
+          echo CLASSGRAPH_LOCKFILE_END
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
