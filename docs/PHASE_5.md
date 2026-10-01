@@ -116,7 +116,6 @@ Verification: run `36914523052` — format, lint, strict typecheck, **134/134 te
 - [x] Add timeout/size/error handling.
 - [x] Add provider-boundary tests with local fakes only; CI must not require a network key.
 
-
 ## Phase 5 implementation checkpoint
 
 Implemented before Gate 5:
