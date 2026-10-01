@@ -19,7 +19,10 @@ const metricValueSchema = z.union([z.number().finite(), z.string(), z.boolean(),
 
 const metricDefinitionSchema = z
   .object({
-    key: z.string().min(1).regex(/^[a-z0-9][a-z0-9._-]*$/i),
+    key: z
+      .string()
+      .min(1)
+      .regex(/^[a-z0-9][a-z0-9._-]*$/i),
     label: z.string().min(1),
     kind: z.enum(['number', 'ordinal', 'category', 'boolean', 'text']),
     description: z.string().optional(),
