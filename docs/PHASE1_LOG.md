@@ -184,6 +184,28 @@ Completed behaviour:
 
 A later cleanup consolidated two overlapping client implementations created during the interrupted session into one authoritative analysis UI.
 
+### P1.7 — Structured synthetic generation
+
+**Status:** Complete.
+
+Implemented `src/synthetic-request.ts`, structured generation tests, `POST /api/synthetic/generate`, and the teacher-facing specification builder.
+
+Completed behaviour:
+
+- teacher opens a dedicated structured generator rather than receiving an opaque random class;
+- class name, student count, and reproducible seed are explicit;
+- number metrics support uniform/normal distributions, min/max, mean, standard deviation, and missing rate;
+- category/ordinal metrics support explicit weighted values and missing rate;
+- boolean metrics support explicit true rate and missing rate;
+- text metrics support explicit fixed synthetic text and missing rate;
+- an exact machine-readable specification is previewed before generation;
+- server validation confirms metric definitions and generator rules match before data is produced;
+- duplicate metric keys, invalid weights/rates/ranges, and kind mismatches are rejected;
+- generated student IDs, names, and metric values retain `synthetic` provenance;
+- same specification + seed reproduces the same generated student values;
+- the older fixed-demo synthetic endpoint and its obsolete coverage were removed so there is one authoritative generation path;
+- builder styling is fully local/offline and adds no runtime dependency.
+
 ## Next exact step
 
-Complete **P1.7 — Synthetic class creation from structured parameters**. The structured specification validator and `/api/synthetic/generate` endpoint already exist; finish the teacher-facing builder so metrics, distributions, weights, missing rates, and seed are explicit before generation.
+Run **P1.8 — Phase 1 quality pass**. Reconcile the one-commit main-branch divergence, run/repair format, lint, strict typecheck, tests, build, and dependency audit, refresh README/PR documentation, then record the exact green head and check results here.
