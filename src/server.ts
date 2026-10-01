@@ -1,8 +1,10 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
+import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
 import { parseProjectJson, serializeProjectJson } from './json.js'
 import { applyProjectMutation, parseProjectMutationRequest } from './project-mutations.js'
+import { classGraphProjectSchema } from './schema.js'
 import { generateSyntheticProject } from './synthetic.js'
 import { createEmptyProject } from './workspace.js'
 
@@ -136,6 +138,18 @@ function parseBasicSynthetic(value: unknown): BasicSyntheticRequest {
   }
 }
 
+
+function parseProjectFromRequest(record: Record<string, unknown>) {
+  const result = classGraphProjectSchema.safeParse(record.project)
+  if (!result.success) {
+    const issue = result.error.issues[0]
+    throw new Error(
+      `CG-1001 invalid project in analysis request: ${issue?.message ?? 'validation failed'}`,
+    )
+  }
+  return result.data
+}
+
 function contentTypeFor(path: string): string {
   switch (extname(path)) {
     case '.html':
@@ -256,7 +270,13 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
             {
               key: 'assessment',
               kind: 'number',
-              distribution: { type: 'normal', mean: 70, standardDeviation: 12, min: 0, max: 100 },
+              distribution: {
+                type: 'normal',
+                mean: 70,
+                standardDeviation: 12,
+                min: 0,
+                max: 100,
+              },
             },
             {
               key: 'participation',
@@ -273,6 +293,24 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
           generatedAt: new Date().toISOString(),
         })
         sendJson(response, 200, { project })
+        return
+      }
+
+
+      if (request.method === 'POST' && url.pathname === '/api/analysis/project') {
+        const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+        const analysis = buildProjectAnalysis(parseProjectFromRequest(record))
+        sendJson(response, 200, { analysis })
+        return
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/analysis/scatter') {
+        const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+        const project = parseProjectFromRequest(record)
+        const xMetricKey = expectString(record, 'xMetricKey')
+        const yMetricKey = expectString(record, 'yMetricKey')
+        const scatter = buildScatterView(project, xMetricKey, yMetricKey)
+        sendJson(response, 200, { scatter })
         return
       }
 
