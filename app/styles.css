@@ -528,10 +528,6 @@ button {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .workspace-nav button:nth-last-child(-n + 2) {
-    display: none;
-  }
-
   .sidebar-footer {
     display: none;
   }
@@ -1916,7 +1912,20 @@ textarea {
 }
 
 textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 11px;
   resize: vertical;
+  border: 1px solid #ccd4da;
+  border-radius: 11px;
+  background: #fff;
+  color: #17212a;
+  outline: none;
+}
+
+textarea:focus {
+  border-color: #6c7d89;
+  box-shadow: 0 0 0 3px rgba(75, 91, 104, 0.12);
 }
 
 .assistance-stack {
