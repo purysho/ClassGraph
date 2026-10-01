@@ -1566,3 +1566,27 @@ select:focus {
     justify-self: center;
   }
 }
+
+
+.unassigned-strip {
+  margin: 12px 0 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.student-drag-chip {
+  padding: 7px 10px;
+  border: 1px solid #d6dfe3;
+  border-radius: 999px;
+  background: #f4f7f8;
+  color: #42535e;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: grab;
+  user-select: none;
+}
+
+.student-drag-chip:active {
+  cursor: grabbing;
+}
