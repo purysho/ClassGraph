@@ -1,0 +1,710 @@
+import { z } from 'zod'
+import { canonicalRelationshipKey } from './relationship-semantics.js'
+
+const provenanceKindSchema = z.enum([
+  'observed',
+  'teacher-entered',
+  'imported',
+  'derived',
+  'synthetic',
+])
+
+const provenanceEntrySchema = z.object({
+  kind: provenanceKindSchema,
+  source: z.string().min(1).optional(),
+  note: z.string().optional(),
+  derivedFrom: z.array(z.string().min(1)).optional(),
+})
+
+const metricValueSchema = z.union([z.number().finite(), z.string(), z.boolean(), z.null()])
+
+const metricDefinitionSchema = z
+  .object({
+    key: z
+      .string()
+      .min(1)
+      .regex(/^[a-z0-9][a-z0-9._-]*$/i),
+    label: z.string().min(1),
+    kind: z.enum(['number', 'ordinal', 'category', 'boolean', 'text']),
+    description: z.string().optional(),
+    numberScale: z
+      .object({
+        min: z.number().finite().optional(),
+        max: z.number().finite().optional(),
+        unit: z.string().optional(),
+      })
+      .optional(),
+    ordinalScale: z.array(z.string().min(1)).min(1).optional(),
+    categories: z.array(z.string().min(1)).min(1).optional(),
+    missingAllowed: z.boolean().optional(),
+  })
+  .superRefine((definition, ctx) => {
+    if (
+      definition.numberScale?.min !== undefined &&
+      definition.numberScale.max !== undefined &&
+      definition.numberScale.min > definition.numberScale.max
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['numberScale'],
+        message: 'numberScale.min must be less than or equal to numberScale.max',
+      })
+    }
+
+    if (definition.kind === 'ordinal' && !definition.ordinalScale) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['ordinalScale'],
+        message: 'ordinal metrics require ordinalScale',
+      })
+    }
+
+    if (definition.kind === 'category' && !definition.categories) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['categories'],
+        message: 'category metrics require categories',
+      })
+    }
+  })
+
+const studentSchema = z.object({
+  id: z.string().min(1),
+  displayName: z.string().min(1).optional(),
+  tags: z.array(z.string().min(1)).optional(),
+  metrics: z.record(z.string(), metricValueSchema),
+  notes: z.string().optional(),
+})
+
+export const relationshipSchema = z.object({
+  id: z.string().min(1),
+  fromStudentId: z.string().min(1),
+  toStudentId: z.string().min(1),
+  type: z.enum(['works-well-with', 'avoid-pairing', 'support-pair', 'friendship', 'custom']),
+  label: z.string().optional(),
+  directed: z.boolean().optional(),
+  weight: z.number().finite().optional(),
+})
+
+const seatSchema = z.object({
+  id: z.string().min(1),
+  row: z.number().int().nonnegative().optional(),
+  column: z.number().int().nonnegative().optional(),
+  x: z.number().finite().optional(),
+  y: z.number().finite().optional(),
+  enabled: z.boolean(),
+  tags: z.array(z.string().min(1)).optional(),
+})
+
+const roomSchema = z
+  .object({
+    layout: z.enum(['grid', 'custom']),
+    rows: z.number().int().positive().optional(),
+    columns: z.number().int().positive().optional(),
+    front: z.enum(['top', 'bottom', 'left', 'right']).optional(),
+    seats: z.array(seatSchema).max(1000),
+  })
+  .superRefine((room, ctx) => {
+    if (room.layout === 'grid' && (room.rows === undefined || room.columns === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'grid rooms require rows and columns',
+      })
+      return
+    }
+
+    if (
+      room.layout === 'grid' &&
+      room.rows !== undefined &&
+      room.columns !== undefined &&
+      room.rows * room.columns > 1000
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['seats'],
+        message: 'grid rooms cannot exceed 1000 seats',
+      })
+    }
+
+    const seatIds = new Set<string>()
+    const gridPositions = new Set<string>()
+
+    for (const [index, seat] of room.seats.entries()) {
+      if (seatIds.has(seat.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['seats', index, 'id'],
+          message: `duplicate seat id: ${seat.id}`,
+        })
+      }
+      seatIds.add(seat.id)
+
+      if (room.layout === 'grid') {
+        if (seat.row === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['seats', index, 'row'],
+            message: 'grid seats require a row',
+          })
+        }
+        if (seat.column === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['seats', index, 'column'],
+            message: 'grid seats require a column',
+          })
+        }
+
+        if (seat.row !== undefined && room.rows !== undefined && seat.row >= room.rows) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['seats', index, 'row'],
+            message: `seat row is outside configured room rows: ${seat.id}`,
+          })
+        }
+        if (
+          seat.column !== undefined &&
+          room.columns !== undefined &&
+          seat.column >= room.columns
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['seats', index, 'column'],
+            message: `seat column is outside configured room columns: ${seat.id}`,
+          })
+        }
+
+        if (seat.row !== undefined && seat.column !== undefined) {
+          const key = `${seat.row}:${seat.column}`
+          if (gridPositions.has(key)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['seats', index],
+              message: `duplicate grid seat position: ${key}`,
+            })
+          }
+          gridPositions.add(key)
+        }
+      } else if (seat.x === undefined || seat.y === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['seats', index],
+          message: 'custom room seats require x and y coordinates',
+        })
+      }
+    }
+  })
+
+export const planningAssignmentSchema = z.object({
+  studentId: z.string().min(1),
+  seatId: z.string().min(1),
+  locked: z.boolean(),
+})
+
+export const planningGroupSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().optional(),
+  studentIds: z.array(z.string().min(1)),
+  lockedStudentIds: z.array(z.string().min(1)).optional(),
+})
+
+const hardPlanningRuleSchema = z.discriminatedUnion('kind', [
+  z.object({
+    id: z.string().min(1),
+    label: z.string().optional(),
+    strength: z.literal('hard'),
+    kind: z.literal('fixed-seat'),
+    studentId: z.string().min(1),
+    seatId: z.string().min(1),
+  }),
+  z.object({
+    id: z.string().min(1),
+    label: z.string().optional(),
+    strength: z.literal('hard'),
+    kind: z.literal('keep-apart'),
+    studentAId: z.string().min(1),
+    studentBId: z.string().min(1),
+    neighbourMode: z.enum(['orthogonal', 'king']).optional(),
+  }),
+  z.object({
+    id: z.string().min(1),
+    label: z.string().optional(),
+    strength: z.literal('hard'),
+    kind: z.literal('seat-tag-required'),
+    studentId: z.string().min(1),
+    tag: z.string().min(1),
+  }),
+])
+
+const softRuleWeightSchema = z.number().finite().positive().optional()
+
+const softPlanningRuleSchema = z.discriminatedUnion('kind', [
+  z.object({
+    id: z.string().min(1),
+    label: z.string().optional(),
+    strength: z.literal('soft'),
+    kind: z.literal('prefer-together'),
+    studentAId: z.string().min(1),
+    studentBId: z.string().min(1),
+    weight: softRuleWeightSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    label: z.string().optional(),
+    strength: z.literal('soft'),
+    kind: z.literal('prefer-apart'),
+    studentAId: z.string().min(1),
+    studentBId: z.string().min(1),
+    weight: softRuleWeightSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    label: z.string().optional(),
+    strength: z.literal('soft'),
+    kind: z.literal('prefer-seat-tag'),
+    studentId: z.string().min(1),
+    tag: z.string().min(1),
+    weight: softRuleWeightSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    label: z.string().optional(),
+    strength: z.literal('soft'),
+    kind: z.literal('balance-metric-by-row'),
+    metricKey: z.string().min(1),
+    weight: softRuleWeightSchema,
+  }),
+])
+
+export const planningRuleSchema = z.union([hardPlanningRuleSchema, softPlanningRuleSchema])
+
+const approvedSeatingHistorySchema = z.object({
+  version: z.literal('1.0'),
+  id: z.string().min(1),
+  label: z.string().min(1).optional(),
+  approvedAt: z.iso.datetime({ offset: true }),
+  neighbourMode: z.enum(['orthogonal', 'king']),
+  room: roomSchema,
+  assignments: z.array(planningAssignmentSchema),
+})
+
+const planningScenarioSchema = z.object({
+  version: z.literal('1.0'),
+  id: z.string().min(1),
+  label: z.string().min(1),
+  savedAt: z.iso.datetime({ offset: true }),
+  room: roomSchema.optional(),
+  seed: z.string().optional(),
+  selectedMetricKeys: z.array(z.string().min(1)).optional(),
+  assignments: z.array(planningAssignmentSchema),
+  rules: z.array(planningRuleSchema),
+  groups: z.array(planningGroupSchema),
+  approvedCandidateId: z.string().optional(),
+})
+
+const planningConfigurationSchema = z.object({
+  ruleSchemaVersion: z.literal('1.0').optional(),
+  seed: z.string().optional(),
+  selectedMetricKeys: z.array(z.string().min(1)).optional(),
+  assignments: z.array(planningAssignmentSchema).optional(),
+  rules: z.array(planningRuleSchema).optional(),
+  groups: z.array(planningGroupSchema).optional(),
+  approvedCandidateId: z.string().optional(),
+  history: z.array(approvedSeatingHistorySchema).optional(),
+  scenarios: z.array(planningScenarioSchema).optional(),
+})
+
+export const classGraphProjectSchema = z
+  .object({
+    schemaVersion: z.literal('1.0'),
+    projectId: z.string().min(1),
+    title: z.string().min(1),
+    createdAt: z.iso.datetime({ offset: true }),
+    updatedAt: z.iso.datetime({ offset: true }),
+    classInfo: z.object({
+      classId: z.string().optional(),
+      subject: z.string().optional(),
+      gradeOrLevel: z.string().optional(),
+      term: z.string().optional(),
+      teacherLabel: z.string().optional(),
+      notes: z.string().optional(),
+    }),
+    metricDefinitions: z.array(metricDefinitionSchema),
+    students: z.array(studentSchema),
+    relationships: z.array(relationshipSchema).optional(),
+    room: roomSchema.optional(),
+    planning: planningConfigurationSchema.optional(),
+    provenance: z.record(z.string(), provenanceEntrySchema),
+    extensions: z.record(z.string(), z.unknown()).optional(),
+  })
+  .superRefine((project, ctx) => {
+    const metricDefinitions = new Map(project.metricDefinitions.map((item) => [item.key, item]))
+
+    if (metricDefinitions.size !== project.metricDefinitions.length) {
+      const seen = new Set<string>()
+      for (const [index, definition] of project.metricDefinitions.entries()) {
+        if (seen.has(definition.key)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['metricDefinitions', index, 'key'],
+            message: `duplicate metric key: ${definition.key}`,
+          })
+        }
+        seen.add(definition.key)
+      }
+    }
+
+    const studentIds = new Set<string>()
+    for (const [index, student] of project.students.entries()) {
+      if (studentIds.has(student.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['students', index, 'id'],
+          message: `duplicate student id: ${student.id}`,
+        })
+      }
+      studentIds.add(student.id)
+
+      for (const [metricKey, value] of Object.entries(student.metrics)) {
+        const definition = metricDefinitions.get(metricKey)
+        if (!definition) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['students', index, 'metrics', metricKey],
+            message: `metric has no definition: ${metricKey}`,
+          })
+          continue
+        }
+
+        if (value === null) {
+          if (definition.missingAllowed === false) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['students', index, 'metrics', metricKey],
+              message: `metric does not allow missing values: ${metricKey}`,
+            })
+          }
+          continue
+        }
+
+        const validType =
+          (definition.kind === 'number' && typeof value === 'number') ||
+          (definition.kind === 'boolean' && typeof value === 'boolean') ||
+          ((definition.kind === 'text' ||
+            definition.kind === 'ordinal' ||
+            definition.kind === 'category') &&
+            typeof value === 'string')
+
+        if (!validType) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['students', index, 'metrics', metricKey],
+            message: `metric value type does not match definition: ${metricKey}`,
+          })
+          continue
+        }
+
+        if (definition.kind === 'number' && typeof value === 'number') {
+          if (definition.numberScale?.min !== undefined && value < definition.numberScale.min) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['students', index, 'metrics', metricKey],
+              message: `metric is below configured minimum: ${metricKey}`,
+            })
+          }
+          if (definition.numberScale?.max !== undefined && value > definition.numberScale.max) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['students', index, 'metrics', metricKey],
+              message: `metric is above configured maximum: ${metricKey}`,
+            })
+          }
+        }
+
+        if (
+          definition.kind === 'category' &&
+          typeof value === 'string' &&
+          definition.categories &&
+          !definition.categories.includes(value)
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['students', index, 'metrics', metricKey],
+            message: `unknown category value for ${metricKey}: ${value}`,
+          })
+        }
+
+        if (
+          definition.kind === 'ordinal' &&
+          typeof value === 'string' &&
+          definition.ordinalScale &&
+          !definition.ordinalScale.includes(value)
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['students', index, 'metrics', metricKey],
+            message: `unknown ordinal value for ${metricKey}: ${value}`,
+          })
+        }
+      }
+    }
+
+    const relationshipIds = new Set<string>()
+    const relationshipKeys = new Set<string>()
+    for (const [index, relationship] of (project.relationships ?? []).entries()) {
+      if (relationshipIds.has(relationship.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['relationships', index, 'id'],
+          message: `duplicate relationship id: ${relationship.id}`,
+        })
+      }
+      relationshipIds.add(relationship.id)
+
+      const relationshipKey = canonicalRelationshipKey(relationship)
+      if (relationshipKeys.has(relationshipKey)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['relationships', index],
+          message: 'duplicate relationship semantics',
+        })
+      }
+      relationshipKeys.add(relationshipKey)
+
+      if (!studentIds.has(relationship.fromStudentId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['relationships', index, 'fromStudentId'],
+          message: `unknown student: ${relationship.fromStudentId}`,
+        })
+      }
+      if (!studentIds.has(relationship.toStudentId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['relationships', index, 'toStudentId'],
+          message: `unknown student: ${relationship.toStudentId}`,
+        })
+      }
+      if (relationship.fromStudentId === relationship.toStudentId) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['relationships', index],
+          message: 'relationship endpoints must be different students',
+        })
+      }
+    }
+
+    const enabledSeatIds = new Set(
+      (project.room?.seats ?? []).filter((seat) => seat.enabled).map((seat) => seat.id),
+    )
+    const allSeatIds = new Set((project.room?.seats ?? []).map((seat) => seat.id))
+    const assignments = project.planning?.assignments ?? []
+    const assignedStudents = new Set<string>()
+    const occupiedSeats = new Set<string>()
+
+    for (const [index, assignment] of assignments.entries()) {
+      if (!studentIds.has(assignment.studentId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'assignments', index, 'studentId'],
+          message: `unknown student in seat assignment: ${assignment.studentId}`,
+        })
+      }
+      if (!enabledSeatIds.has(assignment.seatId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'assignments', index, 'seatId'],
+          message: `seat assignment requires an enabled seat: ${assignment.seatId}`,
+        })
+      }
+      if (assignedStudents.has(assignment.studentId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'assignments', index, 'studentId'],
+          message: `student has multiple seat assignments: ${assignment.studentId}`,
+        })
+      }
+      if (occupiedSeats.has(assignment.seatId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'assignments', index, 'seatId'],
+          message: `seat has multiple assigned students: ${assignment.seatId}`,
+        })
+      }
+      assignedStudents.add(assignment.studentId)
+      occupiedSeats.add(assignment.seatId)
+    }
+
+    const ruleIds = new Set<string>()
+    for (const [index, rule] of (project.planning?.rules ?? []).entries()) {
+      if (ruleIds.has(rule.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'rules', index, 'id'],
+          message: `duplicate planning rule id: ${rule.id}`,
+        })
+      }
+      ruleIds.add(rule.id)
+
+      if ('studentId' in rule && !studentIds.has(rule.studentId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'rules', index, 'studentId'],
+          message: `unknown student in planning rule: ${rule.studentId}`,
+        })
+      }
+      if ('studentAId' in rule && !studentIds.has(rule.studentAId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'rules', index, 'studentAId'],
+          message: `unknown student in planning rule: ${rule.studentAId}`,
+        })
+      }
+      if ('studentBId' in rule && !studentIds.has(rule.studentBId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'rules', index, 'studentBId'],
+          message: `unknown student in planning rule: ${rule.studentBId}`,
+        })
+      }
+      if ('studentAId' in rule && 'studentBId' in rule && rule.studentAId === rule.studentBId) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'rules', index],
+          message: 'planning rule student endpoints must be different',
+        })
+      }
+      if ('seatId' in rule && !allSeatIds.has(rule.seatId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'rules', index, 'seatId'],
+          message: `unknown seat in planning rule: ${rule.seatId}`,
+        })
+      }
+      if (
+        rule.kind === 'balance-metric-by-row' &&
+        !['number', 'ordinal'].includes(metricDefinitions.get(rule.metricKey)?.kind ?? '')
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'rules', index, 'metricKey'],
+          message: `row-balance rule requires a numeric or ordinal metric: ${rule.metricKey}`,
+        })
+      }
+    }
+
+    const groupIds = new Set<string>()
+    const groupedStudents = new Set<string>()
+    for (const [index, group] of (project.planning?.groups ?? []).entries()) {
+      if (groupIds.has(group.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'groups', index, 'id'],
+          message: `duplicate group id: ${group.id}`,
+        })
+      }
+      groupIds.add(group.id)
+
+      const members = new Set<string>()
+      for (const studentId of group.studentIds) {
+        if (!studentIds.has(studentId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['planning', 'groups', index, 'studentIds'],
+            message: `unknown student in group: ${studentId}`,
+          })
+        }
+        if (members.has(studentId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['planning', 'groups', index, 'studentIds'],
+            message: `duplicate student in group: ${studentId}`,
+          })
+        }
+        if (groupedStudents.has(studentId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['planning', 'groups', index, 'studentIds'],
+            message: `student belongs to multiple groups: ${studentId}`,
+          })
+        }
+        members.add(studentId)
+        groupedStudents.add(studentId)
+      }
+
+      for (const studentId of group.lockedStudentIds ?? []) {
+        if (!members.has(studentId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['planning', 'groups', index, 'lockedStudentIds'],
+            message: `locked group student must also be a member: ${studentId}`,
+          })
+        }
+      }
+    }
+
+    for (const [index, metricKey] of (project.planning?.selectedMetricKeys ?? []).entries()) {
+      if (!metricDefinitions.has(metricKey)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'selectedMetricKeys', index],
+          message: `unknown selected planning metric: ${metricKey}`,
+        })
+      }
+    }
+
+    const historyIds = new Set<string>()
+    for (const [index, entry] of (project.planning?.history ?? []).entries()) {
+      if (historyIds.has(entry.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'history', index, 'id'],
+          message: `duplicate seating history id: ${entry.id}`,
+        })
+      }
+      historyIds.add(entry.id)
+
+      const snapshotSeatIds = new Set(
+        entry.room.seats.filter((seat) => seat.enabled).map((seat) => seat.id),
+      )
+      const historyStudents = new Set<string>()
+      const historySeats = new Set<string>()
+      for (const [assignmentIndex, assignment] of entry.assignments.entries()) {
+        if (!snapshotSeatIds.has(assignment.seatId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['planning', 'history', index, 'assignments', assignmentIndex, 'seatId'],
+            message: `history assignment requires a snapshot enabled seat: ${assignment.seatId}`,
+          })
+        }
+        if (historyStudents.has(assignment.studentId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['planning', 'history', index, 'assignments', assignmentIndex, 'studentId'],
+            message: `duplicate student in seating history: ${assignment.studentId}`,
+          })
+        }
+        if (historySeats.has(assignment.seatId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['planning', 'history', index, 'assignments', assignmentIndex, 'seatId'],
+            message: `duplicate occupied seat in seating history: ${assignment.seatId}`,
+          })
+        }
+        historyStudents.add(assignment.studentId)
+        historySeats.add(assignment.seatId)
+      }
+    }
+
+    const scenarioIds = new Set<string>()
+    for (const [index, scenario] of (project.planning?.scenarios ?? []).entries()) {
+      if (scenarioIds.has(scenario.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'scenarios', index, 'id'],
+          message: `duplicate planning scenario id: ${scenario.id}`,
+        })
+      }
+      scenarioIds.add(scenario.id)
+    }
+  })
