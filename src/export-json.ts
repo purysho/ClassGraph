@@ -45,10 +45,18 @@ export interface SeatingPlanExportV1 {
 
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i
 
+function replaceUnsafeFilenameCharacters(value: string): string {
+  return [...value]
+    .map((character) => {
+      const code = character.codePointAt(0) ?? 0
+      if (code < 32 || code === 127 || '<>:"/\\|?*'.includes(character)) return '-'
+      return character
+    })
+    .join('')
+}
+
 export function safeExportStem(title: string, fallback = 'classgraph'): string {
-  let value = title
-    .normalize('NFKC')
-    .replace(/[<>:"/\\|?*\u0000-\u001f\u007f]/g, '-')
+  let value = replaceUnsafeFilenameCharacters(title.normalize('NFKC'))
     .replace(/\s+/g, ' ')
     .replace(/-+/g, '-')
     .trim()
