@@ -19,7 +19,10 @@ jobs:
         with:
           node-version: 22
       - run: npm install --ignore-scripts --no-audit --no-fund
-      - run: npm run format:check
+      - name: Format working tree for validation
+        run: npm run format
+      - name: Show formatter changes
+        run: git diff
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
