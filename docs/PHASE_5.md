@@ -159,7 +159,6 @@ Gate 5 verification: run `36917677220` at head `f7700b4ddf832329771f15af4da70b5b
 - static review of all nine assistance modules found no `console.*`, browser storage, or telemetry writes;
 - `package.json` and `package-lock.json` are unchanged from the Phase 4 head, so Phase 5 adds **zero runtime dependencies** and no provider SDK/assets.
 
-
 Verification: run `36917593651` — format, lint, strict typecheck, **150/150 tests across 29 files**, build, and production audit all passed; audit reported **0 vulnerabilities**.
 
 Gate 5 review:
