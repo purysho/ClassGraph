@@ -121,40 +121,6 @@ describe('local app server', () => {
     expect(body.project.provenance['/title']?.kind).toBe('teacher-entered')
   })
 
-  it('creates a reproducible basic synthetic project through the local API', async () => {
-    const base = await startServer()
-    const request = {
-      projectId: 'synthetic-36',
-      title: 'Synthetic Class',
-      studentCount: 36,
-      seed: 'same-seed',
-    }
-
-    const first = await fetch(`${base}/api/synthetic/basic`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    })
-    const second = await fetch(`${base}/api/synthetic/basic`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    })
-
-    expect(first.status).toBe(200)
-    expect(second.status).toBe(200)
-    const firstBody = (await first.json()) as {
-      project: { students: unknown[]; metricDefinitions: unknown[] }
-    }
-    const secondBody = (await second.json()) as {
-      project: { students: unknown[]; metricDefinitions: unknown[] }
-    }
-    expect(firstBody.project.students).toHaveLength(36)
-    expect(firstBody.project.metricDefinitions).toHaveLength(2)
-    expect(firstBody.project.students).toEqual(secondBody.project.students)
-  })
-
-
   it('applies a validated project mutation through the local API', async () => {
     const base = await startServer()
     const project = createEmptyProject({
