@@ -489,5 +489,4 @@ describe('local app server', () => {
     expect(body.error.code).toBe('CG-5004')
     expect(body.error.message).toContain('Unicode')
   })
-
 })

@@ -2687,7 +2687,6 @@ async function generateGrouping(data: FormData): Promise<void> {
   }
 }
 
-
 function reportDownloadName(response: Response, fallback: string): string {
   const disposition = response.headers.get('content-disposition') ?? ''
   const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposition)

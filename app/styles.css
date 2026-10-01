@@ -1589,7 +1589,6 @@ select:focus {
   cursor: grabbing;
 }
 
-
 .reports-stack {
   display: grid;
   gap: 16px;

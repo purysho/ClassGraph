@@ -4,7 +4,11 @@ import { extname, join } from 'node:path'
 import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
 import { generateGroupingCandidates } from './grouping.js'
 import { serializeEduBoardHandback } from './eduboard-handback.js'
-import { safeExportStem, serializeAnalysisExport, serializeSeatingPlanExport } from './export-json.js'
+import {
+  safeExportStem,
+  serializeAnalysisExport,
+  serializeSeatingPlanExport,
+} from './export-json.js'
 import { ClassGraphImportError, parseProjectJson, serializeProjectJson } from './json.js'
 import { generateSeatingCandidates } from './planning.js'
 import { generateDocxReport } from './report-docx.js'
@@ -172,9 +176,7 @@ function parseProjectFromRequest(record: Record<string, unknown>) {
   const result = classGraphProjectSchema.safeParse(record.project)
   if (!result.success) {
     const issue = result.error.issues[0]
-    throw new Error(
-      `CG-1001 invalid project in request: ${issue?.message ?? 'validation failed'}`,
-    )
+    throw new Error(`CG-1001 invalid project in request: ${issue?.message ?? 'validation failed'}`)
   }
   return result.data
 }

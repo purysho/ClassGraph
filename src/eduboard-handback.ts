@@ -103,14 +103,14 @@ function readPointer(root: unknown, path: string): unknown {
   return current
 }
 
-function sourceFieldValues(project: ClassGraphProject): EduBoardHandbackV1['sourceData']['sourceFieldValues'] {
+function sourceFieldValues(
+  project: ClassGraphProject,
+): EduBoardHandbackV1['sourceData']['sourceFieldValues'] {
   const allowed = new Set<ProvenanceEntry['kind']>(['observed', 'teacher-entered', 'imported'])
   return Object.entries(project.provenance)
     .filter(
       ([path, entry]) =>
-        allowed.has(entry.kind) &&
-        !path.startsWith('/planning') &&
-        !path.startsWith('/room'),
+        allowed.has(entry.kind) && !path.startsWith('/planning') && !path.startsWith('/room'),
     )
     .sort(([left], [right]) => left.localeCompare(right))
     .flatMap(([path, entry]) => {
@@ -162,9 +162,7 @@ function planningForEduBoard(project: ClassGraphProject): {
     unmappedSeatAssignments,
     groups: structuredClone(planning?.groups ?? []),
     rules: structuredClone(planning?.rules ?? []),
-    ...(planning?.approvedCandidateId
-      ? { approvedCandidateId: planning.approvedCandidateId }
-      : {}),
+    ...(planning?.approvedCandidateId ? { approvedCandidateId: planning.approvedCandidateId } : {}),
   }
 }
 
