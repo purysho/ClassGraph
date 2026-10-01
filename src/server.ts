@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { parseProjectJson, serializeProjectJson } from './json.js'
+import { applyProjectMutation, parseProjectMutationRequest } from './project-mutations.js'
 import { generateSyntheticProject } from './synthetic.js'
 import { createEmptyProject } from './workspace.js'
 
@@ -219,6 +220,17 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
         return
       }
 
+      if (request.method === 'POST' && url.pathname === '/api/project/mutate') {
+        const mutation = parseProjectMutationRequest(await readJsonBody(request, maxBodyBytes))
+        const project = applyProjectMutation(
+          mutation.project,
+          mutation.command,
+          new Date().toISOString(),
+        )
+        sendJson(response, 200, { project })
+        return
+      }
+
       if (request.method === 'POST' && url.pathname === '/api/synthetic/basic') {
         const setup = parseBasicSynthetic(await readJsonBody(request, maxBodyBytes))
         const project = generateSyntheticProject({
@@ -297,7 +309,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unexpected local server error.'
-      const code = message.startsWith('CG-1002') ? 'CG-1002' : 'CG-1001'
+      const code = /^CG-\d{4}/.exec(message)?.[0] ?? 'CG-9001'
       const statusCode = code === 'CG-1002' ? 413 : 400
       sendJson(response, statusCode, { error: { code, message } })
     }
