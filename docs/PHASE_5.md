@@ -50,10 +50,22 @@ The initial assistance families are:
 
 - [x] Create `feat/phase-5-assistance` from the exact Phase 4 head.
 - [x] Create this recovery log before feature code.
-- [ ] Define provider-independent proposal/request/result types.
-- [ ] Define explicit data-disclosure metadata.
-- [ ] Define accept/apply boundaries so assistance cannot mutate silently.
-- [ ] Add contract tests.
+- [x] Define provider-independent proposal/request/result types.
+- [x] Define explicit data-disclosure metadata.
+- [x] Define accept/apply boundaries so assistance cannot mutate silently.
+- [x] Add contract tests.
+
+Implemented:
+
+- versioned provider-independent request/proposal envelopes;
+- explicit offline/network execution mode;
+- per-context disclosure records showing whether student-level data, IDs, display names, free text, real data, or synthetic-only data would be included;
+- network requests require an explicit send action and visible provider label;
+- all assistance outputs must remain marked `status: "proposal"`;
+- synthetic-spec acceptance reuses the existing structured synthetic schema and returns a specification only — it does not generate students;
+- planning-rule acceptance revalidates each selected rule against the existing planning-rule schema and returns accepted suggestions without mutating the project.
+
+Verification: run `36914523052` — format, lint, strict typecheck, **134/134 tests across 27 files**, and build passed.
 
 ### P5.1 — Synthetic-spec drafting
 
