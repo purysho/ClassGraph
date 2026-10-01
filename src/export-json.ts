@@ -52,6 +52,7 @@ export function safeExportStem(title: string, fallback = 'classgraph'): string {
     .replace(/\s+/g, ' ')
     .replace(/-+/g, '-')
     .trim()
+    .replace(/^[. -]+/g, '')
     .replace(/[. ]+$/g, '')
 
   if (!value) value = fallback
