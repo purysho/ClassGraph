@@ -1,4 +1,11 @@
-import { PdfDocumentAdapter, StandardFonts, rgb, type PdfFontAdapter, type PdfPageAdapter } from '@cantoo/pdf-lib'
+import {
+  createPdfDocument,
+  pdfRgb,
+  pdfStandardFonts,
+  type PdfDocumentAdapter,
+  type PdfFontAdapter,
+  type PdfPageAdapter,
+} from './pdf-runtime.js'
 import { ClassGraphExportError } from './export-errors.js'
 import type { ClassGraphProject, PlanningSeatAssignment, SeatDefinition } from './model.js'
 import { buildHumanReport, type HumanReportTable } from './report-content.js'
@@ -125,7 +132,7 @@ export async function generatePdfReport(project: ClassGraphProject): Promise<Uin
   const report = buildHumanReport(validated)
   const document = await createPdfDocument()
   const regular = await document.embedFont(pdfStandardFonts.Helvetica)
-  const bold = await document.embedFont(pdfpdfStandardFonts.HelveticaBold)
+  const bold = await document.embedFont(pdfStandardFonts.HelveticaBold)
   let cursor = newPortraitPage(document, regular, bold)
 
   cursor = drawWrapped(cursor, report.title, { bold: true, size: 19, spacingAfter: 5 })
@@ -230,7 +237,7 @@ export async function generateSeatingPlanPdf(project: ClassGraphProject): Promis
 
   const document = await createPdfDocument()
   const regular = await document.embedFont(pdfStandardFonts.Helvetica)
-  const bold = await document.embedFont(pdfpdfStandardFonts.HelveticaBold)
+  const bold = await document.embedFont(pdfStandardFonts.HelveticaBold)
   const assignments = validated.planning?.assignments ?? []
   const assignmentMap = seatAssignmentMap(assignments)
 
