@@ -9,6 +9,7 @@ import {
   createEnvironmentAssistanceProvider,
   type AssistanceProvider,
 } from '../src/assistance-provider.js'
+import { serializeProjectJson } from '../src/json.js'
 import { createEmptyProject } from '../src/workspace.js'
 
 describe('assistance context and provider boundary', () => {
@@ -91,6 +92,45 @@ describe('assistance context and provider boundary', () => {
       offlineAvailable: true,
       network: { enabled: false, mode: 'network' },
     })
+  })
+
+  it('does not expose provider credentials in status, requests, or project exports', () => {
+    const token = 'private-provider-token'
+    const provider = createEnvironmentAssistanceProvider({
+      CLASSGRAPH_ASSISTANCE_URL: 'https://provider.example/assist',
+      CLASSGRAPH_ASSISTANCE_PROVIDER_LABEL: 'Example',
+      CLASSGRAPH_ASSISTANCE_TOKEN: token,
+    })
+    expect(provider).toBeDefined()
+
+    const project = createEmptyProject({
+      projectId: 'credential-boundary',
+      title: 'Credential Boundary',
+      now: '2026-10-02T01:00:00.000Z',
+    })
+    project.students = [{ id: 'student-private-id', displayName: 'Private Name', metrics: {} }]
+
+    const statusText = JSON.stringify(assistanceServiceStatus(provider))
+    expect(statusText).not.toContain(token)
+
+    const request = buildAssistanceRequest(
+      {
+        project,
+        task: 'analysis-explanation',
+        mode: 'network',
+        requestId: 'credential-preview',
+      },
+      provider,
+    )
+    const requestText = JSON.stringify(request)
+    expect(requestText).not.toContain(token)
+    expect(requestText).not.toContain('Private Name')
+    expect(requestText).not.toContain('student-private-id')
+
+    const exportText = serializeProjectJson(project)
+    expect(exportText).not.toContain(token)
+    expect(exportText).not.toContain('CLASSGRAPH_ASSISTANCE')
+    expect(exportText).not.toContain('provider.example')
   })
 
   it('rejects non-HTTPS provider endpoints', () => {
