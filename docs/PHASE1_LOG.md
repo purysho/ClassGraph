@@ -146,6 +146,23 @@ Completed behaviour:
 - all saves route through `POST /api/project/mutate`; the browser does not directly rewrite Exchange v1 objects;
 - horizontal roster layout supports larger classes and many custom metrics.
 
+### P1.5c — Provenance inspection
+
+**Status:** Complete.
+
+The Students workspace now includes a field-level provenance inspector tied to the canonical project provenance map.
+
+Completed behaviour:
+
+- per-student `Sources` control opens the recorded provenance for that student index;
+- inspector lists the exact field path, provenance kind, optional source, note, and `derivedFrom` paths;
+- inspector states explicitly that displayed sources are recorded data, not ClassGraph guesses;
+- absent provenance is shown as absent rather than inferred from neighbouring values;
+- synthetic/imported/teacher-entered/derived/observed provenance remains visually distinguishable;
+- provenance follows the index-remapping rules already enforced by the workspace core when students are removed.
+
+P1.5 cleanup also removed an overlapping older roster CSS block so the current roster/provenance styling has a single authoritative implementation.
+
 ## Next exact step
 
-Complete **P1.5c — Provenance inspection**. Add per-student/per-metric source indicators and a readable inspector showing path, provenance kind, source/note, and derived-from fields without inventing provenance where none is recorded.
+Implement **P1.6 — Overview statistics + distribution/comparison views**. Reuse the existing descriptive-analysis core, add API endpoints for project summaries, and build graph/table views that always expose missing counts and never imply causation or hidden student traits.
