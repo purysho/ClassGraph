@@ -3,7 +3,7 @@
 **Phase:** 5 — Optional Assistance Layer  
 **Branch:** `feat/phase-5-assistance`  
 **Base:** `feat/phase-4-relationships` @ `3872081dc33068e373b26d0f0324a9e680101686`  
-**Status:** Implementation complete; Gate 5 validation in progress  
+**Status:** Complete — Gate 5 passed  
 **Last updated:** 2026-10-02
 
 ## Purpose
@@ -131,19 +131,33 @@ Implemented before Gate 5:
 - Provider, local-draft, contract, and server tests use local fakes only. CI does not require an external provider or key.
 - No provider SDK or other Phase 5 runtime dependency was added.
 
-The first full implementation test pass reached 148/149 tests; the sole failure was an exact caveat wording assertion. The text was tightened to say missing values "are not imputed" explicitly. Final Gate 5 results are recorded below after the final branch/PR checks.
+The first full implementation test pass reached 148/149 tests; the sole failure was an exact caveat wording assertion. The text was tightened to say missing values "are not imputed" explicitly. A credential-boundary regression test was then added, bringing the final suite to 150 tests.
 
 ### P5.7 — Gate 5
 
-- [ ] `npm run format:check`
-- [ ] `npm run lint`
-- [ ] `npm run typecheck`
-- [ ] `npm test`
-- [ ] `npm run build`
-- [ ] `npm audit --omit=dev --audit-level=high`
-- [ ] Verify core no-network workflows still pass.
-- [ ] Dependency/size review.
-- [ ] Verify no credentials or student data are written to logs/project exports by assistance code.
+- [x] `npm run format:check`
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run build`
+- [x] `npm audit --omit=dev --audit-level=high`
+- [x] Verify core no-network workflows still pass.
+- [x] Dependency/size review.
+- [x] Verify no credentials or assistance student context are written to logs/project exports by assistance code.
+
+Gate 5 verification: run `36917677220` at head `f7700b4ddf832329771f15af4da70b5be43d470c`.
+
+- format check passed;
+- lint passed;
+- strict TypeScript typecheck passed;
+- **150/150 tests across 29 files passed**;
+- build passed;
+- `npm audit --omit=dev --audit-level=high` reported **0 vulnerabilities**;
+- no external provider, provider key, or network assistance service was required by CI;
+- analysis/report assistance tests confirm aggregate/redacted context omits student IDs/display names when they are unnecessary;
+- the credential-boundary regression confirms provider tokens do not appear in provider status, assistance requests, or ClassGraph project exports;
+- static review of all nine assistance modules found no `console.*`, browser storage, or telemetry writes;
+- `package.json` and `package-lock.json` are unchanged from the Phase 4 head, so Phase 5 adds **zero runtime dependencies** and no provider SDK/assets.
 
 ## Gate 5 acceptance
 
@@ -160,4 +174,4 @@ The first full implementation test pass reached 148/149 tests; the sole failure 
 
 ## Recovery instruction
 
-If work is interrupted, resume from the repository state on `feat/phase-5-assistance` and this file, not chat memory. Complete one slice at a time, test it, commit it, then update this log before continuing.
+Phase 5 is complete. If later maintenance is interrupted, resume from the repository state and this file rather than chat memory; preserve the proposal/acceptance, disclosure, privacy, and no-hidden-inference boundaries above.
