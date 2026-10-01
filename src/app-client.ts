@@ -57,6 +57,74 @@ interface ErrorResponse {
   }
 }
 
+
+interface NumericSummary {
+  metricKey: string
+  recordedCount: number
+  missingCount: number
+  min: number | null
+  max: number | null
+  mean: number | null
+  median: number | null
+  q1: number | null
+  q3: number | null
+}
+
+interface HistogramBucket {
+  min: number
+  max: number
+  count: number
+}
+
+interface NumericMetricAnalysis {
+  kind: 'number'
+  key: string
+  label: string
+  summary: NumericSummary
+  histogram: HistogramBucket[]
+}
+
+interface CategoryMetricAnalysis {
+  kind: 'category'
+  key: string
+  label: string
+  sourceKind: 'category' | 'ordinal' | 'boolean' | 'text'
+  summary: {
+    metricKey: string
+    recordedCount: number
+    missingCount: number
+    counts: Record<string, number>
+  }
+}
+
+type MetricAnalysis = NumericMetricAnalysis | CategoryMetricAnalysis
+
+interface ProjectAnalysis {
+  studentCount: number
+  metricCount: number
+  completeness: {
+    totalCells: number
+    recordedCount: number
+    explicitMissingCount: number
+    unrecordedCount: number
+  }
+  metrics: MetricAnalysis[]
+}
+
+interface ScatterView {
+  xMetricKey: string
+  yMetricKey: string
+  xLabel: string
+  yLabel: string
+  points: Array<{
+    studentId: string
+    displayName?: string
+    x: number
+    y: number
+  }>
+  omittedCount: number
+}
+
 type WorkspaceView = 'overview' | 'students' | 'graphs'
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
 
@@ -66,6 +134,9 @@ if (!root) throw new Error('ClassGraph could not find the application root.')
 let project: ClassGraphProject | null = null
 let activeView: WorkspaceView = 'overview'
 let selectedProvenanceStudentId: string | null = null
+let selectedGraphMetricKey: string | null = null
+let selectedScatterX: string | null = null
+let selectedScatterY: string | null = null
 
 function escapeHtml(value: string): string {
   return value
@@ -412,13 +483,7 @@ function renderWorkspaceContent(): void {
     return
   }
 
-  content.innerHTML = `
-    <article class="panel empty-state">
-      <p class="eyebrow">Graphs</p>
-      <h2>Descriptive analysis checkpoint</h2>
-      <p>Distribution and comparison views are added in P1.6.</p>
-    </article>
-  `
+  renderGraphs(content)
 }
 
 function renderOverview(content: HTMLElement): void {
@@ -1095,6 +1160,432 @@ async function saveInputMetric(
     metricKey: definition.key,
     value,
   })
+}
+
+
+function renderGraphs(content: HTMLElement): void {
+  if (!project) return
+
+  content.innerHTML = `
+    <article class="panel analysis-loading">
+      <p class="eyebrow">Descriptive analysis</p>
+      <h2>Reading the current class data…</h2>
+      <p>No prediction or hidden student scoring is performed.</p>
+    </article>
+  `
+
+  void loadProjectAnalysis(content)
+}
+
+async function loadProjectAnalysis(content: HTMLElement): Promise<void> {
+  if (!project) return
+
+  try {
+    const response = await postJson<{ analysis: ProjectAnalysis }>('/api/analysis/project', {
+      project,
+    })
+    if (activeView !== 'graphs') return
+    renderAnalysisResults(content, response.analysis)
+  } catch (error) {
+    content.innerHTML = `
+      <article class="panel empty-state">
+        <p class="eyebrow">Analysis unavailable</p>
+        <h2>ClassGraph could not build this view.</h2>
+        <p>${escapeHtml(error instanceof Error ? error.message : 'Unknown analysis error.')}</p>
+      </article>
+    `
+  }
+}
+
+function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis): void {
+  const current = project
+  if (!current) return
+
+  if (!selectedGraphMetricKey || !analysis.metrics.some((item) => item.key === selectedGraphMetricKey)) {
+    selectedGraphMetricKey = analysis.metrics[0]?.key ?? null
+  }
+
+  const numericMetrics = analysis.metrics.filter(
+    (metric): metric is NumericMetricAnalysis => metric.kind === 'number',
+  )
+
+  if (!selectedScatterX || !numericMetrics.some((item) => item.key === selectedScatterX)) {
+    selectedScatterX = numericMetrics[0]?.key ?? null
+  }
+  if (!selectedScatterY || !numericMetrics.some((item) => item.key === selectedScatterY)) {
+    selectedScatterY = numericMetrics[1]?.key ?? numericMetrics[0]?.key ?? null
+  }
+
+  const selectedMetric = analysis.metrics.find((item) => item.key === selectedGraphMetricKey)
+  const completeness = analysis.completeness
+  const completenessPercent =
+    completeness.totalCells > 0
+      ? Math.round((completeness.recordedCount / completeness.totalCells) * 100)
+      : 0
+
+  content.innerHTML = `
+    <div class="metric-cards">
+      <article class="metric-card">
+        <span>Recorded cells</span>
+        <strong>${completeness.recordedCount}</strong>
+        <small>${completenessPercent}% of defined student × metric cells</small>
+      </article>
+      <article class="metric-card">
+        <span>Explicitly missing</span>
+        <strong>${completeness.explicitMissingCount}</strong>
+        <small>Stored as unavailable, not zero</small>
+      </article>
+      <article class="metric-card">
+        <span>Not recorded</span>
+        <strong>${completeness.unrecordedCount}</strong>
+        <small>No value is stored for these cells</small>
+      </article>
+    </div>
+
+    <article class="panel analysis-panel">
+      <div class="analysis-toolbar">
+        <div>
+          <p class="eyebrow">Distribution</p>
+          <h2>One metric at a time</h2>
+        </div>
+        <label class="compact-label">
+          Metric
+          <select id="graph-metric-select">
+            ${analysis.metrics
+              .map((metric) =>
+                optionHtml(metric.key, metric.label, metric.key === selectedGraphMetricKey),
+              )
+              .join('')}
+          </select>
+        </label>
+      </div>
+      ${selectedMetric ? renderMetricAnalysis(selectedMetric) : renderNoMetrics()}
+    </article>
+
+    <article class="panel analysis-panel">
+      <div class="analysis-toolbar">
+        <div>
+          <p class="eyebrow">Numeric comparison</p>
+          <h2>Scatter view</h2>
+        </div>
+        <div class="scatter-controls">
+          <label class="compact-label">
+            X axis
+            <select id="scatter-x">
+              ${numericMetrics
+                .map((metric) =>
+                  optionHtml(metric.key, metric.label, metric.key === selectedScatterX),
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="compact-label">
+            Y axis
+            <select id="scatter-y">
+              ${numericMetrics
+                .map((metric) =>
+                  optionHtml(metric.key, metric.label, metric.key === selectedScatterY),
+                )
+                .join('')}
+            </select>
+          </label>
+          <button id="load-scatter" class="secondary compact" type="button">Compare</button>
+        </div>
+      </div>
+      <div id="scatter-result">
+        ${numericMetrics.length < 2 ? renderScatterUnavailable(numericMetrics.length) : '<p class="muted">Choose two numeric metrics and compare them.</p>'}
+      </div>
+    </article>
+  `
+
+  document
+    .querySelector<HTMLSelectElement>('#graph-metric-select')
+    ?.addEventListener('change', (event) => {
+      selectedGraphMetricKey = (event.currentTarget as HTMLSelectElement).value
+      renderAnalysisResults(content, analysis)
+    })
+
+  document.querySelector<HTMLSelectElement>('#scatter-x')?.addEventListener('change', (event) => {
+    selectedScatterX = (event.currentTarget as HTMLSelectElement).value
+  })
+  document.querySelector<HTMLSelectElement>('#scatter-y')?.addEventListener('change', (event) => {
+    selectedScatterY = (event.currentTarget as HTMLSelectElement).value
+  })
+  document.querySelector<HTMLButtonElement>('#load-scatter')?.addEventListener('click', () => {
+    void loadScatter()
+  })
+}
+
+function renderNoMetrics(): string {
+  return `
+    <div class="empty-analysis">
+      <p>No metric definitions exist yet. Add fields in the Students view first.</p>
+    </div>
+  `
+}
+
+function renderMetricAnalysis(metric: MetricAnalysis): string {
+  return metric.kind === 'number'
+    ? renderNumericAnalysis(metric)
+    : renderCategoryAnalysis(metric)
+}
+
+function renderNumericAnalysis(metric: NumericMetricAnalysis): string {
+  const maxCount = Math.max(1, ...metric.histogram.map((bucket) => bucket.count))
+  const bars = metric.histogram
+    .map(
+      (bucket) => `
+        <div class="chart-bar-item">
+          <div class="chart-bar-track">
+            <div
+              class="chart-bar"
+              style="height: ${Math.max(4, (bucket.count / maxCount) * 100)}%"
+              title="${bucket.count} students"
+            ></div>
+          </div>
+          <span>${numberLabel(bucket.min)}–${numberLabel(bucket.max)}</span>
+          <b>${bucket.count}</b>
+        </div>
+      `,
+    )
+    .join('')
+
+  const tableRows = metric.histogram
+    .map(
+      (bucket) => `
+        <tr>
+          <td>${numberLabel(bucket.min)}</td>
+          <td>${numberLabel(bucket.max)}</td>
+          <td>${bucket.count}</td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  const summary = metric.summary
+  return `
+    <div class="analysis-summary-strip">
+      ${summaryStat('Recorded', summary.recordedCount)}
+      ${summaryStat('Missing / absent', summary.missingCount)}
+      ${summaryStat('Min', summary.min)}
+      ${summaryStat('Median', summary.median)}
+      ${summaryStat('Mean', summary.mean)}
+      ${summaryStat('Max', summary.max)}
+    </div>
+    <div class="analysis-split">
+      <div>
+        <h3>${escapeHtml(metric.label)} distribution</h3>
+        <div
+          class="bar-chart"
+          role="img"
+          aria-label="Histogram for ${escapeHtml(metric.label)}"
+        >
+          ${bars || '<p class="muted">No recorded numeric values.</p>'}
+        </div>
+      </div>
+      <div>
+        <h3>Table equivalent</h3>
+        <div class="data-table-wrap">
+          <table class="source-table">
+            <thead><tr><th>From</th><th>To</th><th>Count</th></tr></thead>
+            <tbody>
+              ${tableRows || '<tr><td colspan="3" class="empty-cell">No recorded values.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <p class="analysis-footnote">
+      Quartiles: Q1 ${numberLabel(summary.q1)} · Q3 ${numberLabel(summary.q3)}.
+      This is descriptive only; ClassGraph does not label students from these values.
+    </p>
+  `
+}
+
+function renderCategoryAnalysis(metric: CategoryMetricAnalysis): string {
+  const entries = Object.entries(metric.summary.counts).sort(([left], [right]) =>
+    left.localeCompare(right),
+  )
+  const maxCount = Math.max(1, ...entries.map(([, count]) => count))
+  const bars = entries
+    .map(
+      ([label, count]) => `
+        <div class="horizontal-bar-row">
+          <span>${escapeHtml(label)}</span>
+          <div class="horizontal-bar-track">
+            <div class="horizontal-bar" style="width: ${(count / maxCount) * 100}%"></div>
+          </div>
+          <b>${count}</b>
+        </div>
+      `,
+    )
+    .join('')
+
+  const tableRows = entries
+    .map(
+      ([label, count]) => `
+        <tr>
+          <td>${escapeHtml(label)}</td>
+          <td>${count}</td>
+          <td>${metric.summary.recordedCount ? Math.round((count / metric.summary.recordedCount) * 100) : 0}%</td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  return `
+    <div class="analysis-summary-strip">
+      ${summaryStat('Recorded', metric.summary.recordedCount)}
+      ${summaryStat('Missing / absent', metric.summary.missingCount)}
+      ${summaryStat('Categories seen', entries.length)}
+    </div>
+    <div class="analysis-split">
+      <div>
+        <h3>${escapeHtml(metric.label)} counts</h3>
+        <div class="horizontal-chart" role="img" aria-label="Counts for ${escapeHtml(metric.label)}">
+          ${bars || '<p class="muted">No recorded values.</p>'}
+        </div>
+      </div>
+      <div>
+        <h3>Table equivalent</h3>
+        <div class="data-table-wrap">
+          <table class="source-table">
+            <thead><tr><th>Value</th><th>Count</th><th>Recorded %</th></tr></thead>
+            <tbody>
+              ${tableRows || '<tr><td colspan="3" class="empty-cell">No recorded values.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function summaryStat(label: string, value: number | null): string {
+  return `
+    <span>
+      <small>${escapeHtml(label)}</small>
+      <b>${numberLabel(value)}</b>
+    </span>
+  `
+}
+
+function numberLabel(value: number | null): string {
+  if (value === null) return '—'
+  return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100)
+}
+
+function renderScatterUnavailable(numericCount: number): string {
+  return `
+    <div class="empty-analysis">
+      <p>
+        ${numericCount === 0 ? 'No numeric metrics exist yet.' : 'Add a second numeric metric to compare two axes.'}
+      </p>
+    </div>
+  `
+}
+
+async function loadScatter(): Promise<void> {
+  if (!project || !selectedScatterX || !selectedScatterY) return
+  const target = document.querySelector<HTMLElement>('#scatter-result')
+  if (!target) return
+
+  target.innerHTML = '<p class="muted">Building scatter view…</p>'
+
+  try {
+    const response = await postJson<{ scatter: ScatterView }>('/api/analysis/scatter', {
+      project,
+      xMetricKey: selectedScatterX,
+      yMetricKey: selectedScatterY,
+    })
+    target.innerHTML = renderScatter(response.scatter)
+  } catch (error) {
+    target.innerHTML = `<p class="status">${escapeHtml(
+      error instanceof Error ? error.message : 'Could not build scatter view.',
+    )}</p>`
+  }
+}
+
+function renderScatter(scatter: ScatterView): string {
+  if (scatter.points.length === 0) {
+    return `
+      <div class="empty-analysis">
+        <p>No students have recorded numeric values for both selected metrics.</p>
+        <p class="muted">${scatter.omittedCount} students omitted because one or both values are unavailable.</p>
+      </div>
+    `
+  }
+
+  const xs = scatter.points.map((point) => point.x)
+  const ys = scatter.points.map((point) => point.y)
+  const xMin = Math.min(...xs)
+  const xMax = Math.max(...xs)
+  const yMin = Math.min(...ys)
+  const yMax = Math.max(...ys)
+  const xSpan = xMax - xMin || 1
+  const ySpan = yMax - yMin || 1
+
+  const dots = scatter.points
+    .map((point) => {
+      const left = 5 + ((point.x - xMin) / xSpan) * 90
+      const bottom = 5 + ((point.y - yMin) / ySpan) * 90
+      const label = point.displayName ?? point.studentId
+      return `
+        <span
+          class="scatter-dot"
+          style="left: ${left}%; bottom: ${bottom}%"
+          title="${escapeHtml(label)}: ${point.x}, ${point.y}"
+        ></span>
+      `
+    })
+    .join('')
+
+  const tableRows = scatter.points
+    .map(
+      (point) => `
+        <tr>
+          <td>${escapeHtml(point.displayName ?? point.studentId)}</td>
+          <td>${numberLabel(point.x)}</td>
+          <td>${numberLabel(point.y)}</td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  return `
+    <div class="analysis-split scatter-split">
+      <div>
+        <div class="scatter-axis-title">${escapeHtml(scatter.yLabel)} ↑</div>
+        <div
+          class="scatter-plot"
+          role="img"
+          aria-label="Scatter plot comparing ${escapeHtml(scatter.xLabel)} and ${escapeHtml(scatter.yLabel)}"
+        >
+          ${dots}
+        </div>
+        <div class="scatter-x-title">→ ${escapeHtml(scatter.xLabel)}</div>
+        <p class="analysis-footnote">
+          ${scatter.omittedCount} students omitted because one or both selected values are not recorded.
+          Position shows association only; it does not imply causation.
+        </p>
+      </div>
+      <div>
+        <h3>Table equivalent</h3>
+        <div class="data-table-wrap">
+          <table class="source-table">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>${escapeHtml(scatter.xLabel)}</th>
+                <th>${escapeHtml(scatter.yLabel)}</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `
 }
 
 async function exportProject(): Promise<void> {
