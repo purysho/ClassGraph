@@ -79,7 +79,8 @@ function parseExplicitCategoryMetrics(
   metrics: Array<Record<string, unknown>>,
   seenKeys: Set<string>,
 ): void {
-  const pattern = /(?:metric\s+)?([a-z][a-z0-9 _-]{1,30})\s+(?:categories|levels?)\s*[:=]\s*([^.;]+)/gi
+  const pattern =
+    /(?:metric\s+)?([a-z][a-z0-9 _-]{1,30})\s+(?:categories|levels?)\s*[:=]\s*([^.;]+)/gi
   for (const match of prompt.matchAll(pattern)) {
     const name = match[1]?.trim()
     const rawValues = match[2]
@@ -424,7 +425,9 @@ export function draftPlanningRuleSuggestions(
     )
   }
   if (suggestions.length === 0) {
-    warnings.push('No explicit relationship record maps conservatively to a supported planning rule.')
+    warnings.push(
+      'No explicit relationship record maps conservatively to a supported planning rule.',
+    )
   }
 
   return {

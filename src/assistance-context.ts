@@ -114,7 +114,9 @@ export function buildAssistanceContextItems(
     containsStudentIds: (project.planning?.rules?.length ?? 0) > 0,
     containsDisplayNames: false,
     containsFreeText: Boolean(
-      project.planning?.rules?.some((rule) => typeof rule.label === 'string' && rule.label.length > 0),
+      project.planning?.rules?.some(
+        (rule) => typeof rule.label === 'string' && rule.label.length > 0,
+      ),
     ),
     syntheticOnly: false,
   })

@@ -1,6 +1,4 @@
-import {
-  type SyntheticSpecDraftProposal,
-} from './assistance-contract.js'
+import { type SyntheticSpecDraftProposal } from './assistance-contract.js'
 import {
   parseStructuredSyntheticRequest,
   type StructuredSyntheticRequest,
@@ -23,7 +21,10 @@ const BLOCKED_TRAIT_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\b(?:social status|popularity)\b/i, label: 'social status' },
   { pattern: /\bfriendship\b/i, label: 'friendship' },
   { pattern: /\bconflict\b/i, label: 'conflict' },
-  { pattern: /\b(?:future attainment|predicted attainment|future grade|predicted grade)\b/i, label: 'future attainment' },
+  {
+    pattern: /\b(?:future attainment|predicted attainment|future grade|predicted grade)\b/i,
+    label: 'future attainment',
+  },
 ]
 
 function safeKey(label: string, fallbackIndex: number): string {
@@ -89,9 +90,7 @@ function metricFromClause(
   }
 
   const body = trimmed.replace(/^metric\s+/i, '').trim()
-  const keywordMatch = body.match(
-    /\s+(mean|uniform|categories?|ordinal|boolean)\b/i,
-  )
+  const keywordMatch = body.match(/\s+(mean|uniform|categories?|ordinal|boolean)\b/i)
   if (!keywordMatch?.index || !keywordMatch[1]) {
     warnings.push(
       `Could not interpret metric clause "${trimmed}". Use an explicit form such as "metric assessment mean 70 sd 10 range 0-100".`,
@@ -99,7 +98,10 @@ function metricFromClause(
     return null
   }
 
-  const label = body.slice(0, keywordMatch.index).replace(/^["']|["']$/g, '').trim()
+  const label = body
+    .slice(0, keywordMatch.index)
+    .replace(/^["']|["']$/g, '')
+    .trim()
   if (!label) {
     warnings.push(`Skipped metric clause "${trimmed}" because it has no metric name.`)
     return null
@@ -113,9 +115,7 @@ function metricFromClause(
   if (keyword === 'mean') {
     const meanMatch = tail.match(/^(-?\d+(?:\.\d+)?)/)
     const sdMatch = tail.match(/\b(?:sd|standard deviation)\s+(-?\d+(?:\.\d+)?)/i)
-    const rangeMatch = tail.match(
-      /\brange\s+(-?\d+(?:\.\d+)?)\s*(?:-|to)\s*(-?\d+(?:\.\d+)?)/i,
-    )
+    const rangeMatch = tail.match(/\brange\s+(-?\d+(?:\.\d+)?)\s*(?:-|to)\s*(-?\d+(?:\.\d+)?)/i)
     const mean = numberFrom(meanMatch, 1)
     const standardDeviation = numberFrom(sdMatch, 1)
     const min = numberFrom(rangeMatch, 1)
@@ -128,7 +128,9 @@ function metricFromClause(
       return null
     }
     if (min !== undefined && max !== undefined && min > max) {
-      warnings.push(`Skipped numeric metric "${label}" because its range minimum exceeds its maximum.`)
+      warnings.push(
+        `Skipped numeric metric "${label}" because its range minimum exceeds its maximum.`,
+      )
       return null
     }
 
@@ -138,7 +140,12 @@ function metricFromClause(
         label,
         kind: 'number',
         ...(min !== undefined || max !== undefined
-          ? { numberScale: { ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) } }
+          ? {
+              numberScale: {
+                ...(min !== undefined ? { min } : {}),
+                ...(max !== undefined ? { max } : {}),
+              },
+            }
           : {}),
         ...(rate !== undefined ? { missingAllowed: rate > 0 } : {}),
       },
@@ -158,9 +165,7 @@ function metricFromClause(
   }
 
   if (keyword === 'uniform') {
-    const rangeMatch = tail.match(
-      /^(-?\d+(?:\.\d+)?)\s*(?:-|to)\s*(-?\d+(?:\.\d+)?)/i,
-    )
+    const rangeMatch = tail.match(/^(-?\d+(?:\.\d+)?)\s*(?:-|to)\s*(-?\d+(?:\.\d+)?)/i)
     const min = numberFrom(rangeMatch, 1)
     const max = numberFrom(rangeMatch, 2)
     if (min === undefined || max === undefined || min > max) {
@@ -214,7 +219,9 @@ function metricFromClause(
   if (keyword === 'ordinal') {
     const values = weightedValues(stripMissingSuffix(tail))
     if (values.length === 0) {
-      warnings.push(`Skipped ordinal metric "${label}" because no explicit ordered values were provided.`)
+      warnings.push(
+        `Skipped ordinal metric "${label}" because no explicit ordered values were provided.`,
+      )
       return null
     }
     const ordinalScale = values.map((item) => item.value)
@@ -272,7 +279,9 @@ export function draftSyntheticSpecProposal(
   let studentCount = countMatch?.[1] ? Number(countMatch[1]) : 30
   if (!countMatch) assumptions.push('Used 30 students because no explicit class size was provided.')
   if (!Number.isInteger(studentCount) || studentCount < 1 || studentCount > 500) {
-    warnings.push('The requested class size was outside the supported 1–500 range; used 30 students.')
+    warnings.push(
+      'The requested class size was outside the supported 1–500 range; used 30 students.',
+    )
     studentCount = 30
   }
 

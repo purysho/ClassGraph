@@ -35,9 +35,7 @@ export interface AssistanceRunResult {
   proposal: AssistanceProposal
 }
 
-export function assistanceServiceStatus(
-  provider?: AssistanceProvider,
-): AssistanceServiceStatus {
+export function assistanceServiceStatus(provider?: AssistanceProvider): AssistanceServiceStatus {
   return {
     offlineAvailable: true,
     network: provider?.status() ?? { enabled: false, mode: 'network' },
@@ -89,7 +87,10 @@ export function buildAssistanceRequest(
   })
 }
 
-function runOffline(request: AssistanceRequestEnvelope, project: ClassGraphProject): AssistanceProposal {
+function runOffline(
+  request: AssistanceRequestEnvelope,
+  project: ClassGraphProject,
+): AssistanceProposal {
   switch (request.task) {
     case 'synthetic-spec-draft': {
       const promptItem = request.disclosure.items.find((item) => item.scope === 'teacher-prompt')

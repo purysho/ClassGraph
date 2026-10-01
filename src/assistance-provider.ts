@@ -106,7 +106,9 @@ export class JsonHttpsAssistanceProvider implements AssistanceProvider {
       throw new Error('CG-6007 network provider received a non-network assistance request')
     }
     if (request.disclosure.providerLabel !== this.label) {
-      throw new Error('CG-6008 assistance request provider label does not match configured provider')
+      throw new Error(
+        'CG-6008 assistance request provider label does not match configured provider',
+      )
     }
 
     const controller = new AbortController()

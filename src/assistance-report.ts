@@ -1,6 +1,4 @@
-import type {
-  ReportWordingDraftProposal,
-} from './assistance-contract.js'
+import type { ReportWordingDraftProposal } from './assistance-contract.js'
 import type { ReportSnapshot } from './report-model.js'
 
 function provenanceSentence(snapshot: ReportSnapshot): string {

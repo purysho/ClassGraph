@@ -1,6 +1,4 @@
-import type {
-  PlanningRuleSuggestionProposal,
-} from './assistance-contract.js'
+import type { PlanningRuleSuggestionProposal } from './assistance-contract.js'
 import type { ClassGraphProject, PlanningRule } from './model.js'
 import { planningRuleSchema } from './schema.js'
 

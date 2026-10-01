@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { buildProjectAnalysis } from '../src/analysis-view.js'
-import { acceptPlanningRuleSuggestions, acceptSyntheticSpecDraft } from '../src/assistance-acceptance.js'
+import {
+  acceptPlanningRuleSuggestions,
+  acceptSyntheticSpecDraft,
+} from '../src/assistance-acceptance.js'
 import { draftAnalysisExplanation } from '../src/assistance-analysis.js'
 import { draftPlanningRuleSuggestions } from '../src/assistance-planning.js'
 import { draftReportWording } from '../src/assistance-report.js'
@@ -80,7 +83,8 @@ describe('local assistance drafts', () => {
     const proposal = draftSyntheticSpecProposal({
       requestId: 'synthetic-2',
       projectId: 'draft-class',
-      prompt: '30 students; metric Motivation categories low, medium, high; make the rest realistic',
+      prompt:
+        '30 students; metric Motivation categories low, medium, high; make the rest realistic',
     })
 
     const accepted = acceptSyntheticSpecDraft(proposal)

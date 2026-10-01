@@ -1,6 +1,4 @@
-import type {
-  AnalysisExplanationProposal,
-} from './assistance-contract.js'
+import type { AnalysisExplanationProposal } from './assistance-contract.js'
 import type { ProjectAnalysisView } from './analysis-view.js'
 
 function numberText(value: number | null): string {
@@ -38,10 +36,7 @@ export function draftAnalysisExplanation(
     'These statements describe the values currently recorded in ClassGraph; they do not diagnose students or predict future attainment.',
     'Patterns, differences, or associations in descriptive data do not establish causation.',
   ]
-  if (
-    analysis.completeness.explicitMissingCount > 0 ||
-    analysis.completeness.unrecordedCount > 0
-  ) {
+  if (analysis.completeness.explicitMissingCount > 0 || analysis.completeness.unrecordedCount > 0) {
     caveats.unshift(
       'Missing and not-recorded values are excluded from metric summaries rather than imputed.',
     )
