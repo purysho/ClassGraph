@@ -202,7 +202,7 @@ The first contract is intentionally flexible. Different schools track different 
 
 ```ts
 interface ClassGraphProject {
-  schemaVersion: "1.0"
+  schemaVersion: '1.0'
   projectId: string
   title: string
   createdAt: string
@@ -229,7 +229,7 @@ interface StudentRecord {
   notes?: string
 }
 
-type MetricKind = "number" | "ordinal" | "category" | "boolean" | "text"
+type MetricKind = 'number' | 'ordinal' | 'category' | 'boolean' | 'text'
 type MetricValue = number | string | boolean | null
 
 interface MetricDefinition {
@@ -255,12 +255,7 @@ interface RelationshipRecord {
   id: string
   fromStudentId: string
   toStudentId: string
-  type:
-    | "works-well-with"
-    | "avoid-pairing"
-    | "support-pair"
-    | "friendship"
-    | "custom"
+  type: 'works-well-with' | 'avoid-pairing' | 'support-pair' | 'friendship' | 'custom'
   label?: string
   directed?: boolean
   weight?: number
@@ -276,12 +271,7 @@ ClassGraph must not infer friendship or conflict from grades, participation, nam
 Use field-level provenance, not a single project-wide confidence label.
 
 ```ts
-type ProvenanceKind =
-  | "observed"
-  | "teacher-entered"
-  | "imported"
-  | "derived"
-  | "synthetic"
+type ProvenanceKind = 'observed' | 'teacher-entered' | 'imported' | 'derived' | 'synthetic'
 
 interface ProvenanceEntry {
   kind: ProvenanceKind
@@ -362,7 +352,7 @@ All important graph views should have an accessible table equivalent.
 
 ```ts
 interface RoomDefinition {
-  layout: "grid" | "custom"
+  layout: 'grid' | 'custom'
   rows?: number
   columns?: number
   seats: SeatDefinition[]
