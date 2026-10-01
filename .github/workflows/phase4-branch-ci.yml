@@ -18,11 +18,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Show required formatting diff
-        run: |
-          npx prettier --write docs/PHASE_4.md src/relationship-semantics.ts src/relationships.ts src/workspace.ts tests/relationships.test.ts
-          git diff -- docs/PHASE_4.md src/relationship-semantics.ts src/relationships.ts src/workspace.ts tests/relationships.test.ts
-          git diff --quiet -- docs/PHASE_4.md src/relationship-semantics.ts src/relationships.ts src/workspace.ts tests/relationships.test.ts
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
