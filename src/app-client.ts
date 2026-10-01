@@ -3542,6 +3542,188 @@ async function loadRelationshipGraph(): Promise<void> {
   }
 }
 
+function studentDisplay(studentId: string): string {
+  const student = project?.students.find((item) => item.id === studentId)
+  return student?.displayName ? `${student.displayName} (${studentId})` : studentId
+}
+
+function renderRepeatNeighbourHistory(history: RepeatNeighbourHistoryView): string {
+  const rows = history.pairs
+    .map(
+      (pair) => `
+        <tr>
+          <td>${escapeHtml(studentDisplay(pair.studentAId))}</td>
+          <td>${escapeHtml(studentDisplay(pair.studentBId))}</td>
+          <td>${pair.count}</td>
+          <td>${pair.historyIds.length}</td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  return `
+    <div class="snapshot-summary-grid">
+      <div><b>${history.historyRecordCount}</b><span>stored snapshots</span></div>
+      <div><b>${history.usableRecordCount}</b><span>grid snapshots analysed</span></div>
+      <div><b>${history.pairs.length}</b><span>recorded neighbour pairs</span></div>
+    </div>
+    <div class="data-table-wrap">
+      <table class="mini-table">
+        <thead><tr><th>Student A</th><th>Student B</th><th>Times adjacent</th><th>Snapshots</th></tr></thead>
+        <tbody>
+          ${rows || '<tr><td colspan="4" class="empty-cell">No neighbour pairs exist in the stored approved history.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    ${history.skippedRecordIds.length
+      ? `<p class="report-note">Custom-layout history is preserved but not used for grid-neighbour counts: ${escapeHtml(history.skippedRecordIds.join(', '))}</p>`
+      : ''}
+  `
+}
+
+async function loadRepeatNeighbourHistory(): Promise<void> {
+  if (!project || activeView !== 'relationships') return
+  const sourceProject = project
+  const stage = document.querySelector<HTMLElement>('#repeat-neighbour-stage')
+  if (!stage) return
+
+  try {
+    const response = await postJson<{ history: RepeatNeighbourHistoryView }>(
+      '/api/planning/history-analysis',
+      { project },
+    )
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = renderRepeatNeighbourHistory(response.history)
+  } catch (error) {
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = `<div class="empty-analysis">${escapeHtml(
+      error instanceof Error ? error.message : 'Could not analyse seating history.',
+    )}</div>`
+  }
+}
+
+function deltaLabel(value: number): string {
+  if (value > 0) return `+${value}`
+  return String(value)
+}
+
+function renderScenarioComparison(comparison: PlanningScenarioComparisonView): string {
+  const planningRows = [
+    {
+      label: 'Persisted seat assignments',
+      left: comparison.assignments.leftCount,
+      right: comparison.assignments.rightCount,
+      delta: comparison.assignments.rightCount - comparison.assignments.leftCount,
+      detail: `${comparison.assignments.movedStudents.length} moved · ${comparison.assignments.addedStudents.length} added · ${comparison.assignments.removedStudents.length} removed`,
+    },
+    {
+      label: 'Saved groups',
+      left: comparison.groups.leftCount,
+      right: comparison.groups.rightCount,
+      delta: comparison.groups.rightCount - comparison.groups.leftCount,
+      detail: `${comparison.groups.changedStudents.length} students changed group`,
+    },
+    {
+      label: 'Planning rules',
+      left: comparison.rules.leftCount,
+      right: comparison.rules.rightCount,
+      delta: comparison.rules.rightCount - comparison.rules.leftCount,
+      detail: `${comparison.rules.addedRuleIds.length} added · ${comparison.rules.removedRuleIds.length} removed`,
+    },
+  ]
+
+  const allRows = [...planningRows, ...comparison.network.counts.map((item) => ({
+    label: item.label,
+    left: item.left,
+    right: item.right,
+    delta: item.delta,
+    detail: 'Descriptive explicit-edge count',
+  }))]
+
+  const rows = allRows
+    .map(
+      (row) => `
+        <tr>
+          <td><b>${escapeHtml(row.label)}</b><small>${escapeHtml(row.detail)}</small></td>
+          <td>${row.left}</td>
+          <td>${row.right}</td>
+          <td>${escapeHtml(deltaLabel(row.delta))}</td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  const typeRows = comparison.network.byType
+    .map(
+      (row) => `
+        <tr>
+          <td>${escapeHtml(row.label)}</td>
+          <td>${row.left}</td>
+          <td>${row.right}</td>
+          <td>${escapeHtml(deltaLabel(row.delta))}</td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  return `
+    <p class="report-note">
+      Deltas are descriptive only. ClassGraph does not treat more or fewer relationship edges as
+      educationally better. Network counts use the current explicit relationship records against
+      each saved scenario's exact group membership.
+    </p>
+    <div class="data-table-wrap">
+      <table class="mini-table scenario-comparison-table">
+        <thead><tr><th>Dimension</th><th>Before</th><th>After</th><th>Δ</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <details class="scenario-type-details">
+      <summary>Relationship counts by recorded type</summary>
+      <div class="data-table-wrap">
+        <table class="mini-table">
+          <thead><tr><th>Type</th><th>Before</th><th>After</th><th>Δ</th></tr></thead>
+          <tbody>${typeRows}</tbody>
+        </table>
+      </div>
+    </details>
+  `
+}
+
+async function loadScenarioComparison(): Promise<void> {
+  if (
+    !project ||
+    activeView !== 'relationships' ||
+    !selectedScenarioLeftId ||
+    !selectedScenarioRightId ||
+    selectedScenarioLeftId === selectedScenarioRightId
+  ) {
+    return
+  }
+
+  const sourceProject = project
+  const stage = document.querySelector<HTMLElement>('#scenario-comparison-stage')
+  if (!stage) return
+
+  try {
+    const response = await postJson<{ comparison: PlanningScenarioComparisonView }>(
+      '/api/planning/scenario-comparison',
+      {
+        project,
+        leftScenarioId: selectedScenarioLeftId,
+        rightScenarioId: selectedScenarioRightId,
+      },
+    )
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = renderScenarioComparison(response.comparison)
+  } catch (error) {
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = `<div class="empty-analysis">${escapeHtml(
+      error instanceof Error ? error.message : 'Could not compare planning scenarios.',
+    )}</div>`
+  }
+}
+
 function bindRelationshipEvents(): void {
   document
     .querySelector<HTMLSelectElement>('#relationship-focus')
