@@ -1,0 +1,38 @@
+name: Phase 2 format repair
+
+on:
+  push:
+    branches: [feat/phase-2-seating]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/phase-2-seating
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply pinned Prettier to Phase 2 files
+        run: |
+          npx prettier --write \
+            src/room.ts \
+            src/schema.ts \
+            tests/project-mutations.test.ts \
+            tests/schema.test.ts
+      - name: Commit formatter-only repair
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/room.ts src/schema.ts tests/project-mutations.test.ts tests/schema.test.ts
+          git commit -m "style: apply Phase 2 Prettier repair"
+          git push origin HEAD:feat/phase-2-seating
