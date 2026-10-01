@@ -527,7 +527,11 @@ describe('local app server', () => {
     expect(response.status).toBe(200)
     const body = (await response.json()) as {
       request: {
-        disclosure: { mode: string; requiresExplicitSend: boolean; containsStudentLevelData: boolean }
+        disclosure: {
+          mode: string
+          requiresExplicitSend: boolean
+          containsStudentLevelData: boolean
+        }
       }
       proposal: {
         status: string
@@ -647,5 +651,4 @@ describe('local app server', () => {
     expect(confirmedBody.proposal.status).toBe('proposal')
     expect(callCount).toBe(1)
   })
-
 })

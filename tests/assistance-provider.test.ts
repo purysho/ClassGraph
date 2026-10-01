@@ -108,22 +108,24 @@ describe('assistance context and provider boundary', () => {
     const fetchImpl: typeof fetch = (_input, init) => {
       callCount += 1
       expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer secret-token')
-      return Promise.resolve(new Response(
-        JSON.stringify({
-          version: '1.0',
-          proposalId: 'network-proposal',
-          requestId: 'network-1',
-          task: 'analysis-explanation',
-          status: 'proposal',
-          providerLabel: 'Example',
-          warnings: [],
-          assumptions: [],
-          text: 'Descriptive draft.',
-          sourceMetricKeys: [],
-          caveats: ['No causal claim.'],
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            version: '1.0',
+            proposalId: 'network-proposal',
+            requestId: 'network-1',
+            task: 'analysis-explanation',
+            status: 'proposal',
+            providerLabel: 'Example',
+            warnings: [],
+            assumptions: [],
+            text: 'Descriptive draft.',
+            sourceMetricKeys: [],
+            caveats: ['No causal claim.'],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
     }
 
     const provider = new JsonHttpsAssistanceProvider({
@@ -177,22 +179,24 @@ describe('assistance context and provider boundary', () => {
       label: 'Example',
       endpoint: 'https://provider.example/assist',
       fetchImpl: () =>
-        Promise.resolve(new Response(
-          JSON.stringify({
-            version: '1.0',
-            proposalId: 'wrong',
-            requestId: 'different',
-            task: 'analysis-explanation',
-            status: 'proposal',
-            providerLabel: 'Example',
-            warnings: [],
-            assumptions: [],
-            text: 'Wrong request.',
-            sourceMetricKeys: [],
-            caveats: [],
-          }),
-          { status: 200 },
-        )),
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              version: '1.0',
+              proposalId: 'wrong',
+              requestId: 'different',
+              task: 'analysis-explanation',
+              status: 'proposal',
+              providerLabel: 'Example',
+              warnings: [],
+              assumptions: [],
+              text: 'Wrong request.',
+              sourceMetricKeys: [],
+              caveats: [],
+            }),
+            { status: 200 },
+          ),
+        ),
     })
 
     await expect(
