@@ -48,7 +48,7 @@ function sendJson(response: ServerResponse, statusCode: number, value: unknown):
 }
 
 async function readBody(request: IncomingMessage, maxBodyBytes: number): Promise<string> {
-  const chunks: Buffer[] = []
+  const chunks: Uint8Array[] = []
   let total = 0
 
   for await (const chunk of request) {
@@ -186,8 +186,9 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
   const buildDirectory = options.buildDirectory ?? join(process.cwd(), 'dist')
   const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
 
-  return createServer(async (request, response) => {
-    const url = new URL(request.url ?? '/', 'http://127.0.0.1')
+  return createServer((request, response) => {
+    void (async () => {
+      const url = new URL(request.url ?? '/', 'http://127.0.0.1')
 
     try {
       if (request.method === 'GET' && url.pathname === '/api/health') {
@@ -282,11 +283,12 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
       sendJson(response, 404, {
         error: { code: 'CG-1003', message: 'ClassGraph could not find that local route.' },
       })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unexpected local server error.'
-      const code = /^CG-\d{4}/.exec(message)?.[0] ?? 'CG-9001'
-      const statusCode = code === 'CG-1002' ? 413 : 400
-      sendJson(response, statusCode, { error: { code, message } })
-    }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unexpected local server error.'
+        const code = /^CG-\d{4}/.exec(message)?.[0] ?? 'CG-9001'
+        const statusCode = code === 'CG-1002' ? 413 : 400
+        sendJson(response, statusCode, { error: { code, message } })
+      }
+    })()
   })
 }
