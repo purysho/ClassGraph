@@ -1,4 +1,4 @@
-import type { ClassGraphProject, ProvenanceEntry, RoomDefinition, SeatDefinition } from './model.js'
+import type { ClassGraphProject, ProvenanceEntry, RoomDefinition, RoomFront, SeatDefinition } from './model.js'
 import { classGraphProjectSchema } from './schema.js'
 
 export const MAX_GRID_SEATS = 1000
@@ -51,6 +51,7 @@ export function createGridRoom(
   rows: number,
   columns: number,
   previousRoom?: RoomDefinition,
+  front?: RoomFront,
 ): RoomDefinition {
   assertGridDimensions(rows, columns)
   const previous = previousGridSeats(previousRoom)
@@ -73,6 +74,7 @@ export function createGridRoom(
     layout: 'grid',
     rows,
     columns,
+    front: front ?? previousRoom?.front ?? 'top',
     seats,
   }
 }
@@ -114,9 +116,10 @@ export function setGridRoom(
   rows: number,
   columns: number,
   now: string,
+  front?: RoomFront,
 ): ClassGraphProject {
   const next = cloneProject(project)
-  const room = createGridRoom(rows, columns, project.room)
+  const room = createGridRoom(rows, columns, project.room, front)
   next.provenance = remapRoomSeatProvenance(project, room.seats)
   next.room = room
   next.provenance['/room'] = teacherEntered('manual-room-grid')
@@ -161,6 +164,20 @@ export function setSeatTags(
     next.provenance[`/room/seats/${index}/tags`] = teacherEntered('manual-seat-edit')
   }
 
+  next.updatedAt = now
+  return validate(next)
+}
+
+export function setRoomFront(
+  project: ClassGraphProject,
+  front: RoomFront,
+  now: string,
+): ClassGraphProject {
+  if (!project.room) throw new Error('CG-4004 create a room before setting its front orientation')
+  const next = cloneProject(project)
+  if (!next.room) throw new Error('CG-9001 room unexpectedly missing')
+  next.room.front = front
+  next.provenance['/room/front'] = teacherEntered('manual-room-orientation')
   next.updatedAt = now
   return validate(next)
 }
