@@ -52,7 +52,7 @@ interface SeatDefinition {
 ## Completion checklist
 
 - [x] P2.0 — Phase 2 branch, recovery log, architecture checkpoint
-- [ ] P2.1 — Room/grid core service and stronger room invariants
+- [x] P2.1 — Room/grid core service and stronger room invariants
 - [ ] P2.2 — Room editor UI: dimensions, disabled seats, tags, front/back orientation
 - [ ] P2.3 — Manual seating state, assignment table, locks, and local mutation API
 - [ ] P2.4 — Explicit planning-rule schema: hard constraints vs soft objectives
@@ -142,25 +142,35 @@ If `totalPenalty` is present, it is never shown without the component `objective
 
 ### P2.1 — Room/grid core service
 
-Build first:
+**Status:** Complete.
 
-- deterministic grid-room creation;
-- resize behaviour with stable seat IDs;
-- enable/disable seat operations;
-- seat-tag editing;
-- capacity helper;
-- schema validation for duplicate IDs/positions and out-of-bounds coordinates;
-- immutable operations with teacher-entered provenance where room fields are authored through the workspace;
-- tests for room invariants and deterministic resize.
+Implemented `src/room.ts`, stronger room validation in `src/schema.ts`, room mutation commands, and regression tests.
 
-Acceptance:
+Completed behaviour:
 
-- grid creation is deterministic;
-- same dimensions produce the same seat IDs/coordinates;
-- disabled seats remain in geometry and reduce usable capacity;
-- resizing preserves compatible seat settings where possible;
-- invalid room geometry is rejected with readable schema/project errors;
-- Phase 1 tests remain green.
+- deterministic grid-room creation with zero-based data coordinates;
+- stable generated seat IDs such as `seat-r1-c1`;
+- grid resize preserves compatible seat IDs, enabled state, tags, and indexed seat provenance where the seat survives;
+- explicit seat enable/disable operations;
+- explicit seat-tag editing with trimmed/deduplicated tags;
+- usable room capacity counts enabled seats only;
+- grid creation rejects non-positive dimensions and more than 1000 seats;
+- canonical schema rejects duplicate seat IDs, duplicate grid positions, out-of-bounds grid coordinates, missing grid coordinates, and custom seats without x/y coordinates;
+- local mutation API supports `set-grid-room`, `set-seat-enabled`, and `set-seat-tags`;
+- manual room/seat changes retain teacher-entered provenance;
+- Phase 1 behaviour remains covered by the expanded suite.
+
+Verified Phase 2 P2.1 head: `cce705323feee0b8fdc39ee746898d7365edb184`.
+
+Read-only Phase 2 branch check run `36852759750`:
+
+- `npm ci`: **success**;
+- `npm run format:check`: **success**;
+- `npm run lint`: **success**;
+- `npm run typecheck`: **success**;
+- `npm test`: **success — 56/56 tests across 12 files**;
+- `npm run build`: **success**;
+- `npm audit --omit=dev --audit-level=high`: **success**.
 
 ### P2.2 — Room editor UI
 
@@ -260,4 +270,4 @@ Do not pull later phases forward unless required by Phase 2 correctness:
 
 ## Next exact step
 
-Implement **P2.1 — Room/grid core service and stronger room invariants**. Start in UI-independent TypeScript, test deterministic grid creation/resizing and room validation, then expose the service through the local mutation boundary before building the room editor.
+Implement **P2.2 — Room editor UI**. Replace the disabled Seating placeholder with a local room editor for rows/columns, visual grid, seat enable/disable, seat tags, capacity warnings, explicit front-of-room orientation, and a seat table equivalent. Keep all persistence through the typed room mutation boundary.
