@@ -2,7 +2,6 @@ import { buildProjectAnalysis, type ProjectAnalysisView } from './analysis-view.
 import type {
   ClassGraphProject,
   PlanningConfiguration,
-  ProvenanceKind,
   RoomDefinition,
   StudentRecord,
 } from './model.js'
@@ -57,7 +56,7 @@ export function summarizeProvenance(project: ClassGraphProject): ProvenanceSumma
   const summary = emptyProvenanceSummary()
 
   for (const entry of Object.values(project.provenance)) {
-    summary[entry.kind as ProvenanceKind] += 1
+    summary[entry.kind] += 1
     summary.total += 1
   }
 
