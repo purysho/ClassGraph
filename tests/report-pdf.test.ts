@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib'
+import { loadPdfDocument } from '../src/pdf-runtime.js'
 import { describe, expect, it } from 'vitest'
 import { ClassGraphExportError } from '../src/export-errors.js'
 import { generatePdfReport, generateSeatingPlanPdf } from '../src/report-pdf.js'
@@ -46,7 +46,7 @@ describe('PDF exports', () => {
     const bytes = await generatePdfReport(fixture())
     expect(new TextDecoder('latin1').decode(bytes.slice(0, 5))).toBe('%PDF-')
 
-    const loaded = await PDFDocument.load(bytes)
+    const loaded = await loadPdfDocument(bytes)
     expect(loaded.getPageCount()).toBeGreaterThan(0)
     const first = loaded.getPage(0)
     expect(first.getWidth()).toBeLessThan(first.getHeight())
@@ -54,7 +54,7 @@ describe('PDF exports', () => {
 
   it('creates a landscape seating plan with a table fallback page', async () => {
     const bytes = await generateSeatingPlanPdf(fixture())
-    const loaded = await PDFDocument.load(bytes)
+    const loaded = await loadPdfDocument(bytes)
 
     expect(loaded.getPageCount()).toBeGreaterThanOrEqual(2)
     const first = loaded.getPage(0)
