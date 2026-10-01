@@ -1,9 +1,4 @@
-export type ProvenanceKind =
-  | 'observed'
-  | 'teacher-entered'
-  | 'imported'
-  | 'derived'
-  | 'synthetic'
+export type ProvenanceKind = 'observed' | 'teacher-entered' | 'imported' | 'derived' | 'synthetic'
 
 export interface ProvenanceEntry {
   kind: ProvenanceKind
@@ -41,11 +36,7 @@ export interface StudentRecord {
 }
 
 export type RelationshipType =
-  | 'works-well-with'
-  | 'avoid-pairing'
-  | 'support-pair'
-  | 'friendship'
-  | 'custom'
+  'works-well-with' | 'avoid-pairing' | 'support-pair' | 'friendship' | 'custom'
 
 export interface RelationshipRecord {
   id: string
