@@ -3802,7 +3802,14 @@ function renderAssistanceProposal(proposal: AssistanceProposalView): string {
           assistanceDraftText(proposal),
         )}</textarea>
       </label>
-      <button id="assistance-copy-draft" class="secondary" type="button">Copy edited draft</button>
+      <div class="assistance-actions">
+        <button id="assistance-copy-draft" class="secondary" type="button">Copy edited draft</button>
+        ${
+          proposal.task === 'synthetic-spec-draft'
+            ? '<button id="assistance-validate-synthetic" class="secondary" type="button">Validate edited specification</button>'
+            : ''
+        }
+      </div>
     `
   }
 
@@ -3834,6 +3841,29 @@ async function copyAssistanceDraft(): Promise<void> {
   }
 }
 
+async function validateEditedSyntheticSpecification(): Promise<void> {
+  if (assistanceProposalView?.task !== 'synthetic-spec-draft') return
+  const editor = document.querySelector<HTMLTextAreaElement>('#assistance-draft-editor')
+  if (!editor) return
+
+  clearStatus()
+  try {
+    const specification = JSON.parse(editor.value) as unknown
+    const result = await postJson<{ specification: unknown }>('/api/assistance/accept-synthetic', {
+      proposal: { ...assistanceProposalView, specification },
+    })
+    editor.value = JSON.stringify(result.specification, null, 2)
+    showStatus(
+      'Edited synthetic specification is valid. It remains a draft and no students were generated.',
+      'success',
+    )
+  } catch (error) {
+    showStatus(
+      error instanceof Error ? error.message : 'The edited synthetic specification is not valid.',
+    )
+  }
+}
+
 async function applyAssistanceRuleSuggestions(): Promise<void> {
   if (!project || assistanceProposalView?.task !== 'planning-rule-suggestions') return
   const selected = [...document.querySelectorAll<HTMLInputElement>('[data-assistance-rule-index]')]
@@ -3848,10 +3878,15 @@ async function applyAssistanceRuleSuggestions(): Promise<void> {
 
   clearStatus()
   try {
+    const acceptance = await postJson<{
+      accepted: Array<{ rule: PlanningRule; rationale: string; inputPaths: string[] }>
+    }>('/api/assistance/accept-planning', {
+      proposal: assistanceProposalView,
+      selectedIndexes: selected,
+    })
+
     let nextProject = project
-    for (const index of selected) {
-      const suggestion = assistanceProposalView.suggestions[index]
-      if (!suggestion) continue
+    for (const suggestion of acceptance.accepted) {
       const response = await postJson<ProjectResponse>('/api/project/mutate', {
         project: nextProject,
         command: { type: 'add-planning-rule', rule: suggestion.rule },
@@ -3864,7 +3899,10 @@ async function applyAssistanceRuleSuggestions(): Promise<void> {
     seatingGeneration = null
     groupingGeneration = null
     renderWorkspace()
-    showStatus(`Applied ${selected.length} explicitly selected planning rule(s).`, 'success')
+    showStatus(
+      `Applied ${acceptance.accepted.length} explicitly selected planning rule(s).`,
+      'success',
+    )
   } catch (error) {
     showStatus(
       error instanceof Error ? error.message : 'Could not apply the selected rule suggestions.',
@@ -4065,6 +4103,11 @@ async function renderAssistance(content: HTMLElement): Promise<void> {
     .querySelector<HTMLButtonElement>('#assistance-copy-draft')
     ?.addEventListener('click', () => {
       void copyAssistanceDraft()
+    })
+  document
+    .querySelector<HTMLButtonElement>('#assistance-validate-synthetic')
+    ?.addEventListener('click', () => {
+      void validateEditedSyntheticSpecification()
     })
   document
     .querySelector<HTMLButtonElement>('#assistance-apply-rules')
