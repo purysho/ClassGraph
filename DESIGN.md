@@ -531,13 +531,14 @@ Foundation technology:
 - Prettier;
 - property/invariant tests where useful.
 
-Phase 1 UI implementation:
+Phase 1–2 UI implementation:
 
 - local Node 22 HTTP boundary bound to loopback by default;
 - browser UI authored in TypeScript and compiled with the existing TypeScript build;
 - plain local CSS and DOM APIs;
-- no React, Electron, charting library, remote font, or remote script required for Phase 1;
-- browser remains a thin client: schema/provenance/generation/analysis rules stay in the UI-independent TypeScript core.
+- no React, Electron, charting library, remote font, or remote script required for Phase 1–2;
+- browser remains a thin client: schema/provenance/generation/analysis/planning rules stay in UI-independent TypeScript modules;
+- candidate generation endpoints are read-only previews until the teacher explicitly accepts a candidate through a validated project mutation.
 
 Framework rule for later phases:
 
@@ -646,15 +647,37 @@ no remote service required for core teacher workflow
 
 ### Phase 2 — Room, seating and grouping
 
-Add:
+Implemented scope:
 
-- room/grid editor;
-- manual drag/drop seating;
-- hard/soft rule editor;
-- deterministic candidate generator;
-- three candidate plans;
-- explanations/trade-offs;
-- lock-and-rerun.
+- deterministic grid-room editor with explicit front orientation;
+- enabled/disabled seats, stable seat IDs and teacher-authored tags;
+- manual seating by drag/drop or assignment table;
+- assignment locks and lock-preserving reruns;
+- explicit typed hard constraints and soft objectives;
+- deterministic seating candidate engine;
+- visible hard-constraint results and objective-by-objective penalties;
+- three-candidate comparison and explicit candidate acceptance;
+- deterministic grouping candidates with optional numeric/ordinal metric balancing;
+- group-member locks and reruns;
+- Exchange v1 persistence for rooms, assignments, rules, locks, groups and seed.
+
+Phase 2 acceptance:
+
+```text
+format green
+lint green
+typecheck green
+tests green
+build green
+dependency audit green
+hard and soft rules structurally distinct
+infeasible/search-failure states explained
+same project + rules + locks + seed -> reproducible candidates
+total penalty never shown without components
+missing balance values ignored and reported, never imputed
+no hidden student traits inferred
+important visual views retain table equivalents
+```
 
 ### Phase 3 — Reports and portable exports
 
@@ -724,4 +747,4 @@ Proceed only when:
 
 ## 16. Immediate implementation instruction
 
-> Phase 0 is complete and Gate 1 passed. Finish Phase 1 with the lean local teacher workspace and full quality gates. Do not introduce Electron, React, AI, a database, cloud persistence, or live EduBoard coupling merely for stack consistency. After Phase 1 is verified, build the explicit room/seating/grouping engine, then document/PDF exports, and only then add an EduBoard adapter.
+> Phase 0–2 are complete and Gate 2 passed. Preserve the lean local architecture unless a concrete requirement justifies additional runtime weight. Proceed to Phase 3: DOCX/PDF and portable report exports, seating-plan print/export, analysis JSON, and EduBoard interchange adapter tests. Keep teacher-approved planning decisions separate from observed/imported student data.
