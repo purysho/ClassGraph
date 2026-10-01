@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Foundation implementation contract  
-**Design revision:** 0.1  
+**Status:** Phase 1 implementation contract  
+**Design revision:** 0.2  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -531,13 +531,19 @@ Foundation technology:
 - Prettier;
 - property/invariant tests where useful.
 
-UI milestone:
+Phase 1 UI implementation:
 
-- React 19;
-- Vite/electron-vite if a desktop shell is chosen;
-- Tailwind CSS;
-- Recharts for standard charts;
-- a graph library only if the relationship graph justifies it.
+- local Node 22 HTTP boundary bound to loopback by default;
+- browser UI authored in TypeScript and compiled with the existing TypeScript build;
+- plain local CSS and DOM APIs;
+- no React, Electron, charting library, remote font, or remote script required for Phase 1;
+- browser remains a thin client: schema/provenance/generation/analysis rules stay in the UI-independent TypeScript core.
+
+Framework rule for later phases:
+
+- add React, Electron, a charting library, or another UI framework only when a concrete interaction/packaging requirement justifies its runtime/build footprint;
+- do not migrate merely to match EduBoard's stack;
+- a relationship/network library is allowed later only if explicit relationship views justify it.
 
 Exports:
 
@@ -606,16 +612,37 @@ missing values are not coerced
 
 ### Phase 1 — Manual editor + analytical views
 
-Add:
+Implemented scope:
 
 - create/open project;
 - manual roster entry;
 - metric-definition editor;
 - editable data table;
-- distribution charts;
-- scatter comparison;
+- explicit recorded / missing / not-recorded states;
+- descriptive completeness and summary statistics;
+- distribution charts with table equivalents;
+- numeric scatter comparison with a table equivalent;
 - provenance inspector;
-- JSON import/export.
+- reviewed structured synthetic-generation specification;
+- JSON import/export;
+- loopback-only local app boundary by default.
+
+Phase 1 acceptance:
+
+```text
+format green
+lint green
+typecheck green
+tests green
+build green
+dependency audit green
+manual/imported/synthetic data provenance remains visible
+zero and false remain valid recorded values
+explicit missing remains distinct from absent
+same seed + same structured spec -> identical synthetic student values
+all significant graph views have table equivalents
+no remote service required for core teacher workflow
+```
 
 ### Phase 2 — Room, seating and grouping
 
@@ -697,4 +724,4 @@ Proceed only when:
 
 ## 16. Immediate implementation instruction
 
-> Build Phase 0 first. Keep the core UI-independent. Do not add Electron, React, AI, a database, or EduBoard coupling until the Exchange v1 schema, provenance, deterministic generation, analysis, JSON round-trip and CI gates are green. After Gate 1, build the manual editor/graph UI, then the seating/grouping engine, then document/PDF exports, and only then add an EduBoard adapter.
+> Phase 0 is complete and Gate 1 passed. Finish Phase 1 with the lean local teacher workspace and full quality gates. Do not introduce Electron, React, AI, a database, cloud persistence, or live EduBoard coupling merely for stack consistency. After Phase 1 is verified, build the explicit room/seating/grouping engine, then document/PDF exports, and only then add an EduBoard adapter.
