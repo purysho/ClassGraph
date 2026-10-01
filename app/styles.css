@@ -735,3 +735,280 @@ button {
     text-align: left;
   }
 }
+
+
+select {
+  font: inherit;
+}
+
+select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #ccd4da;
+  border-radius: 11px;
+  padding: 10px 11px;
+  background: #fff;
+  color: #17212a;
+  outline: none;
+}
+
+select:focus {
+  border-color: #6c7d89;
+  box-shadow: 0 0 0 3px rgba(75, 91, 104, 0.12);
+}
+
+.roster-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.roster-tools {
+  display: grid;
+  gap: 22px;
+}
+
+.inline-form {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(180px, 1.2fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.form-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: end;
+}
+
+.form-heading h3 {
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.form-heading small {
+  max-width: 28rem;
+  color: #73818b;
+  line-height: 1.5;
+}
+
+.metric-form {
+  padding-top: 20px;
+  border-top: 1px solid #e2e7ea;
+  display: grid;
+  gap: 14px;
+}
+
+.metric-form-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.metric-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metric-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 11px;
+  border: 1px solid #dfe5e8;
+  border-radius: 13px;
+  background: #f5f7f8;
+}
+
+.metric-chip span {
+  display: grid;
+  gap: 1px;
+}
+
+.metric-chip b {
+  font-size: 0.8rem;
+}
+
+.metric-chip small {
+  color: #75838d;
+  font-size: 0.68rem;
+}
+
+.roster-table-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.table-note {
+  padding: 14px 18px;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  color: #667580;
+  background: #f7f9fa;
+  border-bottom: 1px solid #e4e8eb;
+  font-size: 0.74rem;
+}
+
+.data-table-wrap {
+  width: 100%;
+  overflow: auto;
+}
+
+.data-table,
+.source-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table {
+  min-width: 760px;
+}
+
+.data-table th,
+.data-table td,
+.source-table th,
+.source-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #e6eaed;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.data-table th,
+.source-table th {
+  color: #6d7b86;
+  background: #fbfcfc;
+  font-size: 0.71rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.data-table td,
+.source-table td {
+  color: #293640;
+  font-size: 0.8rem;
+}
+
+.data-table tbody tr:hover {
+  background: rgba(238, 242, 244, 0.45);
+}
+
+.id-cell {
+  color: #65747f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: nowrap;
+}
+
+.name-editor,
+.metric-editor {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.name-editor {
+  min-width: 190px;
+}
+
+.metric-editor {
+  min-width: 265px;
+}
+
+.cell-input,
+.cell-select,
+.state-select {
+  min-height: 34px;
+  padding: 7px 8px;
+  border-radius: 9px;
+  font-size: 0.78rem;
+}
+
+.cell-select {
+  min-width: 132px;
+}
+
+.state-select {
+  width: 105px;
+  flex: none;
+}
+
+.metric-value-input {
+  min-width: 90px;
+}
+
+.icon-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 9px;
+  color: #52616b;
+  background: #edf1f3;
+}
+
+.icon-button:hover {
+  background: #e2e8eb;
+}
+
+.danger-text {
+  color: #a44d4d;
+}
+
+.danger-text:hover {
+  color: #8c3636;
+  background: #f8eaea;
+}
+
+.empty-cell {
+  padding: 38px !important;
+  color: #7a8790 !important;
+  text-align: center !important;
+}
+
+.muted {
+  color: #82909a;
+  font-size: 0.8rem;
+}
+
+.provenance-inspector {
+  border-left: 4px solid #526979;
+}
+
+.provenance-inspector code {
+  color: #40515d;
+  font-size: 0.76rem;
+}
+
+.source-kind {
+  display: inline-block;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #eef2f4;
+  color: #4e5d67;
+  font-size: 0.69rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .metric-form-grid {
+    grid-template-columns: repeat(3, minmax(130px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .inline-form,
+  .metric-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
