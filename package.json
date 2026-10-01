@@ -1,6 +1,6 @@
 {
   "name": "classgraph",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "description": "Local-first classroom analysis, visualisation, seating and grouping planner.",
   "type": "module",
@@ -8,24 +8,34 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "vite",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc -p tsconfig.build.json",
+    "build:core": "tsc -p tsconfig.build.json",
+    "build:app": "vite build",
+    "build": "npm run build:core && npm run build:app",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "recharts": "^2.15.4",
     "zod": "^4.1.11"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@types/node": "^22.19.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^9.39.1",
     "prettier": "^3.9.9",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.1",
+    "vite": "^7.2.6",
     "vitest": "^5.0.2"
   }
 }
