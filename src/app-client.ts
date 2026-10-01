@@ -2009,6 +2009,8 @@ function renderRoomGrid(room: RoomRecord): string {
           class="seat-card ${seat.enabled ? '' : 'disabled'} ${assignment ? 'occupied' : ''}"
           type="button"
           data-toggle-seat="${escapeHtml(seat.id)}"
+          data-seat-drop="${escapeHtml(seat.id)}"
+          ${assignment ? `draggable="true" data-drag-student="${escapeHtml(assignment.studentId)}"` : ''}
           title="${seat.enabled ? 'Disable seat' : 'Enable seat'}"
         >
           <b>${escapeHtml(label)}</b>
@@ -2108,13 +2110,25 @@ function renderManualAssignments(): string {
     .join('')
 
   const assigned = project.planning?.assignments?.length ?? 0
+  const assignedIds = new Set((project.planning?.assignments ?? []).map((item) => item.studentId))
+  const unassigned = project.students.filter((student) => !assignedIds.has(student.id))
+  const unassignedHtml = unassigned.length
+    ? `<div class="unassigned-strip">${unassigned
+        .map(
+          (student) =>
+            `<span class="student-drag-chip" draggable="true" data-drag-student="${escapeHtml(student.id)}">${escapeHtml(student.displayName ?? student.id)}</span>`,
+        )
+        .join('')}</div>`
+    : '<p class="muted">All students are assigned.</p>'
+
   return `
     <article class="panel">
       <div class="panel-heading">
         <div><p class="eyebrow">Manual seating</p><h2>Assignments and locks</h2></div>
         <span class="schema-badge">${assigned}/${project.students.length} assigned</span>
       </div>
-      <p>Manual assignments are teacher decisions. Lock any assignment that candidate generation must preserve.</p>
+      <p>Manual assignments are teacher decisions. Drag a student onto an enabled seat or use the table. Lock any assignment that candidate generation must preserve.</p>
+      ${unassignedHtml}
       <div class="data-table-wrap">
         <table class="source-table">
           <thead><tr><th>Student</th><th>Seat</th><th>Lock</th></tr></thead>
@@ -2247,6 +2261,13 @@ function renderSeatingGeneration(result: SeatingGenerationView): string {
 }
 
 function renderSeatingCandidate(candidate: SeatingCandidateView): string {
+  const hardResults = candidate.hardConstraintResults
+    .map(
+      (item) => `
+        <tr><td>${escapeHtml(item.kind)}</td><td>${item.satisfied ? 'Satisfied' : 'Violated'}</td><td>${escapeHtml(item.message)}</td></tr>
+      `,
+    )
+    .join('')
   const objectives = candidate.objectiveResults
     .map(
       (item) => `
@@ -2269,6 +2290,10 @@ function renderSeatingCandidate(candidate: SeatingCandidateView): string {
         <span class="candidate-penalty">Penalty ${numberLabel(candidate.totalPenalty)}</span>
       </div>
       <ul class="candidate-explanation">${candidate.explanation.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>
+      <details>
+        <summary>Hard constraints</summary>
+        <table class="mini-table"><thead><tr><th>Rule</th><th>Status</th><th>Detail</th></tr></thead><tbody>${hardResults || '<tr><td colspan="3">No hard constraints.</td></tr>'}</tbody></table>
+      </details>
       <details>
         <summary>Objective components</summary>
         <table class="mini-table"><thead><tr><th>Objective</th><th>Penalty</th><th>Detail</th></tr></thead><tbody>${objectives || '<tr><td colspan="3">No soft objectives.</td></tr>'}</tbody></table>
@@ -2349,6 +2374,20 @@ function renderGroupingGeneration(result: GroupingGenerationView): string {
                   )
                   .join('')}
               </div>
+              <details>
+                <summary>Group assignment table</summary>
+                <table class="mini-table">
+                  <thead><tr><th>Group</th><th>Student</th><th>Lock</th></tr></thead>
+                  <tbody>${candidate.groups
+                    .flatMap((group) =>
+                      group.studentIds.map(
+                        (id) =>
+                          `<tr><td>${escapeHtml(group.label ?? group.id)}</td><td>${escapeHtml(studentLabel(id))}</td><td>${group.lockedStudentIds?.includes(id) ? 'Locked' : ''}</td></tr>`,
+                      ),
+                    )
+                    .join('')}</tbody>
+                </table>
+              </details>
               <button class="secondary compact" type="button" data-apply-group-candidate="${escapeHtml(candidate.id)}">Apply groups</button>
             </section>
           `,
@@ -2412,6 +2451,34 @@ function planningRuleFromForm(data: FormData): PlanningRule | null {
 }
 
 function bindSeatingEvents(): void {
+  for (const draggable of document.querySelectorAll<HTMLElement>('[data-drag-student]')) {
+    draggable.addEventListener('dragstart', (event) => {
+      const studentId = draggable.dataset.dragStudent
+      if (studentId) event.dataTransfer?.setData('text/plain', studentId)
+    })
+  }
+
+  for (const target of document.querySelectorAll<HTMLElement>('[data-seat-drop]')) {
+    target.addEventListener('dragover', (event) => {
+      const seatId = target.dataset.seatDrop
+      const seat = project?.room?.seats.find((item) => item.id === seatId)
+      if (seat?.enabled && !assignmentForSeat(seat.id)) event.preventDefault()
+    })
+    target.addEventListener('drop', (event) => {
+      event.preventDefault()
+      const seatId = target.dataset.seatDrop
+      const studentId = event.dataTransfer?.getData('text/plain')
+      if (!seatId || !studentId) return
+      const occupant = assignmentForSeat(seatId)
+      if (occupant && occupant.studentId !== studentId) {
+        showStatus('That seat is already occupied.')
+        return
+      }
+      const locked = assignmentForStudent(studentId)?.locked ?? false
+      void mutateProject({ type: 'set-seat-assignment', studentId, seatId, locked })
+    })
+  }
+
   document.querySelector<HTMLFormElement>('#room-form')?.addEventListener('submit', (event) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget as HTMLFormElement)
