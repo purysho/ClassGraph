@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { ClassGraphProject, MetricDefinition, MetricValue } from './model.js'
+import type { ClassGraphProject } from './model.js'
 import {
   addMetricDefinition,
   removeMetricDefinition,
@@ -7,7 +7,7 @@ import {
   unsetStudentMetricValue,
 } from './metrics.js'
 import { classGraphProjectSchema } from './schema.js'
-import { addStudent, removeStudent, updateStudent, type StudentPatch } from './workspace.js'
+import { addStudent, removeStudent, updateStudent } from './workspace.js'
 
 const metricValueSchema = z.union([z.number().finite(), z.string(), z.boolean(), z.null()])
 
@@ -114,11 +114,11 @@ export function applyProjectMutation(
     case 'add-student':
       return addStudent(project, command.student, now)
     case 'update-student':
-      return updateStudent(project, command.studentId, command.patch as StudentPatch, now)
+      return updateStudent(project, command.studentId, command.patch, now)
     case 'remove-student':
       return removeStudent(project, command.studentId, now)
     case 'add-metric-definition':
-      return addMetricDefinition(project, command.definition as MetricDefinition, now)
+      return addMetricDefinition(project, command.definition, now)
     case 'remove-metric-definition':
       return removeMetricDefinition(project, command.metricKey, now)
     case 'set-metric-value':
@@ -126,7 +126,7 @@ export function applyProjectMutation(
         project,
         command.studentId,
         command.metricKey,
-        command.value as MetricValue,
+        command.value,
         now,
       )
     case 'unset-metric-value':
