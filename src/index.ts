@@ -1,3 +1,4 @@
+export * from './analysis-view.js'
 export * from './analysis.js'
 export * from './json.js'
 export * from './metrics.js'
