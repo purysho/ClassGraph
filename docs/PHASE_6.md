@@ -3,7 +3,7 @@
 **Phase:** 6 — Cross-platform Desktop Releases  
 **Branch:** `feat/phase-6-desktop-releases`  
 **Base:** consolidated `main` after Phases 1–5  
-**Status:** In progress  
+**Status:** Complete — Gate 6 passed; v0.6.0 released  
 **Last updated:** 2026-10-02
 
 ## Purpose
@@ -55,33 +55,33 @@ The packaged desktop entry point always binds to `127.0.0.1`. It opens the resul
 
 ### P6.1 — Embedded desktop runtime
 
-- [ ] Add embedded static-asset support to the local server.
-- [ ] Add desktop entry point with loopback-only binding, browser launch, port fallback, and self-test.
-- [ ] Add regression coverage for embedded assets.
+- [x] Add embedded static-asset support to the local server.
+- [x] Add desktop entry point with loopback-only binding, browser launch, port fallback, and self-test.
+- [x] Add regression coverage for embedded assets.
 
 ### P6.2 — Native SEA packaging
 
-- [ ] Add deterministic platform-local SEA build script.
-- [ ] Produce Windows x64 executable.
-- [ ] Produce Linux x64 executable.
-- [ ] Produce macOS arm64 and x64 executables.
-- [ ] Keep packaging tools out of runtime dependencies.
+- [x] Add deterministic platform-local SEA build script.
+- [x] Produce Windows x64 executable.
+- [x] Produce Linux x64 executable.
+- [x] Produce macOS arm64 and x64 executables.
+- [x] Keep packaging tools out of runtime dependencies.
 
 ### P6.3 — Release automation
 
-- [ ] Add four-platform GitHub Actions matrix.
-- [ ] Run executable self-test on each native runner.
-- [ ] Package macOS app bundles and Linux archive.
-- [ ] Attach downloads to tagged GitHub releases.
-- [ ] Generate SHA-256 checksums.
+- [x] Add four-platform GitHub Actions matrix.
+- [x] Run executable self-test on each native runner.
+- [x] Package macOS app bundles and Linux archive.
+- [x] Attach downloads to tagged GitHub releases.
+- [x] Generate SHA-256 checksums.
 
 ### P6.4 — Documentation and release
 
-- [ ] Document desktop downloads and unsigned-build warnings.
-- [ ] Update DESIGN and README status.
-- [ ] Pass Gate 6.
-- [ ] Merge Phase 6 to `main`.
-- [ ] Create first Phase 6 release tag and verify attached assets.
+- [x] Document desktop downloads and unsigned-build warnings.
+- [x] Update DESIGN and README status.
+- [x] Pass Gate 6.
+- [x] Merge Phase 6 to `main`.
+- [x] Create first Phase 6 release tag and verify attached assets.
 
 ## Gate 6
 
@@ -97,6 +97,24 @@ Phase 6 is complete only when:
 - no Electron/runtime framework is added;
 - no packaging tool is added to runtime dependencies;
 - existing local-first, provenance, missing-data, assistance, privacy, and EduBoard boundaries remain unchanged.
+
+## Completion evidence
+
+- Phase 6 PR: #8 — merged to `main`.
+- Merge commit: `2cba3401e036f60f1155182bf99fe9bc61a59bad`.
+- Final merged-main Tests run: `37015686618` — success.
+- Final merged-main Dependency check run: `37015687123` — success.
+- Final desktop/release run: `37015687127` — success.
+- Native executable self-tests passed on Windows x64, Linux x64, macOS Apple Silicon, and macOS Intel.
+- Release job passed and published `v0.6.0`.
+- Release assets verified:
+  - `ClassGraph-Windows-x64.exe`
+  - `ClassGraph-macOS-AppleSilicon.app.zip`
+  - `ClassGraph-macOS-Intel.app.zip`
+  - `ClassGraph-Linux-x64.tar.gz`
+  - `SHA256SUMS.txt`
+- No Electron/runtime desktop framework was added.
+- Build tooling remains packaging-only and ClassGraph runtime dependencies remain unchanged.
 
 ## Signing boundary
 
