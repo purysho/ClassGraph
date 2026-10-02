@@ -333,6 +333,10 @@ interface ProjectLibraryView {
   projects: ProjectSummaryView[]
 }
 
+interface DesktopStatusView {
+  desktop: boolean
+}
+
 interface ErrorResponse {
   error?: {
     code?: string
@@ -558,6 +562,7 @@ const root = findAppRoot()
 
 let project: ClassGraphProject | null = null
 let projectLibraryView: ProjectLibraryView | null = null
+let desktopMode = false
 let activeView: WorkspaceView = 'overview'
 let selectedProvenanceStudentId: string | null = null
 let selectedGraphMetricKey: string | null = null
@@ -716,10 +721,13 @@ function renderSetup(): void {
             <p class="eyebrow">Your ClassGraph projects</p>
             <h2>Continue, create, or restore a class</h2>
           </div>
-          <p class="setup-note">
-            Work is saved automatically on this device. Download a Backup JSON when you want a
-            portable or cloud copy.
-          </p>
+          <div class="setup-note-group">
+            <p class="setup-note">
+              Work is saved automatically on this device. Download a Backup JSON when you want a
+              portable or cloud copy.
+            </p>
+            ${desktopMode ? '<button id="quit-app" class="ghost compact" type="button">Quit ClassGraph</button>' : ''}
+          </div>
         </div>
 
         <div id="status" class="status" role="status" aria-live="polite" hidden></div>
@@ -814,6 +822,10 @@ function renderSetup(): void {
   document.querySelector<HTMLFormElement>('#import-form')?.addEventListener('submit', (event) => {
     event.preventDefault()
     void importProject()
+  })
+
+  document.querySelector<HTMLButtonElement>('#quit-app')?.addEventListener('click', () => {
+    void quitDesktopApp()
   })
 
   document
@@ -1468,6 +1480,7 @@ function renderWorkspace(): void {
           <div class="header-actions">
             <button id="export-json" class="secondary compact">Backup JSON</button>
             <button id="new-project" class="ghost compact">Projects</button>
+            ${desktopMode ? '<button id="quit-app" class="ghost compact">Quit</button>' : ''}
           </div>
         </header>
 
@@ -1503,6 +1516,9 @@ function renderWorkspace(): void {
     project = null
     selectedProvenanceStudentId = null
     renderSetup()
+  })
+  document.querySelector<HTMLButtonElement>('#quit-app')?.addEventListener('click', () => {
+    void quitDesktopApp()
   })
 
   renderWorkspaceContent()
@@ -5021,6 +5037,24 @@ function renderScatter(scatter: ScatterView): string {
   `
 }
 
+async function quitDesktopApp(): Promise<void> {
+  try {
+    await postJson<{ closing: true }>('/api/desktop/quit', {})
+    root.innerHTML = `
+      <main class="closing-shell">
+        <div>
+          <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+          <p class="eyebrow">ClassGraph</p>
+          <h1>Saved and closed.</h1>
+          <p>Your local project files remain on this device.</p>
+        </div>
+      </main>
+    `
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not close ClassGraph.')
+  }
+}
+
 async function exportProject(): Promise<void> {
   if (!project) return
   clearStatus()
@@ -5050,6 +5084,12 @@ async function exportProject(): Promise<void> {
 
 async function initializeApp(): Promise<void> {
   let restoreError: string | null = null
+
+  try {
+    desktopMode = (await getJson<DesktopStatusView>('/api/desktop/status')).desktop
+  } catch {
+    desktopMode = false
+  }
 
   try {
     const library = await getJson<ProjectLibraryView>('/api/projects')
