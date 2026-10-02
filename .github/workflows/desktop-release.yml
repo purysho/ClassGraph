@@ -106,7 +106,7 @@ jobs:
           set -euo pipefail
           bin="$(find release-desktop/linux-unpacked -maxdepth 1 -type f -perm -111 \( -name 'classgraph' -o -name 'ClassGraph' \) | head -n 1)"
           test -n "$bin"
-          "$bin" --self-test
+          "$bin" --no-sandbox --self-test
 
       - name: Package Linux AppImage
         if: matrix.id == 'linux-x64'
