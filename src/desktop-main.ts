@@ -3,6 +3,7 @@ import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { getAsset, isSea } from 'node:sea'
 import { createEnvironmentAssistanceProvider } from './assistance-provider.js'
+import { FileProjectStore } from './project-store.js'
 import { createClassGraphServer, type StaticAssetMap } from './server.js'
 
 const DEFAULT_PORT = 4317
@@ -40,6 +41,22 @@ function listen(server: Server, port: number): Promise<number> {
     server.once('listening', onListening)
     server.listen(port, LOOPBACK_HOST)
   })
+}
+
+async function existingInstanceUrl(port: number): Promise<string | null> {
+  if (port <= 0) return null
+  const url = `http://${LOOPBACK_HOST}:${port}`
+
+  try {
+    const response = await fetch(`${url}/api/health`, {
+      signal: AbortSignal.timeout(700),
+    })
+    if (!response.ok) return null
+    const health = (await response.json()) as { ok?: boolean; service?: string }
+    return health.ok === true && health.service === 'ClassGraph' ? url : null
+  } catch {
+    return null
+  }
 }
 
 async function listenWithFallback(server: Server): Promise<number> {
@@ -113,9 +130,17 @@ async function main(): Promise<void> {
     return
   }
 
+  const preferredPort = requestedPort()
+  const runningUrl = await existingInstanceUrl(preferredPort)
+  if (runningUrl) {
+    openBrowser(runningUrl)
+    return
+  }
+
   const server = createClassGraphServer({
     staticAssets: embeddedAssets(),
     assistanceProvider: createEnvironmentAssistanceProvider(),
+    projectStore: new FileProjectStore(),
   })
   const port = await listenWithFallback(server)
   const url = `http://${LOOPBACK_HOST}:${port}`
