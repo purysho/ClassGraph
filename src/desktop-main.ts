@@ -93,7 +93,11 @@ async function selfTest(): Promise<void> {
 
     const health = (await healthResponse.json()) as { ok?: boolean; service?: string }
     const html = await shellResponse.text()
-    if (health.ok !== true || health.service !== 'ClassGraph' || !html.includes('<div id="app"></div>')) {
+    if (
+      health.ok !== true ||
+      health.service !== 'ClassGraph' ||
+      !html.includes('<div id="app"></div>')
+    ) {
       throw new Error('Desktop self-test received an unexpected embedded response.')
     }
 
