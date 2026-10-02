@@ -41,6 +41,7 @@ export interface ClassGraphServerOptions {
   assistanceProvider?: AssistanceProvider
   staticAssets?: StaticAssetMap
   projectStore?: FileProjectStore
+  desktopQuit?: () => void
 }
 
 interface ProjectSetupRequest {
@@ -316,6 +317,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
   const assistanceProvider = options.assistanceProvider
   const staticAssets = options.staticAssets
   const projectStore = options.projectStore
+  const desktopQuit = options.desktopQuit
 
   return createServer((request, response) => {
     void (async () => {
@@ -328,6 +330,20 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
             service: 'ClassGraph',
             schemaVersion: '1.0',
           })
+          return
+        }
+
+        if (request.method === 'GET' && url.pathname === '/api/desktop/status') {
+          sendJson(response, 200, { desktop: desktopQuit !== undefined })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/desktop/quit') {
+          if (!desktopQuit) {
+            throw new Error('CG-2013 desktop quit is not available in this runtime')
+          }
+          sendJson(response, 200, { closing: true })
+          setTimeout(desktopQuit, 50)
           return
         }
 
