@@ -317,6 +317,22 @@ interface ProjectResponse {
   project: ClassGraphProject
 }
 
+interface ProjectSummaryView {
+  projectId: string
+  title: string
+  updatedAt: string
+  studentCount: number
+  subject?: string
+  gradeOrLevel?: string
+}
+
+interface ProjectLibraryView {
+  enabled: boolean
+  dataDirectory: string | null
+  lastProjectId: string | null
+  projects: ProjectSummaryView[]
+}
+
 interface ErrorResponse {
   error?: {
     code?: string
@@ -541,6 +557,7 @@ function findAppRoot(): HTMLElement {
 const root = findAppRoot()
 
 let project: ClassGraphProject | null = null
+let projectLibraryView: ProjectLibraryView | null = null
 let activeView: WorkspaceView = 'overview'
 let selectedProvenanceStudentId: string | null = null
 let selectedGraphMetricKey: string | null = null
@@ -696,13 +713,28 @@ function renderSetup(): void {
       <section class="setup-panel">
         <div class="setup-heading">
           <div>
-            <p class="eyebrow">Start a workspace</p>
-            <h2>Create, import, or generate a class</h2>
+            <p class="eyebrow">Your ClassGraph projects</p>
+            <h2>Continue, create, or restore a class</h2>
           </div>
-          <p class="setup-note">Nothing is uploaded. Export JSON when you want a portable copy.</p>
+          <p class="setup-note">
+            Work is saved automatically on this device. Download a Backup JSON when you want a
+            portable or cloud copy.
+          </p>
         </div>
 
         <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+
+        <section id="saved-projects" class="saved-projects panel" hidden>
+          <div class="saved-projects-heading">
+            <div>
+              <p class="eyebrow">Saved locally</p>
+              <h3>Recent classes</h3>
+            </div>
+            <span class="schema-badge">Autosave on</span>
+          </div>
+          <div id="saved-project-list" class="saved-project-list"></div>
+          <p id="saved-project-location" class="storage-note"></p>
+        </section>
 
         <div class="setup-grid">
           <article class="setup-card">
@@ -730,14 +762,23 @@ function renderSetup(): void {
 
           <article class="setup-card">
             <div class="card-number">02</div>
-            <h3>Import JSON</h3>
-            <p>Open a validated ClassGraph Exchange v1 project without changing its recorded provenance.</p>
+            <h3>Import / restore backup</h3>
+            <p>
+              Bring back a ClassGraph JSON backup after reinstalling the app, or move a class from
+              another computer.
+            </p>
             <form id="import-form" class="stack-form">
               <label class="file-input">
-                Choose .json file
-                <input id="json-file" name="file" type="file" accept=".json,application/json" required />
+                Choose .classgraph.json or .json
+                <input
+                  id="json-file"
+                  name="file"
+                  type="file"
+                  accept=".classgraph.json,.json,application/json"
+                  required
+                />
               </label>
-              <button class="secondary" type="submit">Import project</button>
+              <button class="secondary" type="submit">Restore backup</button>
             </form>
           </article>
 
@@ -781,6 +822,82 @@ function renderSetup(): void {
       syntheticDraftProjectId = projectId()
       renderSyntheticBuilder()
     })
+
+  if (projectLibraryView) renderSavedProjects(projectLibraryView)
+  void refreshProjectLibrary()
+}
+
+function savedProjectMeta(summary: ProjectSummaryView): string {
+  const parts = [
+    summary.subject,
+    summary.gradeOrLevel,
+    `${summary.studentCount} students`,
+    new Date(summary.updatedAt).toLocaleString(),
+  ].filter((item): item is string => Boolean(item))
+  return parts.map(escapeHtml).join(' · ')
+}
+
+function renderSavedProjects(library: ProjectLibraryView): void {
+  const section = document.querySelector<HTMLElement>('#saved-projects')
+  const list = document.querySelector<HTMLElement>('#saved-project-list')
+  const location = document.querySelector<HTMLElement>('#saved-project-location')
+  if (!section || !list || !location) return
+
+  if (!library.enabled || library.projects.length === 0) {
+    section.hidden = true
+    return
+  }
+
+  section.hidden = false
+  list.innerHTML = library.projects
+    .map(
+      (summary) => `
+        <button
+          class="saved-project-row"
+          type="button"
+          data-open-project="${escapeHtml(summary.projectId)}"
+        >
+          <span>
+            <strong>${escapeHtml(summary.title)}</strong>
+            <small>${savedProjectMeta(summary)}</small>
+          </span>
+          <b>Open</b>
+        </button>
+      `,
+    )
+    .join('')
+
+  location.innerHTML = library.dataDirectory
+    ? `Saved automatically in <code>${escapeHtml(library.dataDirectory)}</code>. Use Backup JSON for cloud copies or moving computers.`
+    : 'Saved automatically on this device. Use Backup JSON for cloud copies or moving computers.'
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-open-project]')) {
+    button.addEventListener('click', () => {
+      const projectId = button.dataset.openProject
+      if (projectId) void openSavedProject(projectId)
+    })
+  }
+}
+
+async function refreshProjectLibrary(): Promise<ProjectLibraryView | null> {
+  try {
+    const library = await getJson<ProjectLibraryView>('/api/projects')
+    projectLibraryView = library
+    renderSavedProjects(library)
+    return library
+  } catch {
+    return null
+  }
+}
+
+async function openSavedProject(projectId: string): Promise<void> {
+  clearStatus()
+  try {
+    const response = await postJson<ProjectResponse>('/api/projects/open', { projectId })
+    openProject(response.project)
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not open the saved class.')
+  }
 }
 
 async function createManualClass(formData: FormData): Promise<void> {
@@ -1337,7 +1454,7 @@ function renderWorkspace(): void {
 
         <div class="sidebar-footer">
           <span class="local-dot"></span>
-          Local workspace
+          Saved automatically
         </div>
       </aside>
 
@@ -1349,8 +1466,8 @@ function renderWorkspace(): void {
             <p class="workspace-meta">${workspaceMeta(project)}</p>
           </div>
           <div class="header-actions">
-            <button id="export-json" class="secondary compact">Export JSON</button>
-            <button id="new-project" class="ghost compact">New class</button>
+            <button id="export-json" class="secondary compact">Backup JSON</button>
+            <button id="new-project" class="ghost compact">Projects</button>
           </div>
         </header>
 
@@ -4920,15 +5037,38 @@ async function exportProject(): Promise<void> {
     const link = document.createElement('a')
     const safeTitle = project.title.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-|-$/g, '')
     link.href = url
-    link.download = `${safeTitle || 'classgraph-project'}.json`
+    link.download = `${safeTitle || 'classgraph-project'}.classgraph.json`
     document.body.append(link)
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
-    showStatus('JSON export created.', 'success')
+    showStatus('Backup JSON downloaded.', 'success')
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not export the project.')
+    showStatus(error instanceof Error ? error.message : 'Could not create the backup JSON.')
   }
 }
 
-renderSetup()
+async function initializeApp(): Promise<void> {
+  let restoreError: string | null = null
+
+  try {
+    const library = await getJson<ProjectLibraryView>('/api/projects')
+    projectLibraryView = library
+
+    if (library.enabled && library.lastProjectId) {
+      const response = await postJson<ProjectResponse>('/api/projects/open', {
+        projectId: library.lastProjectId,
+      })
+      openProject(response.project)
+      return
+    }
+  } catch (error) {
+    restoreError =
+      error instanceof Error ? error.message : 'ClassGraph could not restore the last saved class.'
+  }
+
+  renderSetup()
+  if (restoreError) showStatus(restoreError)
+}
+
+void initializeApp()
