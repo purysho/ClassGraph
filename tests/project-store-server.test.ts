@@ -37,11 +37,11 @@ async function startPersistentServer(): Promise<{
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
   const address = server.address() as AddressInfo
-  return { base: \`http://127.0.0.1:\${address.port}\`, store, directory }
+  return { base: `http://127.0.0.1:${address.port}`, store, directory }
 }
 
 async function jsonPost(base: string, path: string, body: unknown): Promise<Response> {
-  return fetch(\`\${base}\${path}\`, {
+  return fetch(`${base}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -84,7 +84,7 @@ describe('persistent local app API', () => {
       now: '2026-10-02T10:00:00.000Z',
     })
 
-    const response = await fetch(\`\${base}/api/import\`, {
+    const response = await fetch(`${base}/api/import`, {
       method: 'POST',
       body: serializeProjectJson(project),
     })
@@ -143,7 +143,7 @@ describe('persistent local app API', () => {
     })
     expect(createdResponse.status).toBe(200)
 
-    const listResponse = await fetch(\`\${base}/api/projects\`)
+    const listResponse = await fetch(`${base}/api/projects`)
     expect(listResponse.status).toBe(200)
     const library = (await listResponse.json()) as {
       enabled: boolean
@@ -168,7 +168,7 @@ describe('persistent local app API', () => {
   it('rejects malformed backup JSON without creating a saved project', async () => {
     const { base, store } = await startPersistentServer()
 
-    const response = await fetch(\`\${base}/api/import\`, {
+    const response = await fetch(`${base}/api/import`, {
       method: 'POST',
       body: '{"schemaVersion":"1.0"}',
     })
