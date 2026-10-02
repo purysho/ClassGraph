@@ -1,13 +1,14 @@
-# Phase 6 — Cross-platform desktop releases
+# ClassGraph — Phase 6 Recovery Log
 
-Branch: `feat/phase-6-desktop-releases`  
-Base: `main` after Phases 1–5 were merged  
-Status: In progress  
-Last updated: 2026-10-02
+**Phase:** 6 — Cross-platform Desktop Releases  
+**Branch:** `feat/phase-6-desktop-releases`  
+**Base:** consolidated `main` after Phases 1–5  
+**Status:** In progress  
+**Last updated:** 2026-10-02
 
 ## Purpose
 
-Ship ClassGraph as downloadable desktop builds while preserving the existing lean local-first architecture. Phase 6 must not introduce Electron, a cloud dependency, telemetry, or any requirement for a separately installed Node.js runtime.
+Phase 6 ships ClassGraph as downloadable desktop builds while preserving the existing lean local-first architecture. It must not introduce Electron, a cloud dependency, telemetry, or any requirement for a separately installed Node.js runtime.
 
 ## Deliverables
 
@@ -20,28 +21,31 @@ Ship ClassGraph as downloadable desktop builds while preserving the existing lea
 - Executable `--self-test` that verifies the embedded UI and local health endpoint.
 - GitHub Actions matrix builds on native Windows, macOS arm64, macOS Intel, and Linux runners.
 - Tagged releases attach all four downloads plus SHA-256 checksums.
-- Unsigned/unnotarized status documented until signing credentials are intentionally supplied.
+- Unsigned/unnotarized status remains explicit until signing credentials are intentionally supplied.
 
 ## Architecture
 
-Use Node 22 Single Executable Applications (SEA), which is the official Node mechanism for distributing an application to machines without Node installed.
+Use Node 22 Single Executable Applications (SEA), the official Node mechanism for distributing an application to machines that do not have Node installed.
 
 Packaging-only tools are pinned and invoked by the build script:
+
 - `esbuild@0.28.2` bundles the TypeScript/server dependency graph into one CommonJS entry script for Node 22 SEA.
 - `postject@1.0.0-alpha.6` injects the generated SEA blob into the platform's Node binary.
 
 These are build-time tools only and are not added to ClassGraph runtime dependencies.
 
 The SEA blob embeds:
+
 - `app/index.html`
 - `app/styles.css`
 - compiled `dist/app-client.js`
 
 The packaged desktop entry point always binds to `127.0.0.1`. It opens the resulting local URL in the default browser. If the default port is already in use, it falls back to an ephemeral loopback port.
 
-## Slices
+## Phase 6 slices
 
 ### P6.0 — Consolidate completed phases
+
 - [x] Merge PR #3 (Phase 1) into `main`.
 - [x] Retarget and merge PR #4 (Phase 2) into `main`.
 - [x] Retarget and merge PR #5 (Phase 3) into `main`.
@@ -50,11 +54,13 @@ The packaged desktop entry point always binds to `127.0.0.1`. It opens the resul
 - [x] Create Phase 6 branch from consolidated `main`.
 
 ### P6.1 — Embedded desktop runtime
+
 - [ ] Add embedded static-asset support to the local server.
 - [ ] Add desktop entry point with loopback-only binding, browser launch, port fallback, and self-test.
 - [ ] Add regression coverage for embedded assets.
 
 ### P6.2 — Native SEA packaging
+
 - [ ] Add deterministic platform-local SEA build script.
 - [ ] Produce Windows x64 executable.
 - [ ] Produce Linux x64 executable.
@@ -62,6 +68,7 @@ The packaged desktop entry point always binds to `127.0.0.1`. It opens the resul
 - [ ] Keep packaging tools out of runtime dependencies.
 
 ### P6.3 — Release automation
+
 - [ ] Add four-platform GitHub Actions matrix.
 - [ ] Run executable self-test on each native runner.
 - [ ] Package macOS app bundles and Linux archive.
@@ -69,6 +76,7 @@ The packaged desktop entry point always binds to `127.0.0.1`. It opens the resul
 - [ ] Generate SHA-256 checksums.
 
 ### P6.4 — Documentation and release
+
 - [ ] Document desktop downloads and unsigned-build warnings.
 - [ ] Update DESIGN and README status.
 - [ ] Pass Gate 6.
