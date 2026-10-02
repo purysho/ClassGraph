@@ -1,6 +1,6 @@
 import { chmod, copyFile, mkdir, rm, writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 
 const root = process.cwd()
 const work = resolve(root, '.desktop-build')
@@ -18,7 +18,12 @@ function run(command, args) {
 }
 
 function npx(packageSpec, args) {
-  run(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['--yes', packageSpec, ...args])
+  const npmExecPath = process.env.npm_execpath
+  if (!npmExecPath) {
+    throw new Error('npm_execpath is required to locate npx-cli.js')
+  }
+  const npxCli = resolve(dirname(npmExecPath), 'npx-cli.js')
+  run(process.execPath, [npxCli, '--yes', packageSpec, ...args])
 }
 
 function outputName() {
