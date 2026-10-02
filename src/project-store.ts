@@ -10,7 +10,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, posix, win32 } from 'node:path'
 import type { ClassGraphProject } from './model.js'
 import { parseProjectJson, serializeProjectJson } from './json.js'
 
@@ -79,13 +79,13 @@ export function defaultClassGraphDataDirectory(input: DataDirectoryInput = {}): 
   const home = input.homeDirectory ?? homedir()
 
   if (platform === 'win32') {
-    const base = env.LOCALAPPDATA ?? env.APPDATA ?? join(home, 'AppData', 'Local')
-    return join(base, 'ClassGraph')
+    const base = env.LOCALAPPDATA ?? env.APPDATA ?? win32.join(home, 'AppData', 'Local')
+    return win32.join(base, 'ClassGraph')
   }
   if (platform === 'darwin') {
-    return join(home, 'Library', 'Application Support', 'ClassGraph')
+    return posix.join(home, 'Library', 'Application Support', 'ClassGraph')
   }
-  return join(env.XDG_DATA_HOME ?? join(home, '.local', 'share'), 'ClassGraph')
+  return posix.join(env.XDG_DATA_HOME ?? posix.join(home, '.local', 'share'), 'ClassGraph')
 }
 
 export class FileProjectStore {
