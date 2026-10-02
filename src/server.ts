@@ -20,6 +20,7 @@ import {
 } from './export-json.js'
 import { ClassGraphImportError, parseProjectJson, serializeProjectJson } from './json.js'
 import { generateSeatingCandidates } from './planning.js'
+import type { FileProjectStore } from './project-store.js'
 import { buildRepeatNeighbourHistory } from './planning-history.js'
 import { comparePlanningScenarios } from './planning-scenarios.js'
 import { generateDocxReport } from './report-docx.js'
@@ -39,6 +40,7 @@ export interface ClassGraphServerOptions {
   maxBodyBytes?: number
   assistanceProvider?: AssistanceProvider
   staticAssets?: StaticAssetMap
+  projectStore?: FileProjectStore
 }
 
 interface ProjectSetupRequest {
@@ -313,6 +315,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
   const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
   const assistanceProvider = options.assistanceProvider
   const staticAssets = options.staticAssets
+  const projectStore = options.projectStore
 
   return createServer((request, response) => {
     void (async () => {
@@ -327,6 +330,31 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
           })
           return
         }
+
+        if (request.method === 'GET' && url.pathname === '/api/projects') {
+          if (!projectStore) {
+            sendJson(response, 200, {
+              enabled: false,
+              dataDirectory: null,
+              lastProjectId: null,
+              projects: [],
+            })
+            return
+          }
+          sendJson(response, 200, await projectStore.list())
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/projects/open') {
+          if (!projectStore) {
+            throw new Error('CG-2010 local project storage is not enabled')
+          }
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const project = await projectStore.load(expectString(record, 'projectId'))
+          sendJson(response, 200, { project })
+          return
+        }
+
 
         if (request.method === 'GET' && url.pathname === '/api/assistance/status') {
           sendJson(response, 200, assistanceServiceStatus(assistanceProvider))
@@ -394,6 +422,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
             now: new Date().toISOString(),
             classInfo: setup.classInfo,
           })
+          await projectStore?.save(project)
           sendJson(response, 200, { project })
           return
         }
@@ -405,6 +434,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
             mutation.command,
             new Date().toISOString(),
           )
+          await projectStore?.save(project)
           sendJson(response, 200, { project })
           return
         }
@@ -417,6 +447,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
             ...specification,
             generatedAt: new Date().toISOString(),
           })
+          await projectStore?.save(project)
           sendJson(response, 200, { project })
           return
         }
@@ -573,6 +604,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
         if (request.method === 'POST' && url.pathname === '/api/import') {
           const body = await readBody(request, maxBodyBytes)
           const project = parseProjectJson(body)
+          await projectStore?.save(project)
           sendJson(response, 200, { project })
           return
         }
