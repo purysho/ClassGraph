@@ -137,10 +137,15 @@ async function main(): Promise<void> {
     return
   }
 
-  const server = createClassGraphServer({
+  let server: Server
+  const quit = () => {
+    server.close(() => process.exit(0))
+  }
+  server = createClassGraphServer({
     staticAssets: embeddedAssets(),
     assistanceProvider: createEnvironmentAssistanceProvider(),
     projectStore: new FileProjectStore(),
+    desktopQuit: quit,
   })
   const port = await listenWithFallback(server)
   const url = `http://${LOOPBACK_HOST}:${port}`
