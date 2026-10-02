@@ -1,6 +1,6 @@
 {
   "name": "classgraph",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Local-first classroom analysis, visualisation, seating and grouping planner.",
   "type": "module",
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "npm run build && node dist/server-main.js",
-    "start": "node dist/server-main.js",
+    "start": "electron .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
@@ -17,7 +17,12 @@
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build",
-    "build:desktop": "npm run build && node scripts/build-desktop.mjs"
+    "build:desktop": "npm run build && esbuild src/electron-main.ts --bundle --platform=node --format=cjs --target=node22 --external:electron --outfile=dist/electron-main.cjs && esbuild src/electron-preload.ts --bundle --platform=node --format=cjs --target=node22 --external:electron --outfile=dist/electron-preload.cjs",
+    "start:web": "node dist/server-main.js",
+    "package:unpack": "npm run build:desktop && electron-builder --dir",
+    "package:win": "npm run build:desktop && electron-builder --win --x64",
+    "package:mac": "npm run build:desktop && electron-builder --mac",
+    "package:linux": "npm run build:desktop && electron-builder --linux --x64"
   },
   "dependencies": {
     "docx": "9.7.1",
@@ -32,6 +37,10 @@
     "prettier": "^3.9.9",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.1",
-    "vitest": "^5.0.2"
-  }
+    "vitest": "^5.0.2",
+    "electron": "44.4.5",
+    "electron-builder": "26.0.12",
+    "esbuild": "0.28.2"
+  },
+  "main": "dist/electron-main.cjs"
 }
