@@ -322,6 +322,7 @@ interface ProjectSummaryView {
   title: string
   updatedAt: string
   studentCount: number
+  fileName: string
   subject?: string
   gradeOrLevel?: string
 }
@@ -329,6 +330,8 @@ interface ProjectSummaryView {
 interface ProjectLibraryView {
   enabled: boolean
   dataDirectory: string | null
+  projectsDirectory: string | null
+  backupsDirectory: string | null
   lastProjectId: string | null
   projects: ProjectSummaryView[]
 }
@@ -723,8 +726,8 @@ function renderSetup(): void {
           </div>
           <div class="setup-note-group">
             <p class="setup-note">
-              Work is saved automatically on this device. Download a Backup JSON when you want a
-              portable or cloud copy.
+              Your work is saved automatically as readable ClassGraph files in your Documents
+              folder. Make a backup copy only when you want one elsewhere.
             </p>
             ${desktopMode ? '<button id="quit-app" class="ghost compact" type="button">Quit ClassGraph</button>' : ''}
           </div>
@@ -841,6 +844,7 @@ function renderSetup(): void {
 
 function savedProjectMeta(summary: ProjectSummaryView): string {
   const parts = [
+    summary.fileName,
     summary.subject,
     summary.gradeOrLevel,
     `${summary.studentCount} students`,
@@ -879,9 +883,9 @@ function renderSavedProjects(library: ProjectLibraryView): void {
     )
     .join('')
 
-  location.innerHTML = library.dataDirectory
-    ? `Saved automatically in <code>${escapeHtml(library.dataDirectory)}</code>. Use Backup JSON for cloud copies or moving computers.`
-    : 'Saved automatically on this device. Use Backup JSON for cloud copies or moving computers.'
+  location.innerHTML = library.projectsDirectory
+    ? `Your project files are in <code>${escapeHtml(library.projectsDirectory)}</code>. You can copy or rename a valid <code>.classgraph.json</code> file and ClassGraph will still find it.`
+    : 'Your projects are saved automatically as ordinary ClassGraph JSON files.'
 
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-open-project]')) {
     button.addEventListener('click', () => {
