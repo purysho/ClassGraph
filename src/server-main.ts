@@ -1,4 +1,5 @@
 import { createEnvironmentAssistanceProvider } from './assistance-provider.js'
+import { FileProjectStore } from './project-store.js'
 import { createClassGraphServer } from './server.js'
 
 const host = process.env.CLASSGRAPH_HOST ?? '127.0.0.1'
@@ -7,6 +8,7 @@ const port = Number.isInteger(requestedPort) && requestedPort >= 0 ? requestedPo
 
 const server = createClassGraphServer({
   assistanceProvider: createEnvironmentAssistanceProvider(),
+  projectStore: new FileProjectStore(),
 })
 
 server.listen(port, host, () => {
