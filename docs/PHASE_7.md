@@ -3,7 +3,7 @@
 **Phase:** 7 — Desktop UX and Local Saves  
 **Branch:** `feat/phase-7-desktop-saves`  
 **Base:** `main` after v0.6.0 and README/branding refresh  
-**Status:** In progress — implementation complete, Gate 7 verification pending  
+**Status:** Complete — Gate 7 passed; ready to merge and release v0.7.0  
 **Last updated:** 2026-10-02
 
 ## Purpose
@@ -76,7 +76,7 @@ Portable recovery remains explicit:
 
 - [x] Update README with autosave/restore behavior and data locations.
 - [x] Bump to v0.7.0.
-- [ ] Pass normal tests, dependency audit, and four native desktop builds.
+- [x] Pass normal tests, dependency audit, and four native desktop builds.
 - [ ] Merge Phase 7 to `main`.
 - [ ] Publish v0.7.0 and verify all platform downloads.
 
@@ -93,6 +93,21 @@ Current branch implementation includes:
 - `tests/project-store.test.ts` and `tests/project-store-server.test.ts` — filesystem persistence and API autosave/restore coverage.
 
 Verification and release evidence will be appended after the native CI matrix completes.
+
+## Gate 7 verification evidence
+
+Final PR-head commit: `f095c1afa6b920044b9825245a67e954cae992cb`
+
+- Tests workflow `37025567739` — success.
+- Dependency check workflow `37025567444` — success.
+- Desktop release workflow `37025567714` — verification success.
+- Linux x64 native build/self-test — success.
+- Windows x64 native build — success, including CG resource metadata, GUI-subsystem patch, and executable self-test.
+- macOS Intel app build/self-test/icon packaging — success.
+- macOS Apple Silicon app build/self-test/icon packaging — success.
+- Release job correctly skipped on the pull request; publication is performed only after merge/tag.
+- No Electron or other desktop runtime framework was added.
+- Project persistence remains ordinary validated ClassGraph JSON on disk, with portable backup/restore through the existing schema.
 
 ## Gate 7
 
