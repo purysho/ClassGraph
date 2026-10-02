@@ -515,6 +515,22 @@ interface AssistanceRunResponseView {
   proposal: AssistanceProposalView
 }
 
+declare global {
+  interface Window {
+    classGraphDesktop?: {
+      request(request: {
+        method: 'GET' | 'POST'
+        path: string
+        body?: string
+      }): Promise<unknown>
+      saveProjectCopy(
+        serializedProject: string,
+        suggestedTitle: string,
+      ): Promise<{ canceled: boolean; filePath?: string }>
+    }
+  }
+}
+
 type WorkspaceView =
   'overview' | 'students' | 'graphs' | 'relationships' | 'seating' | 'assistance' | 'reports'
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
@@ -5060,6 +5076,22 @@ async function exportProject(): Promise<void> {
   clearStatus()
 
   try {
+    if (window.classGraphDesktop) {
+      const result = await window.classGraphDesktop.saveProjectCopy(
+        JSON.stringify(project),
+        project.title,
+      )
+      if (result.canceled) {
+        showStatus('Backup canceled.', 'success')
+        return
+      }
+      showStatus(
+        result.filePath ? `Backup saved to ${result.filePath}` : 'Backup saved.',
+        'success',
+      )
+      return
+    }
+
     const response = await fetch('/api/export', {
       method: 'POST',
       body: JSON.stringify(project),
