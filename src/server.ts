@@ -12,7 +12,10 @@ import {
 } from './export-json.js'
 import { ClassGraphImportError, parseProjectJson, serializeProjectJson } from './json.js'
 import { generateSeatingCandidates } from './planning.js'
+import { buildRepeatNeighbourHistory } from './planning-history.js'
+import { comparePlanningScenarios } from './planning-scenarios.js'
 import { generateDocxReport } from './report-docx.js'
+import { buildRelationshipGraph } from './relationship-graph.js'
 import { generatePdfReport, generateSeatingPlanPdf } from './report-pdf.js'
 import { applyProjectMutation, parseProjectMutationRequest } from './project-mutations.js'
 import { classGraphProjectSchema } from './schema.js'
@@ -320,6 +323,33 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
           const record = expectRecord(await readJsonBody(request, maxBodyBytes))
           const analysis = buildProjectAnalysis(parseProjectFromRequest(record))
           sendJson(response, 200, { analysis })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/planning/history-analysis') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const project = parseProjectFromRequest(record)
+          sendJson(response, 200, { history: buildRepeatNeighbourHistory(project) })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/planning/scenario-comparison') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const project = parseProjectFromRequest(record)
+          const comparison = comparePlanningScenarios(
+            project,
+            expectString(record, 'leftScenarioId'),
+            expectString(record, 'rightScenarioId'),
+          )
+          sendJson(response, 200, { comparison })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/relationships/graph') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const project = parseProjectFromRequest(record)
+          const graph = buildRelationshipGraph(project, optionalString(record, 'focusStudentId'))
+          sendJson(response, 200, { graph })
           return
         }
 

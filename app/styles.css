@@ -1667,3 +1667,245 @@ select:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.relationship-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.relationship-form {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr)) auto auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.relationship-directed-control {
+  min-height: 38px;
+  padding-bottom: 4px;
+}
+
+.relationship-table select,
+.relationship-table input {
+  min-width: 120px;
+}
+
+.relationship-label-input {
+  margin-top: 6px;
+}
+
+.relationship-weight-input {
+  width: 90px;
+  min-width: 80px !important;
+}
+
+.relationship-source {
+  min-width: 150px;
+}
+
+.relationship-source small {
+  display: block;
+  margin-top: 4px;
+  color: #74828c;
+  font-size: 0.66rem;
+}
+
+.relationship-actions {
+  display: flex;
+  gap: 6px;
+}
+
+@media (max-width: 1180px) {
+  .relationship-form {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .relationship-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+.relationship-graph-panel {
+  overflow: hidden;
+}
+
+.relationship-graph-stage {
+  min-height: 420px;
+  margin-top: 16px;
+  overflow: auto;
+  border: 1px solid #dce4e8;
+  border-radius: 14px;
+  background:
+    linear-gradient(to right, rgba(89, 105, 116, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(89, 105, 116, 0.05) 1px, transparent 1px), #f9fbfc;
+  background-size: 40px 40px;
+}
+
+.relationship-graph {
+  width: 100%;
+  min-width: 680px;
+  display: block;
+}
+
+.relationship-edge {
+  stroke: #7d8c95;
+  stroke-width: 3;
+  stroke-opacity: 0.74;
+}
+
+.relationship-edge-support-pair {
+  stroke-dasharray: 9 4;
+}
+
+.relationship-edge-avoid-pairing {
+  stroke-dasharray: 3 5;
+}
+
+.relationship-edge-friendship {
+  stroke-width: 4;
+}
+
+.relationship-edge-custom {
+  stroke-opacity: 0.56;
+}
+
+.relationship-graph marker path {
+  fill: #596c78;
+}
+
+.relationship-node circle {
+  fill: #f8fbfc;
+  stroke: #526a79;
+  stroke-width: 3;
+}
+
+.relationship-node.connected circle {
+  fill: #eef4f7;
+}
+
+.relationship-node.focused circle {
+  fill: #17212a;
+  stroke: #17212a;
+}
+
+.relationship-node text {
+  fill: #344550;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.relationship-node.focused text {
+  font-weight: 900;
+}
+
+.relationship-history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.snapshot-form {
+  margin: 16px 0;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, 0.7fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.snapshot-row {
+  padding: 10px 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid #e4e9ec;
+}
+
+.snapshot-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.snapshot-row b {
+  color: #33434e;
+  font-size: 0.82rem;
+}
+
+.snapshot-row small {
+  color: #74828c;
+  font-size: 0.69rem;
+}
+
+.snapshot-analysis {
+  margin-top: 16px;
+}
+
+.snapshot-summary-grid {
+  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.snapshot-summary-grid > div {
+  padding: 10px;
+  display: grid;
+  gap: 2px;
+  border-radius: 10px;
+  background: #f3f6f7;
+}
+
+.snapshot-summary-grid b {
+  font-size: 1rem;
+}
+
+.snapshot-summary-grid span {
+  color: #74828c;
+  font-size: 0.68rem;
+}
+
+.scenario-controls {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.scenario-comparison-table td:first-child {
+  min-width: 210px;
+}
+
+.scenario-comparison-table td small {
+  display: block;
+  margin-top: 3px;
+  color: #7a8790;
+}
+
+.scenario-type-details {
+  margin-top: 12px;
+}
+
+.scenario-type-details summary {
+  cursor: pointer;
+  color: #536875;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+@media (max-width: 1050px) {
+  .relationship-history-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .snapshot-form,
+  .scenario-controls,
+  .snapshot-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

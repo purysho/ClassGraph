@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { canonicalRelationshipKey } from './relationship-semantics.js'
 
 const provenanceKindSchema = z.enum([
   'observed',
@@ -75,7 +76,7 @@ const studentSchema = z.object({
   notes: z.string().optional(),
 })
 
-const relationshipSchema = z.object({
+export const relationshipSchema = z.object({
   id: z.string().min(1),
   fromStudentId: z.string().min(1),
   toStudentId: z.string().min(1),
@@ -277,6 +278,30 @@ const softPlanningRuleSchema = z.discriminatedUnion('kind', [
 
 export const planningRuleSchema = z.union([hardPlanningRuleSchema, softPlanningRuleSchema])
 
+const approvedSeatingHistorySchema = z.object({
+  version: z.literal('1.0'),
+  id: z.string().min(1),
+  label: z.string().min(1).optional(),
+  approvedAt: z.iso.datetime({ offset: true }),
+  neighbourMode: z.enum(['orthogonal', 'king']),
+  room: roomSchema,
+  assignments: z.array(planningAssignmentSchema),
+})
+
+const planningScenarioSchema = z.object({
+  version: z.literal('1.0'),
+  id: z.string().min(1),
+  label: z.string().min(1),
+  savedAt: z.iso.datetime({ offset: true }),
+  room: roomSchema.optional(),
+  seed: z.string().optional(),
+  selectedMetricKeys: z.array(z.string().min(1)).optional(),
+  assignments: z.array(planningAssignmentSchema),
+  rules: z.array(planningRuleSchema),
+  groups: z.array(planningGroupSchema),
+  approvedCandidateId: z.string().optional(),
+})
+
 const planningConfigurationSchema = z.object({
   ruleSchemaVersion: z.literal('1.0').optional(),
   seed: z.string().optional(),
@@ -285,6 +310,8 @@ const planningConfigurationSchema = z.object({
   rules: z.array(planningRuleSchema).optional(),
   groups: z.array(planningGroupSchema).optional(),
   approvedCandidateId: z.string().optional(),
+  history: z.array(approvedSeatingHistorySchema).optional(),
+  scenarios: z.array(planningScenarioSchema).optional(),
 })
 
 export const classGraphProjectSchema = z
@@ -422,7 +449,28 @@ export const classGraphProjectSchema = z
       }
     }
 
+    const relationshipIds = new Set<string>()
+    const relationshipKeys = new Set<string>()
     for (const [index, relationship] of (project.relationships ?? []).entries()) {
+      if (relationshipIds.has(relationship.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['relationships', index, 'id'],
+          message: `duplicate relationship id: ${relationship.id}`,
+        })
+      }
+      relationshipIds.add(relationship.id)
+
+      const relationshipKey = canonicalRelationshipKey(relationship)
+      if (relationshipKeys.has(relationshipKey)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['relationships', index],
+          message: 'duplicate relationship semantics',
+        })
+      }
+      relationshipKeys.add(relationshipKey)
+
       if (!studentIds.has(relationship.fromStudentId)) {
         ctx.addIssue({
           code: 'custom',
@@ -603,5 +651,60 @@ export const classGraphProjectSchema = z
           message: `unknown selected planning metric: ${metricKey}`,
         })
       }
+    }
+
+    const historyIds = new Set<string>()
+    for (const [index, entry] of (project.planning?.history ?? []).entries()) {
+      if (historyIds.has(entry.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'history', index, 'id'],
+          message: `duplicate seating history id: ${entry.id}`,
+        })
+      }
+      historyIds.add(entry.id)
+
+      const snapshotSeatIds = new Set(
+        entry.room.seats.filter((seat) => seat.enabled).map((seat) => seat.id),
+      )
+      const historyStudents = new Set<string>()
+      const historySeats = new Set<string>()
+      for (const [assignmentIndex, assignment] of entry.assignments.entries()) {
+        if (!snapshotSeatIds.has(assignment.seatId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['planning', 'history', index, 'assignments', assignmentIndex, 'seatId'],
+            message: `history assignment requires a snapshot enabled seat: ${assignment.seatId}`,
+          })
+        }
+        if (historyStudents.has(assignment.studentId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['planning', 'history', index, 'assignments', assignmentIndex, 'studentId'],
+            message: `duplicate student in seating history: ${assignment.studentId}`,
+          })
+        }
+        if (historySeats.has(assignment.seatId)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['planning', 'history', index, 'assignments', assignmentIndex, 'seatId'],
+            message: `duplicate occupied seat in seating history: ${assignment.seatId}`,
+          })
+        }
+        historyStudents.add(assignment.studentId)
+        historySeats.add(assignment.seatId)
+      }
+    }
+
+    const scenarioIds = new Set<string>()
+    for (const [index, scenario] of (project.planning?.scenarios ?? []).entries()) {
+      if (scenarioIds.has(scenario.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['planning', 'scenarios', index, 'id'],
+          message: `duplicate planning scenario id: ${scenario.id}`,
+        })
+      }
+      scenarioIds.add(scenario.id)
     }
   })

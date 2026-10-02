@@ -31,6 +31,19 @@ interface StudentRecord {
   metrics: Record<string, MetricValue>
 }
 
+type RelationshipType =
+  'works-well-with' | 'avoid-pairing' | 'support-pair' | 'friendship' | 'custom'
+
+interface RelationshipRecord {
+  id: string
+  fromStudentId: string
+  toStudentId: string
+  type: RelationshipType
+  label?: string
+  directed?: boolean
+  weight?: number
+}
+
 interface SeatRecord {
   id: string
   row?: number
@@ -60,6 +73,30 @@ interface PlanningGroup {
   label?: string
   studentIds: string[]
   lockedStudentIds?: string[]
+}
+
+interface ApprovedSeatingHistoryEntryView {
+  version: '1.0'
+  id: string
+  label?: string
+  approvedAt: string
+  neighbourMode: 'orthogonal' | 'king'
+  room: RoomRecord
+  assignments: PlanningSeatAssignment[]
+}
+
+interface PlanningScenarioView {
+  version: '1.0'
+  id: string
+  label: string
+  savedAt: string
+  room?: RoomRecord
+  seed?: string
+  selectedMetricKeys?: string[]
+  assignments: PlanningSeatAssignment[]
+  rules: PlanningRule[]
+  groups: PlanningGroup[]
+  approvedCandidateId?: string
 }
 
 type PlanningRule =
@@ -123,6 +160,8 @@ interface PlanningRecord {
   rules?: PlanningRule[]
   groups?: PlanningGroup[]
   approvedCandidateId?: string
+  history?: ApprovedSeatingHistoryEntryView[]
+  scenarios?: PlanningScenarioView[]
 }
 
 interface HardConstraintView {
@@ -179,6 +218,83 @@ interface GroupingGenerationView {
   attempts: number
 }
 
+interface RelationshipGraphNodeView {
+  studentId: string
+  label: string
+  x: number
+  y: number
+  focused: boolean
+  connectedToFocus: boolean
+}
+
+interface RelationshipGraphEdgeView {
+  relationshipId: string
+  fromStudentId: string
+  toStudentId: string
+  type: RelationshipType
+  label?: string
+  directed: boolean
+  weight?: number
+  provenance?: ProvenanceEntry
+}
+
+interface RelationshipGraphView {
+  focusStudentId?: string
+  nodes: RelationshipGraphNodeView[]
+  edges: RelationshipGraphEdgeView[]
+}
+
+interface RepeatNeighbourHistoryView {
+  historyRecordCount: number
+  usableRecordCount: number
+  skippedRecordIds: string[]
+  pairs: Array<{
+    studentAId: string
+    studentBId: string
+    count: number
+    historyIds: string[]
+  }>
+}
+
+interface NetworkCountComparisonView {
+  key: string
+  label: string
+  left: number
+  right: number
+  delta: number
+}
+
+interface PlanningScenarioComparisonView {
+  leftScenarioId: string
+  rightScenarioId: string
+  assignments: {
+    leftCount: number
+    rightCount: number
+    unchangedStudents: string[]
+    movedStudents: string[]
+    addedStudents: string[]
+    removedStudents: string[]
+  }
+  groups: {
+    leftCount: number
+    rightCount: number
+    unchangedStudents: string[]
+    changedStudents: string[]
+    addedStudents: string[]
+    removedStudents: string[]
+  }
+  rules: {
+    leftCount: number
+    rightCount: number
+    addedRuleIds: string[]
+    removedRuleIds: string[]
+  }
+  network: {
+    counts: NetworkCountComparisonView[]
+    byType: NetworkCountComparisonView[]
+  }
+}
+
 interface ClassGraphProject {
   schemaVersion: string
   projectId: string
@@ -191,6 +307,7 @@ interface ClassGraphProject {
   }
   metricDefinitions: MetricDefinition[]
   students: StudentRecord[]
+  relationships?: RelationshipRecord[]
   room?: RoomRecord
   planning?: PlanningRecord
   provenance: Record<string, ProvenanceEntry>
@@ -274,7 +391,7 @@ interface ScatterView {
   omittedCount: number
 }
 
-type WorkspaceView = 'overview' | 'students' | 'graphs' | 'seating' | 'reports'
+type WorkspaceView = 'overview' | 'students' | 'graphs' | 'relationships' | 'seating' | 'reports'
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
 type SyntheticDraftMetric =
   | {
@@ -324,6 +441,10 @@ let selectedProvenanceStudentId: string | null = null
 let selectedGraphMetricKey: string | null = null
 let selectedScatterX: string | null = null
 let selectedScatterY: string | null = null
+let selectedRelationshipTypeFilter: RelationshipType | 'all' = 'all'
+let selectedRelationshipFocusStudentId: string | null = null
+let selectedScenarioLeftId: string | null = null
+let selectedScenarioRightId: string | null = null
 let seatingGeneration: SeatingGenerationView | null = null
 let groupingGeneration: GroupingGenerationView | null = null
 let syntheticDraftProjectId = ''
@@ -1089,6 +1210,7 @@ function renderWorkspace(): void {
           <button data-view="overview">Overview</button>
           <button data-view="students">Students</button>
           <button data-view="graphs">Graphs</button>
+          <button data-view="relationships">Relationships</button>
           <button data-view="seating">Seating</button>
           <button data-view="reports">Reports</button>
         </nav>
@@ -1126,6 +1248,7 @@ function renderWorkspace(): void {
         nextView === 'overview' ||
         nextView === 'students' ||
         nextView === 'graphs' ||
+        nextView === 'relationships' ||
         nextView === 'seating' ||
         nextView === 'reports'
       ) {
@@ -1167,6 +1290,11 @@ function renderWorkspaceContent(): void {
 
   if (activeView === 'students') {
     renderStudents(content)
+    return
+  }
+
+  if (activeView === 'relationships') {
+    renderRelationships(content)
     return
   }
 
@@ -2816,6 +2944,949 @@ function renderReports(content: HTMLElement): void {
       const fallback = button.dataset.fallback
       if (!path || !fallback) return
       void downloadReportExport(path, fallback)
+    })
+  }
+}
+
+function relationshipTypeOptions(selected?: RelationshipType): string {
+  const types: Array<{ value: RelationshipType; label: string }> = [
+    { value: 'works-well-with', label: 'Works well with' },
+    { value: 'avoid-pairing', label: 'Avoid pairing' },
+    { value: 'support-pair', label: 'Support pair' },
+    { value: 'friendship', label: 'Friendship' },
+    { value: 'custom', label: 'Custom' },
+  ]
+
+  return types.map((item) => optionHtml(item.value, item.label, item.value === selected)).join('')
+}
+
+function studentOptionLabel(student: StudentRecord): string {
+  return student.displayName ? `${student.displayName} (${student.id})` : student.id
+}
+
+function relationshipRecordId(): string {
+  if (typeof crypto.randomUUID === 'function') return `rel-${crypto.randomUUID()}`
+  return `rel-${Date.now()}`
+}
+
+function relationshipProvenance(index: number): ProvenanceEntry | undefined {
+  if (!project) return undefined
+  const basePath = `/relationships/${index}`
+  const direct = project.provenance[basePath]
+  if (direct) return direct
+
+  const nested = Object.entries(project.provenance)
+    .filter(([path]) => path.startsWith(`${basePath}/`))
+    .sort(([left], [right]) => left.localeCompare(right))[0]
+
+  return nested?.[1]
+}
+
+function renderRelationshipSource(index: number): string {
+  const provenance = relationshipProvenance(index)
+  if (!provenance) return '<span class="muted">Not recorded</span>'
+
+  const source = provenance.source ? ` · ${escapeHtml(provenance.source)}` : ''
+  return `<span class="source-kind">${escapeHtml(provenance.kind)}</span><small>${source}</small>`
+}
+
+function renderRelationshipRows(): string {
+  if (!project) return ''
+
+  const relationships = (project.relationships ?? [])
+    .map((relationship, index) => ({ relationship, index }))
+    .filter(
+      ({ relationship }) =>
+        selectedRelationshipTypeFilter === 'all' ||
+        relationship.type === selectedRelationshipTypeFilter,
+    )
+
+  if (relationships.length === 0) {
+    return `
+      <tr>
+        <td colspan="8" class="empty-cell">
+          ${
+            selectedRelationshipTypeFilter === 'all'
+              ? 'No explicit relationship records yet.'
+              : 'No relationship records match this type.'
+          }
+        </td>
+      </tr>
+    `
+  }
+
+  return relationships
+    .map(({ relationship, index }) => {
+      const fromOptions = project!.students
+        .map((student) =>
+          optionHtml(
+            student.id,
+            studentOptionLabel(student),
+            student.id === relationship.fromStudentId,
+          ),
+        )
+        .join('')
+      const toOptions = project!.students
+        .map((student) =>
+          optionHtml(
+            student.id,
+            studentOptionLabel(student),
+            student.id === relationship.toStudentId,
+          ),
+        )
+        .join('')
+
+      return `
+        <tr>
+          <td class="id-cell"><code>${escapeHtml(relationship.id)}</code></td>
+          <td>
+            <select data-relationship-from="${escapeHtml(relationship.id)}">${fromOptions}</select>
+          </td>
+          <td>
+            <select data-relationship-to="${escapeHtml(relationship.id)}">${toOptions}</select>
+          </td>
+          <td>
+            <select data-relationship-type="${escapeHtml(relationship.id)}">
+              ${relationshipTypeOptions(relationship.type)}
+            </select>
+            <input
+              class="cell-input relationship-label-input"
+              data-relationship-label="${escapeHtml(relationship.id)}"
+              value="${escapeHtml(relationship.label ?? '')}"
+              placeholder="Optional label"
+            />
+          </td>
+          <td>
+            <label class="lock-toggle">
+              <input
+                type="checkbox"
+                data-relationship-directed="${escapeHtml(relationship.id)}"
+                ${relationship.directed ? 'checked' : ''}
+              />
+              Directed
+            </label>
+          </td>
+          <td>
+            <input
+              class="cell-input relationship-weight-input"
+              type="number"
+              step="any"
+              data-relationship-weight="${escapeHtml(relationship.id)}"
+              value="${relationship.weight === undefined ? '' : escapeHtml(String(relationship.weight))}"
+              placeholder="—"
+            />
+          </td>
+          <td class="relationship-source">${renderRelationshipSource(index)}</td>
+          <td>
+            <div class="relationship-actions">
+              <button
+                class="icon-button"
+                type="button"
+                data-save-relationship="${escapeHtml(relationship.id)}"
+                title="Save relationship"
+              >✓</button>
+              <button
+                class="icon-button danger-text"
+                type="button"
+                data-remove-relationship="${escapeHtml(relationship.id)}"
+                title="Remove relationship"
+              >×</button>
+            </div>
+          </td>
+        </tr>
+      `
+    })
+    .join('')
+}
+
+function formatSavedDate(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
+function renderHistoryRecords(): string {
+  const history = project?.planning?.history ?? []
+  if (history.length === 0) {
+    return '<p class="muted">No approved seating history has been recorded.</p>'
+  }
+
+  return history
+    .map(
+      (entry) => `
+        <div class="snapshot-row">
+          <div>
+            <b>${escapeHtml(entry.label ?? 'Approved seating')}</b>
+            <small>
+              ${escapeHtml(formatSavedDate(entry.approvedAt))} ·
+              ${escapeHtml(entry.neighbourMode)} neighbours ·
+              ${entry.assignments.length} assignments
+            </small>
+          </div>
+          <button
+            class="icon-button danger-text"
+            type="button"
+            data-remove-history="${escapeHtml(entry.id)}"
+            title="Remove history record"
+          >×</button>
+        </div>
+      `,
+    )
+    .join('')
+}
+
+function renderScenarioRecords(): string {
+  const scenarios = project?.planning?.scenarios ?? []
+  if (scenarios.length === 0) return '<p class="muted">No saved planning scenarios yet.</p>'
+
+  return scenarios
+    .map(
+      (scenario) => `
+        <div class="snapshot-row">
+          <div>
+            <b>${escapeHtml(scenario.label)}</b>
+            <small>
+              ${escapeHtml(formatSavedDate(scenario.savedAt))} ·
+              ${scenario.assignments.length} seats ·
+              ${scenario.groups.length} groups ·
+              ${scenario.rules.length} rules
+            </small>
+          </div>
+          <button
+            class="icon-button danger-text"
+            type="button"
+            data-remove-scenario="${escapeHtml(scenario.id)}"
+            title="Remove planning scenario"
+          >×</button>
+        </div>
+      `,
+    )
+    .join('')
+}
+
+function normalizeScenarioSelections(): void {
+  const scenarios = project?.planning?.scenarios ?? []
+  const ids = scenarios.map((scenario) => scenario.id)
+
+  if (!selectedScenarioLeftId || !ids.includes(selectedScenarioLeftId)) {
+    selectedScenarioLeftId = ids[0] ?? null
+  }
+  if (
+    !selectedScenarioRightId ||
+    !ids.includes(selectedScenarioRightId) ||
+    selectedScenarioRightId === selectedScenarioLeftId
+  ) {
+    selectedScenarioRightId = ids.find((id) => id !== selectedScenarioLeftId) ?? null
+  }
+}
+
+function renderRelationships(content: HTMLElement): void {
+  if (!project) return
+  normalizeScenarioSelections()
+
+  const fromStudentOptions = project.students
+    .map((student, index) => optionHtml(student.id, studentOptionLabel(student), index === 0))
+    .join('')
+  const toStudentOptions = project.students
+    .map((student, index) => optionHtml(student.id, studentOptionLabel(student), index === 1))
+    .join('')
+  const canAdd = project.students.length >= 2
+
+  content.innerHTML = `
+    <div class="relationship-stack">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Explicit relationship records</p>
+            <h2>Relationships</h2>
+          </div>
+          <span class="schema-badge">${project.relationships?.length ?? 0} edges</span>
+        </div>
+        <p>
+          This workspace shows only relationships explicitly supplied by a teacher/import or clearly
+          marked synthetic data. ClassGraph does not infer friendship, conflict, compatibility,
+          social status, or peer influence from grades, participation, demographics, attendance,
+          names, or seating history.
+        </p>
+
+        <form id="add-relationship-form" class="relationship-form">
+          <label>
+            From
+            <select name="fromStudentId" ${canAdd ? '' : 'disabled'}>${fromStudentOptions}</select>
+          </label>
+          <label>
+            To
+            <select name="toStudentId" ${canAdd ? '' : 'disabled'}>${toStudentOptions}</select>
+          </label>
+          <label>
+            Type
+            <select name="type" ${canAdd ? '' : 'disabled'}>
+              ${relationshipTypeOptions('works-well-with')}
+            </select>
+          </label>
+          <label>
+            Label
+            <input name="label" placeholder="Optional" ${canAdd ? '' : 'disabled'} />
+          </label>
+          <label>
+            Weight
+            <input name="weight" type="number" step="any" placeholder="Optional" ${canAdd ? '' : 'disabled'} />
+          </label>
+          <label class="lock-toggle relationship-directed-control">
+            <input name="directed" type="checkbox" ${canAdd ? '' : 'disabled'} />
+            Directed
+          </label>
+          <button class="primary compact" type="submit" ${canAdd ? '' : 'disabled'}>
+            Add relationship
+          </button>
+        </form>
+        ${canAdd ? '' : '<p class="report-note">Add at least two students before recording a relationship.</p>'}
+      </article>
+
+      <article class="panel relationship-graph-panel">
+        <div class="analysis-toolbar">
+          <div>
+            <p class="eyebrow">Deterministic network</p>
+            <h2>Explicit edges only</h2>
+          </div>
+          <label class="compact-label">
+            Focus student
+            <select id="relationship-focus">
+              ${optionHtml('', 'Whole class', selectedRelationshipFocusStudentId === null)}
+              ${project.students
+                .map((student) =>
+                  optionHtml(
+                    student.id,
+                    studentOptionLabel(student),
+                    student.id === selectedRelationshipFocusStudentId,
+                  ),
+                )
+                .join('')}
+            </select>
+          </label>
+        </div>
+        <p>
+          Node positions are deterministic. Focusing a student only rearranges the same explicit
+          edges so direct recorded neighbours are easier to inspect; it does not infer new links.
+        </p>
+        <div id="relationship-graph-stage" class="relationship-graph-stage">
+          <div class="empty-analysis">Building the explicit relationship graph…</div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="analysis-toolbar">
+          <div>
+            <p class="eyebrow">Accessible table</p>
+            <h2>Recorded edges and sources</h2>
+          </div>
+          <label class="compact-label">
+            Type filter
+            <select id="relationship-type-filter">
+              ${optionHtml('all', 'All types', selectedRelationshipTypeFilter === 'all')}
+              ${relationshipTypeOptions(
+                selectedRelationshipTypeFilter === 'all'
+                  ? undefined
+                  : selectedRelationshipTypeFilter,
+              )}
+            </select>
+          </label>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table relationship-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Type / label</th>
+                <th>Direction</th>
+                <th>Weight</th>
+                <th>Provenance</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${renderRelationshipRows()}
+            </tbody>
+          </table>
+        </div>
+        <p class="analysis-footnote">
+          Undirected A↔B and B↔A records with the same relationship meaning are treated as duplicates.
+          Directed A→B and B→A are distinct. Missing relationship records are never reconstructed.
+        </p>
+      </article>
+
+      <div class="relationship-history-grid">
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Approved seating history</p>
+              <h2>Repeat-neighbour record</h2>
+            </div>
+            <span class="schema-badge">${project.planning?.history?.length ?? 0} snapshots</span>
+          </div>
+          <p>
+            History is added only when you explicitly record the current persisted seating plan.
+            Current candidates and missing past plans are never reconstructed.
+          </p>
+          <form id="record-history-form" class="snapshot-form">
+            <label>
+              Label
+              <input name="label" placeholder="e.g. Week 4 approved plan" />
+            </label>
+            <label>
+              Neighbour rule
+              <select name="neighbourMode">
+                <option value="orthogonal">Side-by-side only</option>
+                <option value="king">Side or diagonal</option>
+              </select>
+            </label>
+            <button
+              class="secondary compact"
+              type="submit"
+              ${project.room && (project.planning?.assignments?.length ?? 0) > 0 ? '' : 'disabled'}
+            >Record current seating</button>
+          </form>
+          ${renderHistoryRecords()}
+          <div id="repeat-neighbour-stage" class="snapshot-analysis">
+            <div class="empty-analysis">Reading stored seating history…</div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Saved planning scenarios</p>
+              <h2>Before / after comparison</h2>
+            </div>
+            <span class="schema-badge">${project.planning?.scenarios?.length ?? 0} saved</span>
+          </div>
+          <p>
+            A scenario snapshots the exact persisted room, seating, groups, rules and planning seed.
+            It does not save transient generated candidates.
+          </p>
+          <form id="save-scenario-form" class="snapshot-form">
+            <label>
+              Scenario label
+              <input name="label" required placeholder="e.g. Before museum project" />
+            </label>
+            <button class="secondary compact" type="submit">Save current planning</button>
+          </form>
+          ${renderScenarioRecords()}
+          <div class="scenario-controls">
+            <label>
+              Before
+              <select id="scenario-left" ${(project.planning?.scenarios?.length ?? 0) < 2 ? 'disabled' : ''}>
+                ${(project.planning?.scenarios ?? [])
+                  .map((scenario) =>
+                    optionHtml(scenario.id, scenario.label, scenario.id === selectedScenarioLeftId),
+                  )
+                  .join('')}
+              </select>
+            </label>
+            <label>
+              After
+              <select id="scenario-right" ${(project.planning?.scenarios?.length ?? 0) < 2 ? 'disabled' : ''}>
+                ${(project.planning?.scenarios ?? [])
+                  .map((scenario) =>
+                    optionHtml(
+                      scenario.id,
+                      scenario.label,
+                      scenario.id === selectedScenarioRightId,
+                    ),
+                  )
+                  .join('')}
+              </select>
+            </label>
+          </div>
+          <div id="scenario-comparison-stage" class="snapshot-analysis">
+            <div class="empty-analysis">
+              ${
+                (project.planning?.scenarios?.length ?? 0) >= 2
+                  ? 'Comparing saved planning snapshots…'
+                  : 'Save at least two planning scenarios to compare them.'
+              }
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  `
+
+  bindRelationshipEvents()
+  void loadRelationshipGraph()
+  void loadRepeatNeighbourHistory()
+  void loadScenarioComparison()
+}
+
+function readRelationshipField<T extends HTMLInputElement | HTMLSelectElement>(
+  selector: string,
+  relationshipId: string,
+): T | null {
+  return document.querySelector<T>(`[${selector}="${CSS.escape(relationshipId)}"]`)
+}
+
+function relationshipGraphClass(type: RelationshipType): string {
+  return `relationship-edge-${type}`
+}
+
+function renderRelationshipGraphSvg(graph: RelationshipGraphView): string {
+  if (graph.nodes.length === 0) {
+    return '<div class="empty-analysis">Add students to display the relationship graph.</div>'
+  }
+
+  const coordinates = new Map(
+    graph.nodes.map((node) => [node.studentId, { x: node.x * 1000, y: node.y * 600 }]),
+  )
+
+  const edges = graph.edges
+    .map((edge) => {
+      const from = coordinates.get(edge.fromStudentId)
+      const to = coordinates.get(edge.toStudentId)
+      if (!from || !to) return ''
+      const titleParts = [
+        edge.label || edge.type,
+        edge.directed ? 'directed' : 'undirected',
+        edge.provenance?.kind ? `source: ${edge.provenance.kind}` : '',
+      ].filter(Boolean)
+      return `
+        <line
+          class="relationship-edge ${relationshipGraphClass(edge.type)}"
+          x1="${from.x}"
+          y1="${from.y}"
+          x2="${to.x}"
+          y2="${to.y}"
+          ${edge.directed ? 'marker-end="url(#relationship-arrow)"' : ''}
+        >
+          <title>${escapeHtml(titleParts.join(' · '))}</title>
+        </line>
+      `
+    })
+    .join('')
+
+  const nodes = graph.nodes
+    .map((node) => {
+      const x = node.x * 1000
+      const y = node.y * 600
+      const classes = [
+        'relationship-node',
+        node.focused ? 'focused' : '',
+        node.connectedToFocus ? 'connected' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+      return `
+        <g class="${classes}" transform="translate(${x} ${y})">
+          <circle r="${node.focused ? 29 : 23}"></circle>
+          <text y="42" text-anchor="middle">${escapeHtml(node.label)}</text>
+          <title>${escapeHtml(node.studentId)}</title>
+        </g>
+      `
+    })
+    .join('')
+
+  return `
+    <svg
+      class="relationship-graph"
+      viewBox="0 0 1000 600"
+      role="img"
+      aria-label="Explicit relationship network. A table equivalent appears below."
+    >
+      <defs>
+        <marker
+          id="relationship-arrow"
+          markerWidth="8"
+          markerHeight="8"
+          refX="7"
+          refY="3"
+          orient="auto"
+          markerUnits="strokeWidth"
+        >
+          <path d="M0,0 L0,6 L7,3 z"></path>
+        </marker>
+      </defs>
+      ${edges}
+      ${nodes}
+    </svg>
+  `
+}
+
+async function loadRelationshipGraph(): Promise<void> {
+  if (!project || activeView !== 'relationships') return
+  const sourceProject = project
+  const stage = document.querySelector<HTMLElement>('#relationship-graph-stage')
+  if (!stage) return
+
+  try {
+    const response = await postJson<{ graph: RelationshipGraphView }>('/api/relationships/graph', {
+      project,
+      ...(selectedRelationshipFocusStudentId
+        ? { focusStudentId: selectedRelationshipFocusStudentId }
+        : {}),
+    })
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = renderRelationshipGraphSvg(response.graph)
+  } catch (error) {
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = `
+      <div class="empty-analysis">
+        ${escapeHtml(error instanceof Error ? error.message : 'Could not build the relationship graph.')}
+      </div>
+    `
+  }
+}
+
+function studentDisplay(studentId: string): string {
+  const student = project?.students.find((item) => item.id === studentId)
+  return student?.displayName ? `${student.displayName} (${studentId})` : studentId
+}
+
+function renderRepeatNeighbourHistory(history: RepeatNeighbourHistoryView): string {
+  const rows = history.pairs
+    .map(
+      (pair) => `
+        <tr>
+          <td>${escapeHtml(studentDisplay(pair.studentAId))}</td>
+          <td>${escapeHtml(studentDisplay(pair.studentBId))}</td>
+          <td>${pair.count}</td>
+          <td>${pair.historyIds.length}</td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  return `
+    <div class="snapshot-summary-grid">
+      <div><b>${history.historyRecordCount}</b><span>stored snapshots</span></div>
+      <div><b>${history.usableRecordCount}</b><span>grid snapshots analysed</span></div>
+      <div><b>${history.pairs.length}</b><span>recorded neighbour pairs</span></div>
+    </div>
+    <div class="data-table-wrap">
+      <table class="mini-table">
+        <thead><tr><th>Student A</th><th>Student B</th><th>Times adjacent</th><th>Snapshots</th></tr></thead>
+        <tbody>
+          ${rows || '<tr><td colspan="4" class="empty-cell">No neighbour pairs exist in the stored approved history.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    ${
+      history.skippedRecordIds.length
+        ? `<p class="report-note">Custom-layout history is preserved but not used for grid-neighbour counts: ${escapeHtml(history.skippedRecordIds.join(', '))}</p>`
+        : ''
+    }
+  `
+}
+
+async function loadRepeatNeighbourHistory(): Promise<void> {
+  if (!project || activeView !== 'relationships') return
+  const sourceProject = project
+  const stage = document.querySelector<HTMLElement>('#repeat-neighbour-stage')
+  if (!stage) return
+
+  try {
+    const response = await postJson<{ history: RepeatNeighbourHistoryView }>(
+      '/api/planning/history-analysis',
+      { project },
+    )
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = renderRepeatNeighbourHistory(response.history)
+  } catch (error) {
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = `<div class="empty-analysis">${escapeHtml(
+      error instanceof Error ? error.message : 'Could not analyse seating history.',
+    )}</div>`
+  }
+}
+
+function deltaLabel(value: number): string {
+  if (value > 0) return `+${value}`
+  return String(value)
+}
+
+function renderScenarioComparison(comparison: PlanningScenarioComparisonView): string {
+  const planningRows = [
+    {
+      label: 'Persisted seat assignments',
+      left: comparison.assignments.leftCount,
+      right: comparison.assignments.rightCount,
+      delta: comparison.assignments.rightCount - comparison.assignments.leftCount,
+      detail: `${comparison.assignments.movedStudents.length} moved · ${comparison.assignments.addedStudents.length} added · ${comparison.assignments.removedStudents.length} removed`,
+    },
+    {
+      label: 'Saved groups',
+      left: comparison.groups.leftCount,
+      right: comparison.groups.rightCount,
+      delta: comparison.groups.rightCount - comparison.groups.leftCount,
+      detail: `${comparison.groups.changedStudents.length} students changed group`,
+    },
+    {
+      label: 'Planning rules',
+      left: comparison.rules.leftCount,
+      right: comparison.rules.rightCount,
+      delta: comparison.rules.rightCount - comparison.rules.leftCount,
+      detail: `${comparison.rules.addedRuleIds.length} added · ${comparison.rules.removedRuleIds.length} removed`,
+    },
+  ]
+
+  const allRows = [
+    ...planningRows,
+    ...comparison.network.counts.map((item) => ({
+      label: item.label,
+      left: item.left,
+      right: item.right,
+      delta: item.delta,
+      detail: 'Descriptive explicit-edge count',
+    })),
+  ]
+
+  const rows = allRows
+    .map(
+      (row) => `
+        <tr>
+          <td><b>${escapeHtml(row.label)}</b><small>${escapeHtml(row.detail)}</small></td>
+          <td>${row.left}</td>
+          <td>${row.right}</td>
+          <td>${escapeHtml(deltaLabel(row.delta))}</td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  const typeRows = comparison.network.byType
+    .map(
+      (row) => `
+        <tr>
+          <td>${escapeHtml(row.label)}</td>
+          <td>${row.left}</td>
+          <td>${row.right}</td>
+          <td>${escapeHtml(deltaLabel(row.delta))}</td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  return `
+    <p class="report-note">
+      Deltas are descriptive only. ClassGraph does not treat more or fewer relationship edges as
+      educationally better. Network counts use the current explicit relationship records against
+      each saved scenario's exact group membership.
+    </p>
+    <div class="data-table-wrap">
+      <table class="mini-table scenario-comparison-table">
+        <thead><tr><th>Dimension</th><th>Before</th><th>After</th><th>Δ</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <details class="scenario-type-details">
+      <summary>Relationship counts by recorded type</summary>
+      <div class="data-table-wrap">
+        <table class="mini-table">
+          <thead><tr><th>Type</th><th>Before</th><th>After</th><th>Δ</th></tr></thead>
+          <tbody>${typeRows}</tbody>
+        </table>
+      </div>
+    </details>
+  `
+}
+
+async function loadScenarioComparison(): Promise<void> {
+  if (
+    !project ||
+    activeView !== 'relationships' ||
+    !selectedScenarioLeftId ||
+    !selectedScenarioRightId ||
+    selectedScenarioLeftId === selectedScenarioRightId
+  ) {
+    return
+  }
+
+  const sourceProject = project
+  const stage = document.querySelector<HTMLElement>('#scenario-comparison-stage')
+  if (!stage) return
+
+  try {
+    const response = await postJson<{ comparison: PlanningScenarioComparisonView }>(
+      '/api/planning/scenario-comparison',
+      {
+        project,
+        leftScenarioId: selectedScenarioLeftId,
+        rightScenarioId: selectedScenarioRightId,
+      },
+    )
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = renderScenarioComparison(response.comparison)
+  } catch (error) {
+    if (project !== sourceProject || activeView !== 'relationships') return
+    stage.innerHTML = `<div class="empty-analysis">${escapeHtml(
+      error instanceof Error ? error.message : 'Could not compare planning scenarios.',
+    )}</div>`
+  }
+}
+
+function bindRelationshipEvents(): void {
+  document
+    .querySelector<HTMLFormElement>('#record-history-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const data = new FormData(event.currentTarget as HTMLFormElement)
+      const label = asString(data, 'label')
+      const neighbourMode =
+        asString(data, 'neighbourMode') === 'king' ? ('king' as const) : ('orthogonal' as const)
+      void mutateProject({
+        type: 'record-seating-history',
+        ...(label ? { label } : {}),
+        neighbourMode,
+      })
+    })
+
+  document
+    .querySelector<HTMLFormElement>('#save-scenario-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const data = new FormData(event.currentTarget as HTMLFormElement)
+      const label = asString(data, 'label')
+      if (!label) return
+      void mutateProject({ type: 'save-planning-scenario', label })
+    })
+
+  document
+    .querySelector<HTMLSelectElement>('#scenario-left')
+    ?.addEventListener('change', (event) => {
+      selectedScenarioLeftId = (event.currentTarget as HTMLSelectElement).value || null
+      if (selectedScenarioLeftId === selectedScenarioRightId) {
+        selectedScenarioRightId =
+          (project?.planning?.scenarios ?? []).find(
+            (scenario) => scenario.id !== selectedScenarioLeftId,
+          )?.id ?? null
+        renderWorkspace()
+        return
+      }
+      void loadScenarioComparison()
+    })
+
+  document
+    .querySelector<HTMLSelectElement>('#scenario-right')
+    ?.addEventListener('change', (event) => {
+      selectedScenarioRightId = (event.currentTarget as HTMLSelectElement).value || null
+      if (selectedScenarioRightId === selectedScenarioLeftId) {
+        selectedScenarioLeftId =
+          (project?.planning?.scenarios ?? []).find(
+            (scenario) => scenario.id !== selectedScenarioRightId,
+          )?.id ?? null
+        renderWorkspace()
+        return
+      }
+      void loadScenarioComparison()
+    })
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-remove-history]')) {
+    button.addEventListener('click', () => {
+      const historyId = button.dataset.removeHistory
+      if (!historyId || !window.confirm('Remove this approved seating history record?')) return
+      void mutateProject({ type: 'remove-seating-history', historyId })
+    })
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-remove-scenario]')) {
+    button.addEventListener('click', () => {
+      const scenarioId = button.dataset.removeScenario
+      if (!scenarioId || !window.confirm('Remove this saved planning scenario?')) return
+      if (scenarioId === selectedScenarioLeftId) selectedScenarioLeftId = null
+      if (scenarioId === selectedScenarioRightId) selectedScenarioRightId = null
+      void mutateProject({ type: 'remove-planning-scenario', scenarioId })
+    })
+  }
+
+  document
+    .querySelector<HTMLSelectElement>('#relationship-focus')
+    ?.addEventListener('change', (event) => {
+      const value = (event.currentTarget as HTMLSelectElement).value
+      selectedRelationshipFocusStudentId = value || null
+      void loadRelationshipGraph()
+    })
+
+  document
+    .querySelector<HTMLSelectElement>('#relationship-type-filter')
+    ?.addEventListener('change', (event) => {
+      const value = (event.currentTarget as HTMLSelectElement).value
+      selectedRelationshipTypeFilter = value === 'all' ? 'all' : (value as RelationshipType)
+      renderWorkspace()
+    })
+
+  document
+    .querySelector<HTMLFormElement>('#add-relationship-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const data = new FormData(event.currentTarget as HTMLFormElement)
+      const fromStudentId = asString(data, 'fromStudentId')
+      const toStudentId = asString(data, 'toStudentId')
+      const type = asString(data, 'type') as RelationshipType
+      const label = asString(data, 'label')
+      const weight = optionalNumber(asString(data, 'weight'))
+      const directed = data.get('directed') === 'on'
+
+      void mutateProject({
+        type: 'add-relationship',
+        relationship: {
+          id: relationshipRecordId(),
+          fromStudentId,
+          toStudentId,
+          type,
+          ...(label ? { label } : {}),
+          ...(directed ? { directed: true } : {}),
+          ...(weight !== undefined ? { weight } : {}),
+        },
+      })
+    })
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-save-relationship]')) {
+    button.addEventListener('click', () => {
+      const relationshipId = button.dataset.saveRelationship
+      if (!relationshipId) return
+
+      const from = readRelationshipField<HTMLSelectElement>(
+        'data-relationship-from',
+        relationshipId,
+      )
+      const to = readRelationshipField<HTMLSelectElement>('data-relationship-to', relationshipId)
+      const typeSelect = readRelationshipField<HTMLSelectElement>(
+        'data-relationship-type',
+        relationshipId,
+      )
+      const label = readRelationshipField<HTMLInputElement>(
+        'data-relationship-label',
+        relationshipId,
+      )
+      const directed = readRelationshipField<HTMLInputElement>(
+        'data-relationship-directed',
+        relationshipId,
+      )
+      const weight = readRelationshipField<HTMLInputElement>(
+        'data-relationship-weight',
+        relationshipId,
+      )
+
+      void mutateProject({
+        type: 'update-relationship',
+        relationshipId,
+        patch: {
+          fromStudentId: from?.value ?? '',
+          toStudentId: to?.value ?? '',
+          type: (typeSelect?.value ?? 'custom') as RelationshipType,
+          label: label?.value.trim() || null,
+          directed: directed?.checked ?? false,
+          weight: weight?.value.trim() ? Number(weight.value) : null,
+        },
+      })
+    })
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-remove-relationship]')) {
+    button.addEventListener('click', () => {
+      const relationshipId = button.dataset.removeRelationship
+      if (!relationshipId) return
+      if (!window.confirm(`Remove relationship ${relationshipId}?`)) return
+      void mutateProject({ type: 'remove-relationship', relationshipId })
     })
   }
 }

@@ -147,6 +147,30 @@ export type SoftPlanningRule =
 
 export type PlanningRule = HardPlanningRule | SoftPlanningRule
 
+export interface ApprovedSeatingHistoryEntry {
+  version: '1.0'
+  id: string
+  label?: string
+  approvedAt: string
+  neighbourMode: 'orthogonal' | 'king'
+  room: RoomDefinition
+  assignments: PlanningSeatAssignment[]
+}
+
+export interface PlanningScenario {
+  version: '1.0'
+  id: string
+  label: string
+  savedAt: string
+  room?: RoomDefinition
+  seed?: string
+  selectedMetricKeys?: string[]
+  assignments: PlanningSeatAssignment[]
+  rules: PlanningRule[]
+  groups: PlanningGroup[]
+  approvedCandidateId?: string
+}
+
 export interface PlanningConfiguration {
   ruleSchemaVersion?: '1.0'
   seed?: string
@@ -155,6 +179,8 @@ export interface PlanningConfiguration {
   rules?: PlanningRule[]
   groups?: PlanningGroup[]
   approvedCandidateId?: string
+  history?: ApprovedSeatingHistoryEntry[]
+  scenarios?: PlanningScenario[]
 }
 
 export interface ClassGraphProject {
