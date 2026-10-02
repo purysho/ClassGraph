@@ -13,24 +13,24 @@
   <img alt="Release" src="https://img.shields.io/github/v/release/purysho/ClassGraph?style=flat-square">
   <img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/purysho/ClassGraph/tests.yml?branch=main&label=tests&style=flat-square">
   <img alt="Local first" src="https://img.shields.io/badge/data-local--first-4f46e5?style=flat-square">
-  <img alt="Node 22" src="https://img.shields.io/badge/runtime-Node%2022-17212a?style=flat-square">
+  <img alt="Desktop app" src="https://img.shields.io/badge/app-native%20desktop-17212a?style=flat-square">
 </p>
 
 ## Download
 
 <p>
-  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-Windows-x64.exe"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
-  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-macOS-AppleSilicon.app.zip"><img alt="Download for macOS Apple Silicon" src="https://img.shields.io/badge/Download-macOS%20(Apple%20Silicon)-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
-  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-macOS-Intel.app.zip"><img alt="Download for macOS Intel" src="https://img.shields.io/badge/Download-macOS%20(Intel)-555555?style=for-the-badge&logo=apple&logoColor=white"></a>
-  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-Linux-x64.tar.gz"><img alt="Download for Linux" src="https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
+  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-Setup.exe"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
+  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-macOS-AppleSilicon.dmg"><img alt="Download for macOS Apple Silicon" src="https://img.shields.io/badge/Download-macOS%20(Apple%20Silicon)-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-macOS-Intel.dmg"><img alt="Download for macOS Intel" src="https://img.shields.io/badge/Download-macOS%20(Intel)-555555?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-Linux-x64.AppImage"><img alt="Download for Linux" src="https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
 </p>
 
-No Node.js installation is needed for these downloads. Each build contains the runtime and ClassGraph UI.
+No Node.js installation is needed. These are normal desktop builds: ClassGraph opens in its own window and the packaged app does **not** start a localhost server or open your browser.
 
-- **Windows** — download `ClassGraph-Windows-x64.exe` and double-click it. It opens ClassGraph in your default browser without leaving a PowerShell/console window open; the executable uses the CG app icon.
-- **macOS Apple Silicon** — for M1/M2/M3/M4 and later Apple-chip Macs; the app bundle uses the CG icon.
-- **macOS Intel** — for Intel-based Macs; the app bundle uses the CG icon.
-- **Linux** — extract `ClassGraph-Linux-x64.tar.gz`; the package includes the executable, CG PNG icon, and a `ClassGraph.desktop` launcher definition.
+- **Windows** — install with `ClassGraph-Setup.exe`. The installer creates a ClassGraph desktop shortcut using the CG icon. A `ClassGraph-Portable.exe` download is also available if you prefer not to install it.
+- **macOS Apple Silicon** — use `ClassGraph-macOS-AppleSilicon.dmg` for Apple-chip Macs.
+- **macOS Intel** — use `ClassGraph-macOS-Intel.dmg` for Intel Macs.
+- **Linux** — use `ClassGraph-Linux-x64.AppImage`.
 - **Verify a download** — compare it with [`SHA256SUMS.txt`](https://github.com/purysho/ClassGraph/releases/latest/download/SHA256SUMS.txt).
 
 > Windows builds are currently unsigned and macOS builds are ad-hoc signed rather than notarised. Windows SmartScreen or macOS Gatekeeper may therefore show a first-run warning.
@@ -54,32 +54,34 @@ ClassGraph is designed to support teacher judgement. It does **not** diagnose st
 
 ## A local-first workflow
 
-ClassGraph now **saves projects automatically on this device**. In the packaged app, use **Quit** when you want to stop the local ClassGraph process completely; launching it again reopens the most recently used class. The Projects screen also lists locally saved classes.
+ClassGraph **saves projects automatically as ordinary files in your Documents folder**. The packaged app opens in its own desktop window; closing the window closes ClassGraph.
 
 1. **Create, import, restore, or generate** a class.
 2. **Record the metrics you choose** and keep observed, entered, imported, derived, and synthetic values distinguishable.
 3. **Explore descriptive views** before making planning changes.
 4. **Build seating or grouping candidates** against explicit constraints and objectives.
 5. **Review the explanation**, then accept, change, or ignore the suggestion.
-6. **Backup JSON** when you want a portable copy for cloud storage, another computer, or a future reinstall. Reports and analysis exports remain available separately.
+6. **Copy or back up the project file** whenever you want an extra copy in OneDrive, iCloud Drive, Google Drive, USB storage, or another computer.
 
-ClassGraph binds to `127.0.0.1` by default. Core workflows work without a cloud account, telemetry, remote fonts, or remote scripts.
+The packaged desktop app does not bind to `127.0.0.1`, does not open a browser, and does not require a background PowerShell/terminal window.
 
 ### Saving, backups, and moving computers
 
-The desktop build stores validated ClassGraph project JSON in a local project library:
+Your projects are readable JSON files in:
 
-- **Windows:** `%LOCALAPPDATA%\ClassGraph`
-- **macOS:** `~/Library/Application Support/ClassGraph`
-- **Linux:** `${XDG_DATA_HOME:-~/.local/share}/ClassGraph`
+`Documents/ClassGraph/Projects`
 
-Each accepted edit autosaves. Before ClassGraph overwrites a saved project, it keeps a small rolling local safety copy.
+A class called **Grade 5A English** is saved as:
 
-For a portable backup, click **Backup JSON**. The resulting `.classgraph.json` file is ordinary validated ClassGraph JSON, so you can put it in OneDrive, iCloud Drive, Google Drive, a USB stick, or any other storage you control.
+`Grade 5A English.classgraph.json`
 
-If ClassGraph is deleted, reinstalled, or moved to a new computer, choose **Import / restore backup** and select that `.classgraph.json` file. Older ClassGraph `.json` project exports using the supported Exchange schema are accepted too. Imported provenance and project IDs are preserved.
+You can see those files in File Explorer/Finder, copy them, sync them, or rename a valid ClassGraph project file. ClassGraph discovers projects by the project ID stored inside the file rather than relying on an opaque filename.
 
-Deleting the ClassGraph executable does not automatically delete the local project library on the same computer.
+Each accepted edit autosaves. Before overwriting an existing project, ClassGraph keeps a small rolling safety copy under:
+
+`Documents/ClassGraph/Backups`
+
+Use **Backup JSON** when you want to choose a separate location for an extra copy. To recover after reinstalling ClassGraph or moving to a new computer, choose **Import / restore backup** and select a supported `.classgraph.json` or older ClassGraph `.json` file. Existing v0.7 projects are migrated from the old hidden local library into the visible Documents library when possible.
 
 ## Optional assistance
 
@@ -103,7 +105,7 @@ With no provider configured, the core app and offline assistance remain usable.
 - **Explain the plan.** Seating and grouping candidates show the constraints, objectives, penalties, and remaining trade-offs.
 - **Accessible equivalents.** Important visual views retain table-based alternatives.
 - **Portable by design.** Versioned JSON is the machine-readable source of truth.
-- **Lean runtime.** The desktop downloads use Node Single Executable Applications rather than bundling Electron.
+- **Normal desktop packaging.** Windows, macOS and Linux builds use a native Electron shell with isolated IPC; the renderer has no Node integration and the packaged app does not run a localhost server.
 
 ## Run from source
 
@@ -112,26 +114,21 @@ Requirements:
 - Node.js 22 or newer
 - npm
 
+For the desktop app:
+
 ```bash
 npm ci
-npm run check
-npm run build
+npm run build:desktop
 npm start
 ```
 
-Then open:
-
-```text
-http://127.0.0.1:4317
-```
-
-For development:
+A browser-served development mode is still available for source-level testing only:
 
 ```bash
 npm run dev
 ```
 
-`CLASSGRAPH_PORT` can change the local port. `CLASSGRAPH_HOST` can override the host, but a non-loopback host may expose student data to other devices and should only be used deliberately on a trusted network.
+That development mode uses the loopback server; the downloadable desktop builds do not.
 
 ### Optional network provider
 
@@ -165,7 +162,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Optional network assistance with pre-send disclosure
 
 <details>
-<summary><strong>Implementation history — Phases 1–7</strong></summary>
+<summary><strong>Implementation history — Phases 1–8</strong></summary>
 
 ### Phase 1 — Workspace and analysis
 
@@ -191,9 +188,13 @@ Offline proposal generation plus an optional direct-HTTPS provider boundary with
 
 Self-contained Windows, macOS Apple Silicon, macOS Intel, and Linux builds using Node 22 Single Executable Applications, native executable self-tests, release automation, and SHA-256 checksums.
 
-### Phase 7 — Desktop UX and local saves
+### Phase 7 — First desktop wrapper and local saves
 
-Quiet Windows launch, CG operating-system icons, filesystem-backed autosave, recent-project reopening, rolling local safety copies, and portable Backup JSON / Import restore flows.
+Introduced filesystem-backed autosave, recent-project reopening, rolling local safety copies, and portable Backup JSON / Import restore flows. The browser/localhost wrapper from this phase is superseded by Phase 8.
+
+### Phase 8 — Native desktop correction
+
+ClassGraph now opens in its own desktop window with isolated IPC and no localhost server in packaged builds. Projects are readable title-based files in `Documents/ClassGraph/Projects`; Windows uses a normal installer/desktop shortcut with the CG icon, with macOS DMG and Linux AppImage packages.
 
 </details>
 
@@ -208,6 +209,7 @@ Quiet Windows launch, CG operating-system icons, filesystem-backed autosave, rec
 - [`docs/PHASE_5.md`](docs/PHASE_5.md) — Phase 5 recovery and Gate 5
 - [`docs/PHASE_6.md`](docs/PHASE_6.md) — Phase 6 recovery and Gate 6
 - [`docs/PHASE_7.md`](docs/PHASE_7.md) — Phase 7 recovery and Gate 7
+- [`docs/PHASE_8.md`](docs/PHASE_8.md) — Phase 8 native desktop correction and Gate 8
 
 ## Branding
 
