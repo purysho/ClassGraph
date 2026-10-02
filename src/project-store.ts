@@ -107,7 +107,7 @@ export class FileProjectStore {
   }
 
   private currentPath(projectId: string): string {
-    return join(this.projectsDirectory, \`\${projectKey(projectId)}.classgraph.json\`)
+    return join(this.projectsDirectory, `${projectKey(projectId)}.classgraph.json`)
   }
 
   private backupDirectory(projectId: string): string {
@@ -128,7 +128,7 @@ export class FileProjectStore {
 
   private async writeManifest(manifest: LibraryManifest): Promise<void> {
     await this.initialize()
-    const temp = \`\${this.manifestPath}.next\`
+    const temp = `${this.manifestPath}.next`
     await writeFile(temp, JSON.stringify(manifest, null, 2) + '\n', {
       encoding: 'utf8',
       mode: 0o600,
@@ -147,7 +147,7 @@ export class FileProjectStore {
 
     const directory = this.backupDirectory(projectId)
     await mkdir(directory, { recursive: true })
-    const backupPath = join(directory, \`\${timestampKey()}.classgraph.json\`)
+    const backupPath = join(directory, `${timestampKey()}.classgraph.json`)
     await copyFile(currentPath, backupPath)
 
     const entries = (await readdir(directory))
@@ -174,7 +174,7 @@ export class FileProjectStore {
 
     if (!unchanged) {
       await this.preservePrevious(project.projectId, target)
-      const temp = \`\${target}.next\`
+      const temp = `${target}.next`
       await writeFile(temp, serialized, { encoding: 'utf8', mode: 0o600 })
       await rm(target, { force: true })
       await rename(temp, target)
@@ -193,7 +193,7 @@ export class FileProjectStore {
       project = parseProjectJson(await readFile(path, 'utf8'))
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      throw new Error(\`CG-2012 saved project could not be opened: \${message}\`)
+      throw new Error(`CG-2012 saved project could not be opened: ${message}`)
     }
 
     if (project.projectId !== projectId) {
