@@ -748,6 +748,23 @@ Assistance only proposes. Synthetic generation and planning mutations remain sep
 
 ---
 
+### Phase 6 — Cross-platform desktop distribution
+
+Implemented/required scope:
+
+- official Node Single Executable Application packaging rather than Electron;
+- embedded local UI assets inside the executable;
+- native Windows x64, Linux x64, macOS arm64, and macOS x64 builds;
+- loopback-only packaged runtime with default-browser launch and occupied-port fallback;
+- executable-level self-test on every native build runner;
+- tagged GitHub releases containing user-facing downloads and SHA-256 checksums;
+- packaging-only tools remain outside runtime dependencies;
+- signing/notarisation is an explicit credential-dependent release concern rather than a reason to weaken the build boundary.
+
+Desktop packaging must not change canonical project data, assistance behavior, EduBoard interchange, provenance, or missing-data semantics.
+
+---
+
 ## 15. Go/no-go gates
 
 ### Gate 1 — foundation
@@ -801,8 +818,21 @@ Proceed only when:
 - provider secrets remain outside project/export/browser state;
 - CI passes without a provider key or live external service.
 
+### Gate 6 — desktop releases
+
+Proceed only when:
+
+- the normal quality gate and production dependency audit pass;
+- packaged executables pass their own self-test on native Windows, Linux, macOS arm64, and macOS Intel runners;
+- downloadable builds require no separate Node.js installation;
+- UI assets are embedded and served locally;
+- packaged runtime binds only to loopback;
+- all four release downloads and SHA-256 checksums are produced;
+- no Electron/runtime desktop framework is introduced;
+- packaging-only tooling does not become a shipped runtime dependency.
+
 ---
 
 ## 16. Immediate implementation instruction
 
-> Phase 0–5 are implemented. Preserve the lean local architecture, explicit provenance, missing-data semantics, and proposal-only assistance boundary. Any future phase must keep the core usable with no network provider, avoid hidden student-trait inference, and justify every new runtime dependency.
+> Phase 0–5 are implemented and merged. Phase 6 adds cross-platform desktop distribution without replacing the lean local architecture. Preserve explicit provenance, missing-data semantics, the proposal-only assistance boundary, loopback-first operation, and the no-hidden-trait rule. Any future phase must justify every new runtime dependency.
