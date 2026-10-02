@@ -46,8 +46,8 @@ describe('local app server', () => {
     expect(response.status).toBe(200)
     const html = await response.text()
     expect(html).toContain('<div id="app"></div>')
-    expect(html).toContain('src="/app.js"')
-    expect(html).toContain('href="/styles.css"')
+    expect(html).toContain('src="../dist/app-client.js"')
+    expect(html).toContain('href="./styles.css"')
     expect(html).not.toMatch(/https?:\/\//)
   })
 
@@ -115,7 +115,7 @@ describe('local app server', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('content-disposition')).toContain('classgraph-project.json')
+    expect(response.headers.get('content-disposition')).toContain('classgraph-project.classgraph.json')
     const exported = JSON.parse(await response.text()) as { schemaVersion: string }
     expect(exported.schemaVersion).toBe('1.0')
   })
