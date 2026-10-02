@@ -4,7 +4,7 @@
 
 ## Project status
 
-**Phase 0 is merged. Phase 1 is complete on PR #3. Phase 2 is complete on PR #4 and has passed Gate 2.**
+**Phase 0 is merged. Phase 1 is complete on PR #3. Phase 2 is complete on PR #4 and passed Gate 2. Phase 3 is complete on PR #5 and passed Gate 3.**
 
 ClassGraph remains a **standalone companion to EduBoard**. The apps do not share a live database. ClassGraph Exchange JSON v1 is the portable boundary between them.
 
@@ -34,7 +34,19 @@ ClassGraph remains a **standalone companion to EduBoard**. The apps do not share
 - Lock group members and rerun around those choices.
 - Persist room/planning/grouping state in validated Exchange v1 JSON.
 
-DOCX/PDF reporting and EduBoard hand-back adapters remain Phase 3 work.
+### Phase 3 capabilities
+
+- Export deterministic descriptive analysis JSON.
+- Export approved seating/grouping state as versioned seating-plan JSON.
+- Generate a local DOCX report with provenance, missing-data notes, metric summaries, roster values, approved planning, rules, and limitations.
+- Generate a local PDF report for built-in-font-compatible text.
+- Export a landscape seating-plan PDF with room orientation, disabled seats, assignments, locks, tags, and assignment-table fallback.
+- Refuse unsupported PDF Unicode with `CG-5004` instead of silently replacing or corrupting names.
+- Export a versioned EduBoard hand-back envelope separating source-safe fields, derived analysis, synthetic paths, and approved planning.
+- Generate all exports through POST-only local endpoints with safe filenames and `no-store` / `nosniff` / `no-referrer` headers.
+- Use an explicit EduBoard compatibility contract: target class must be selected explicitly and students map by exact ID only.
+
+The EduBoard adapter contract is validated on its own isolated EduBoard branch/PR; no live database coupling or automatic overwrite is part of Phase 3.
 
 ## Run locally
 
@@ -81,9 +93,14 @@ npm run dev
 - Category/ordinal/boolean/text counts.
 - Numeric scatter comparisons with table equivalents.
 - Field-level provenance inspection.
+- Manual and generated seating/grouping plans with table equivalents.
 - Validated ClassGraph Exchange JSON.
-
-Planned later outputs include seating/grouping plans, analysis JSON, DOCX, and PDF reports.
+- Versioned analysis JSON.
+- Versioned approved seating-plan JSON.
+- Versioned EduBoard hand-back JSON.
+- Local DOCX descriptive report.
+- Local PDF descriptive report.
+- Landscape seating-plan PDF.
 
 ## Product principles
 
@@ -109,8 +126,10 @@ Integration is through explicit import/export contracts rather than hidden coupl
 - `docs/INTERCHANGE.md` — Exchange v1 interoperability notes.
 - `docs/PHASE1_LOG.md` — Phase 1 recovery/checkpoint log.
 - `docs/PHASE_2.md` — Phase 2 seating/grouping recovery and Gate 2 log.
+- `docs/PHASE_3.md` — Phase 3 exports/interchange recovery and Gate 3 log.
+- `docs/PHASE3_LOG.md` — recovery alias pointing to the authoritative Phase 3 log.
 
-For completed implementation history, see the phase logs above. New work proceeds from Phase 3 in `DESIGN.md`.
+For completed implementation history, see the phase logs above. After Gate 3, new work proceeds from Phase 4 in `DESIGN.md`.
 
 ## Repository
 

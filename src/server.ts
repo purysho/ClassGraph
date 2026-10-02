@@ -3,8 +3,17 @@ import { readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
 import { generateGroupingCandidates } from './grouping.js'
+import { serializeEduBoardHandback } from './eduboard-handback.js'
+import { ClassGraphExportError } from './export-errors.js'
+import {
+  safeExportStem,
+  serializeAnalysisExport,
+  serializeSeatingPlanExport,
+} from './export-json.js'
 import { ClassGraphImportError, parseProjectJson, serializeProjectJson } from './json.js'
 import { generateSeatingCandidates } from './planning.js'
+import { generateDocxReport } from './report-docx.js'
+import { generatePdfReport, generateSeatingPlanPdf } from './report-pdf.js'
 import { applyProjectMutation, parseProjectMutationRequest } from './project-mutations.js'
 import { classGraphProjectSchema } from './schema.js'
 import { parseStructuredSyntheticRequest } from './synthetic-request.js'
@@ -47,6 +56,37 @@ function send(
 
 function sendJson(response: ServerResponse, statusCode: number, value: unknown): void {
   send(response, statusCode, JSON.stringify(value))
+}
+
+function asciiDownloadName(filename: string): string {
+  return [...filename]
+    .map((character) => {
+      const code = character.codePointAt(0) ?? 0
+      if (code < 32 || code > 126 || character === '"' || character === '\\') return '_'
+      return character
+    })
+    .join('')
+}
+
+function downloadDisposition(filename: string): string {
+  const ascii = asciiDownloadName(filename) || 'classgraph-export'
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+}
+
+function sendDownload(
+  response: ServerResponse,
+  body: string | Uint8Array,
+  contentType: string,
+  filename: string,
+): void {
+  response.writeHead(200, {
+    'Content-Type': contentType,
+    'Content-Disposition': downloadDisposition(filename),
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+  })
+  response.end(body)
 }
 
 async function readBody(request: IncomingMessage, maxBodyBytes: number): Promise<string> {
@@ -137,9 +177,7 @@ function parseProjectFromRequest(record: Record<string, unknown>) {
   const result = classGraphProjectSchema.safeParse(record.project)
   if (!result.success) {
     const issue = result.error.issues[0]
-    throw new Error(
-      `CG-1001 invalid project in analysis request: ${issue?.message ?? 'validation failed'}`,
-    )
+    throw new Error(`CG-1001 invalid project in request: ${issue?.message ?? 'validation failed'}`)
   }
   return result.data
 }
@@ -295,6 +333,85 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
           return
         }
 
+        if (
+          request.method === 'POST' &&
+          [
+            '/api/export/project-json',
+            '/api/export/analysis-json',
+            '/api/export/seating-json',
+            '/api/export/eduboard-json',
+            '/api/export/docx',
+            '/api/export/pdf',
+            '/api/export/seating-pdf',
+          ].includes(url.pathname)
+        ) {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const project = parseProjectFromRequest(record)
+          const stem = safeExportStem(project.title)
+
+          if (url.pathname === '/api/export/project-json') {
+            sendDownload(
+              response,
+              serializeProjectJson(project),
+              'application/json; charset=utf-8',
+              `${stem}.classgraph.json`,
+            )
+            return
+          }
+          if (url.pathname === '/api/export/analysis-json') {
+            sendDownload(
+              response,
+              serializeAnalysisExport(project),
+              'application/json; charset=utf-8',
+              `${stem}-analysis.json`,
+            )
+            return
+          }
+          if (url.pathname === '/api/export/seating-json') {
+            sendDownload(
+              response,
+              serializeSeatingPlanExport(project),
+              'application/json; charset=utf-8',
+              `${stem}-seating-plan.json`,
+            )
+            return
+          }
+          if (url.pathname === '/api/export/eduboard-json') {
+            sendDownload(
+              response,
+              serializeEduBoardHandback(project),
+              'application/json; charset=utf-8',
+              `${stem}-eduboard-handback.json`,
+            )
+            return
+          }
+          if (url.pathname === '/api/export/docx') {
+            sendDownload(
+              response,
+              await generateDocxReport(project),
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              `${stem}-report.docx`,
+            )
+            return
+          }
+          if (url.pathname === '/api/export/pdf') {
+            sendDownload(
+              response,
+              await generatePdfReport(project),
+              'application/pdf',
+              `${stem}-report.pdf`,
+            )
+            return
+          }
+          sendDownload(
+            response,
+            await generateSeatingPlanPdf(project),
+            'application/pdf',
+            `${stem}-seating-plan.pdf`,
+          )
+          return
+        }
+
         if (request.method === 'POST' && url.pathname === '/api/import') {
           const body = await readBody(request, maxBodyBytes)
           const project = parseProjectJson(body)
@@ -329,7 +446,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unexpected local server error.'
         const code =
-          error instanceof ClassGraphImportError
+          error instanceof ClassGraphImportError || error instanceof ClassGraphExportError
             ? error.code
             : (/^CG-\d{4}/.exec(message)?.[0] ?? 'CG-9001')
         const statusCode = code === 'CG-1002' ? 413 : 400

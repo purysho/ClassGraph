@@ -1,0 +1,57 @@
+{
+  "format": "classgraph-eduboard-handback",
+  "version": "1.0",
+  "project": {
+    "schemaVersion": "1.0",
+    "projectId": "fixture-empty",
+    "title": "Fixture",
+    "updatedAt": "2026-10-01T00:00:00.000Z"
+  },
+  "compatibility": {
+    "targetApplication": "EduBoard",
+    "targetContractVersion": "1",
+    "requiresExplicitClassSelection": true,
+    "studentIdMapping": "exact-id-only",
+    "seatCoordinates": "zero-based-row-col"
+  },
+  "sourceData": {
+    "studentReferences": [],
+    "sourceFieldValues": [
+      {
+        "path": "/title",
+        "kind": "teacher-entered",
+        "value": "Fixture"
+      }
+    ]
+  },
+  "derivedAnalysis": {
+    "studentCount": 0,
+    "metricCount": 0,
+    "completeness": {
+      "totalCells": 0,
+      "recordedCount": 0,
+      "explicitMissingCount": 0,
+      "unrecordedCount": 0
+    },
+    "metrics": []
+  },
+  "approvedPlanning": {
+    "room": null,
+    "seatAssignments": [],
+    "unmappedSeatAssignments": [],
+    "groups": [],
+    "rules": []
+  },
+  "syntheticPaths": [],
+  "derivedPaths": [],
+  "provenance": {
+    "/title": {
+      "kind": "teacher-entered"
+    }
+  },
+  "extensions": {
+    "passthrough": {
+      "example": true
+    }
+  }
+}
