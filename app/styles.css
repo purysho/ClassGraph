@@ -172,7 +172,6 @@ button:disabled {
   line-height: 1.55;
 }
 
-
 .saved-projects {
   margin-bottom: 20px;
   padding: 20px;
@@ -248,7 +247,6 @@ button:disabled {
 .storage-note code {
   overflow-wrap: anywhere;
 }
-
 
 .setup-note-group {
   max-width: 24rem;

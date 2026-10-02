@@ -371,7 +371,6 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
           return
         }
 
-
         if (request.method === 'GET' && url.pathname === '/api/assistance/status') {
           sendJson(response, 200, assistanceServiceStatus(assistanceProvider))
           return

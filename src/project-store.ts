@@ -1,14 +1,5 @@
 import { createHash } from 'node:crypto'
-import {
-  copyFile,
-  mkdir,
-  readFile,
-  readdir,
-  rename,
-  rm,
-  stat,
-  writeFile,
-} from 'node:fs/promises'
+import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, posix, win32 } from 'node:path'
 import type { ClassGraphProject } from './model.js'
@@ -211,7 +202,9 @@ export class FileProjectStore {
     for (const entry of await readdir(this.projectsDirectory)) {
       if (!entry.endsWith('.classgraph.json')) continue
       try {
-        const project = parseProjectJson(await readFile(join(this.projectsDirectory, entry), 'utf8'))
+        const project = parseProjectJson(
+          await readFile(join(this.projectsDirectory, entry), 'utf8'),
+        )
         summaries.push(projectSummary(project))
       } catch {
         // Damaged or unrelated files remain untouched and are omitted from the usable project list.

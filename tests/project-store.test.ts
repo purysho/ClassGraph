@@ -2,10 +2,7 @@ import { mkdtemp, readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import {
-  defaultClassGraphDataDirectory,
-  FileProjectStore,
-} from '../src/project-store.js'
+import { defaultClassGraphDataDirectory, FileProjectStore } from '../src/project-store.js'
 import { addStudent, createEmptyProject } from '../src/workspace.js'
 
 describe('local project store', () => {
