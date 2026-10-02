@@ -66,6 +66,7 @@ async function applyWindowsBranding(output, version) {
   npx('resedit-cli@3.1.1', [
     output,
     branded,
+    '--ignore-signed',
     '--icon',
     `1,${windowsIcon}`,
     '--product-name',
