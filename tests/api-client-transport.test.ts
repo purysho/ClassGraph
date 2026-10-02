@@ -3,7 +3,9 @@ import { classGraphApiFetch } from '../src/api-client-transport.js'
 import type { ClassGraphDesktopBridge } from '../src/desktop-bridge.js'
 
 function fakeBrowserFetch() {
-  return vi.fn(() => Promise.resolve(new Response('browser', { status: 200 }))) as unknown as typeof fetch
+  return vi.fn(() =>
+    Promise.resolve(new Response('browser', { status: 200 })),
+  ) as unknown as typeof fetch
 }
 
 describe('ClassGraph renderer API transport', () => {
