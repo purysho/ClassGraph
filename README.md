@@ -4,7 +4,7 @@
 
 ## Project status
 
-**Phase 0 is merged. Phase 1 is complete on PR #3. Phase 2 is complete on PR #4 and passed Gate 2. Phase 3 is complete on PR #5 and passed Gate 3. Phase 4 is complete on PR #6 and passed Gate 4. Phase 5 is complete on PR #7 and passed Gate 5.**
+**Phases 0–5 are merged to `main` and their gates passed. Phase 6 adds cross-platform downloadable desktop releases.**
 
 ClassGraph remains a **standalone companion to EduBoard**. The apps do not share a live database. ClassGraph Exchange JSON v1 is the portable boundary between them.
 
@@ -68,6 +68,19 @@ The EduBoard adapter contract is validated on its own isolated EduBoard branch/P
 - Keep assistance output as a proposal until the teacher explicitly copies, validates, or applies it.
 - Keep provider secrets in process environment only; they are not stored in ClassGraph projects or exports.
 
+### Phase 6 capabilities
+
+- Package ClassGraph with the official Node 22 Single Executable Application mechanism rather than Electron.
+- Embed the local HTML, CSS, and browser client directly in each desktop executable.
+- Build a Windows x64 single-file `.exe`.
+- Build macOS Apple Silicon and Intel `.app.zip` downloads.
+- Build a Linux x64 `.tar.gz` containing a self-contained executable.
+- Open the local ClassGraph workspace in the default browser while binding the packaged app only to `127.0.0.1`.
+- Fall back to a free loopback port if the default ClassGraph port is already occupied.
+- Run an executable-level `--self-test` on every native release runner.
+- Publish tagged GitHub releases with SHA-256 checksums.
+- Keep packaging tools build-time-only; no Electron or other desktop runtime framework is added.
+
 ## Run locally
 
 Requirements:
@@ -109,6 +122,18 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 ```
 
 `CLASSGRAPH_ASSISTANCE_URL` must use HTTPS. The token is read from the environment for the running process; ClassGraph does not write it to project JSON, exports, browser storage, or source files. Network assistance still requires a local context preview and an explicit send confirmation for each request.
+
+## Desktop downloads
+
+Tagged releases provide:
+
+- `ClassGraph-Windows-x64.exe`
+- `ClassGraph-macOS-AppleSilicon.app.zip`
+- `ClassGraph-macOS-Intel.app.zip`
+- `ClassGraph-Linux-x64.tar.gz`
+- `SHA256SUMS.txt`
+
+The packaged builds include the Node runtime and ClassGraph UI assets, so users do not need to install Node.js. Windows builds are initially unsigned and macOS builds are ad-hoc signed rather than notarised; operating-system reputation/security prompts may therefore appear until formal signing credentials are configured.
 
 ## Input paths
 
@@ -169,8 +194,9 @@ Integration is through explicit import/export contracts rather than hidden coupl
 - `docs/PHASE3_LOG.md` — recovery alias pointing to the authoritative Phase 3 log.
 - `docs/PHASE_4.md` — Phase 4 relationship/history/scenario recovery and Gate 4 log.
 - `docs/PHASE_5.md` — Phase 5 optional-assistance/provider recovery and Gate 5 log.
+- `docs/PHASE_6.md` — Phase 6 cross-platform desktop release recovery and Gate 6 log.
 
-For completed implementation history, see the phase logs above. Phase 5 preserves the same local-first core and keeps network assistance optional.
+For completed implementation history, see the phase logs above. Phase 6 preserves the same local-first core while making ClassGraph directly downloadable on Windows, macOS, and Linux.
 
 ## Repository
 

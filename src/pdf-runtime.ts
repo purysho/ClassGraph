@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module'
+import * as pdfLib from 'pdf-lib'
 
 export type PdfColor = unknown
 
@@ -56,17 +56,7 @@ interface PdfLibAdapter {
   rgb(red: number, green: number, blue: number): PdfColor
 }
 
-const require = createRequire(import.meta.url)
-
-function loadRuntime(): PdfLibAdapter {
-  const raw: unknown = require('pdf-lib')
-  if (typeof raw !== 'object' || raw === null) {
-    throw new Error('CG-9001 PDF runtime did not load as an object')
-  }
-  return raw as PdfLibAdapter
-}
-
-const runtime = loadRuntime()
+const runtime = pdfLib as unknown as PdfLibAdapter
 
 export const pdfStandardFonts = runtime.StandardFonts
 export const pdfRgb = (red: number, green: number, blue: number): PdfColor =>

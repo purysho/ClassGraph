@@ -31,11 +31,14 @@ import { parseStructuredSyntheticRequest } from './synthetic-request.js'
 import { generateSyntheticProject } from './synthetic.js'
 import { createEmptyProject } from './workspace.js'
 
+export type StaticAssetMap = Readonly<Record<string, Uint8Array>>
+
 export interface ClassGraphServerOptions {
   appDirectory?: string
   buildDirectory?: string
   maxBodyBytes?: number
   assistanceProvider?: AssistanceProvider
+  staticAssets?: StaticAssetMap
 }
 
 interface ProjectSetupRequest {
@@ -265,7 +268,21 @@ async function serveStatic(
   appDirectory: string,
   buildDirectory: string,
   pathname: string,
+  staticAssets?: StaticAssetMap,
 ): Promise<boolean> {
+  const normalizedPath = pathname === '/' ? '/index.html' : pathname
+  const embedded = staticAssets?.[normalizedPath]
+  if (embedded) {
+    response.writeHead(200, {
+      'Content-Type': contentTypeFor(normalizedPath),
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+    })
+    response.end(embedded)
+    return true
+  }
+
   const appAssets: Record<string, string> = {
     '/': 'index.html',
     '/index.html': 'index.html',
@@ -295,6 +312,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
   const buildDirectory = options.buildDirectory ?? join(process.cwd(), 'dist')
   const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
   const assistanceProvider = options.assistanceProvider
+  const staticAssets = options.staticAssets
 
   return createServer((request, response) => {
     void (async () => {
@@ -575,7 +593,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
 
         if (
           request.method === 'GET' &&
-          (await serveStatic(response, appDirectory, buildDirectory, url.pathname))
+          (await serveStatic(response, appDirectory, buildDirectory, url.pathname, staticAssets))
         ) {
           return
         }
