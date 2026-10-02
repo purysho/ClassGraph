@@ -27,10 +27,10 @@
 
 No Node.js installation is needed for these downloads. Each build contains the runtime and ClassGraph UI.
 
-- **Windows** — download `ClassGraph-Windows-x64.exe` and run it directly.
-- **macOS Apple Silicon** — for M1/M2/M3/M4 and later Apple-chip Macs.
-- **macOS Intel** — for Intel-based Macs.
-- **Linux** — extract `ClassGraph-Linux-x64.tar.gz`, make the executable runnable if required, and launch it.
+- **Windows** — download `ClassGraph-Windows-x64.exe` and double-click it. It opens ClassGraph in your default browser without leaving a PowerShell/console window open; the executable uses the CG app icon.
+- **macOS Apple Silicon** — for M1/M2/M3/M4 and later Apple-chip Macs; the app bundle uses the CG icon.
+- **macOS Intel** — for Intel-based Macs; the app bundle uses the CG icon.
+- **Linux** — extract `ClassGraph-Linux-x64.tar.gz`; the package includes the executable, CG PNG icon, and a `ClassGraph.desktop` launcher definition.
 - **Verify a download** — compare it with [`SHA256SUMS.txt`](https://github.com/purysho/ClassGraph/releases/latest/download/SHA256SUMS.txt).
 
 > Windows builds are currently unsigned and macOS builds are ad-hoc signed rather than notarised. Windows SmartScreen or macOS Gatekeeper may therefore show a first-run warning.
@@ -54,14 +54,32 @@ ClassGraph is designed to support teacher judgement. It does **not** diagnose st
 
 ## A local-first workflow
 
-1. **Create, import, or generate** a class.
+ClassGraph now **saves projects automatically on this device**. Close the browser or shut down the computer, then launch ClassGraph again and it reopens the most recently used class. The Projects screen also lists locally saved classes.
+
+1. **Create, import, restore, or generate** a class.
 2. **Record the metrics you choose** and keep observed, entered, imported, derived, and synthetic values distinguishable.
 3. **Explore descriptive views** before making planning changes.
 4. **Build seating or grouping candidates** against explicit constraints and objectives.
 5. **Review the explanation**, then accept, change, or ignore the suggestion.
-6. **Export** the project, analysis, seating plan, DOCX, or PDF when you need a portable copy.
+6. **Backup JSON** when you want a portable copy for cloud storage, another computer, or a future reinstall. Reports and analysis exports remain available separately.
 
 ClassGraph binds to `127.0.0.1` by default. Core workflows work without a cloud account, telemetry, remote fonts, or remote scripts.
+
+### Saving, backups, and moving computers
+
+The desktop build stores validated ClassGraph project JSON in a local project library:
+
+- **Windows:** `%LOCALAPPDATA%\ClassGraph`
+- **macOS:** `~/Library/Application Support/ClassGraph`
+- **Linux:** `${XDG_DATA_HOME:-~/.local/share}/ClassGraph`
+
+Each accepted edit autosaves. Before ClassGraph overwrites a saved project, it keeps a small rolling local safety copy.
+
+For a portable backup, click **Backup JSON**. The resulting `.classgraph.json` file is ordinary validated ClassGraph JSON, so you can put it in OneDrive, iCloud Drive, Google Drive, a USB stick, or any other storage you control.
+
+If ClassGraph is deleted, reinstalled, or moved to a new computer, choose **Import / restore backup** and select that `.classgraph.json` file. Older ClassGraph `.json` project exports using the supported Exchange schema are accepted too. Imported provenance and project IDs are preserved.
+
+Deleting the ClassGraph executable does not automatically delete the local project library on the same computer.
 
 ## Optional assistance
 
@@ -147,7 +165,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Optional network assistance with pre-send disclosure
 
 <details>
-<summary><strong>Implementation history — Phases 1–6</strong></summary>
+<summary><strong>Implementation history — Phases 1–7</strong></summary>
 
 ### Phase 1 — Workspace and analysis
 
@@ -173,6 +191,10 @@ Offline proposal generation plus an optional direct-HTTPS provider boundary with
 
 Self-contained Windows, macOS Apple Silicon, macOS Intel, and Linux builds using Node 22 Single Executable Applications, native executable self-tests, release automation, and SHA-256 checksums.
 
+### Phase 7 — Desktop UX and local saves
+
+Quiet Windows launch, CG operating-system icons, filesystem-backed autosave, recent-project reopening, rolling local safety copies, and portable Backup JSON / Import restore flows.
+
 </details>
 
 ## Design and recovery documents
@@ -185,6 +207,7 @@ Self-contained Windows, macOS Apple Silicon, macOS Intel, and Linux builds using
 - [`docs/PHASE_4.md`](docs/PHASE_4.md) — Phase 4 recovery and Gate 4
 - [`docs/PHASE_5.md`](docs/PHASE_5.md) — Phase 5 recovery and Gate 5
 - [`docs/PHASE_6.md`](docs/PHASE_6.md) — Phase 6 recovery and Gate 6
+- [`docs/PHASE_7.md`](docs/PHASE_7.md) — Phase 7 recovery and Gate 7
 
 ## Branding
 
