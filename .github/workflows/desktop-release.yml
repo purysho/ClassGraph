@@ -66,7 +66,7 @@ jobs:
       - name: Build unpacked Windows app
         if: matrix.id == 'windows-x64'
         shell: pwsh
-        run: npx electron-builder --dir --win --x64
+        run: npx electron-builder --dir --win --x64 --publish never
 
       - name: Smoke-test Windows native app
         if: matrix.id == 'windows-x64'
@@ -85,7 +85,7 @@ jobs:
       - name: Package Windows installer and portable app
         if: matrix.id == 'windows-x64'
         shell: pwsh
-        run: npx electron-builder --win --x64
+        run: npx electron-builder --win --x64 --publish never
 
       - name: Prepare Windows downloads
         if: matrix.id == 'windows-x64'
@@ -97,7 +97,7 @@ jobs:
 
       - name: Build unpacked Linux app
         if: matrix.id == 'linux-x64'
-        run: npx electron-builder --dir --linux --x64
+        run: npx electron-builder --dir --linux --x64 --publish never
 
       - name: Smoke-test Linux native app
         if: matrix.id == 'linux-x64'
@@ -110,7 +110,7 @@ jobs:
 
       - name: Package Linux AppImage
         if: matrix.id == 'linux-x64'
-        run: npx electron-builder --linux AppImage --x64
+        run: npx electron-builder --linux AppImage --x64 --publish never
 
       - name: Prepare Linux download
         if: matrix.id == 'linux-x64'
@@ -122,7 +122,7 @@ jobs:
       - name: Build unpacked macOS app
         if: startsWith(matrix.id, 'macos-')
         shell: bash
-        run: npx electron-builder --dir --mac --${{ matrix.arch }}
+        run: npx electron-builder --dir --mac --${{ matrix.arch }} --publish never
 
       - name: Smoke-test macOS native app
         if: startsWith(matrix.id, 'macos-')
@@ -136,7 +136,7 @@ jobs:
       - name: Package macOS app
         if: startsWith(matrix.id, 'macos-')
         shell: bash
-        run: npx electron-builder --mac dmg zip --${{ matrix.arch }}
+        run: npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never
 
       - name: Prepare macOS downloads
         if: matrix.id == 'macos-arm64'
