@@ -2,7 +2,9 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
+import { generateGroupingCandidates } from './grouping.js'
 import { ClassGraphImportError, parseProjectJson, serializeProjectJson } from './json.js'
+import { generateSeatingCandidates } from './planning.js'
 import { applyProjectMutation, parseProjectMutationRequest } from './project-mutations.js'
 import { classGraphProjectSchema } from './schema.js'
 import { parseStructuredSyntheticRequest } from './synthetic-request.js'
@@ -91,6 +93,21 @@ function optionalString(record: Record<string, unknown>, key: string): string | 
   const value = record[key]
   if (value === undefined || value === '') return undefined
   if (typeof value !== 'string') throw new Error(`CG-1001 ${key} must be a string`)
+  return value
+}
+
+function optionalPositiveInteger(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key]
+  if (value === undefined) return undefined
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw new Error(`CG-1001 ${key} must be a positive integer`)
+  }
+  return value
+}
+
+function requiredPositiveInteger(record: Record<string, unknown>, key: string): number {
+  const value = optionalPositiveInteger(record, key)
+  if (value === undefined) throw new Error(`CG-1001 ${key} is required`)
   return value
 }
 
@@ -232,6 +249,32 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
             generatedAt: new Date().toISOString(),
           })
           sendJson(response, 200, { project })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/planning/seating') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const project = parseProjectFromRequest(record)
+          const result = generateSeatingCandidates(project, {
+            seed: optionalString(record, 'seed'),
+            candidateCount: optionalPositiveInteger(record, 'candidateCount'),
+            attempts: optionalPositiveInteger(record, 'attempts'),
+          })
+          sendJson(response, 200, { result })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/planning/grouping') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const project = parseProjectFromRequest(record)
+          const result = generateGroupingCandidates(project, {
+            groupCount: requiredPositiveInteger(record, 'groupCount'),
+            seed: optionalString(record, 'seed'),
+            metricKey: optionalString(record, 'metricKey'),
+            candidateCount: optionalPositiveInteger(record, 'candidateCount'),
+            attempts: optionalPositiveInteger(record, 'attempts'),
+          })
+          sendJson(response, 200, { result })
           return
         }
 

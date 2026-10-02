@@ -47,4 +47,58 @@ describe('classGraphProjectSchema', () => {
     project.students.push({ id: 's1', metrics: { score: 70, band: 'B' } })
     expect(classGraphProjectSchema.safeParse(project).success).toBe(false)
   })
+
+  it('rejects duplicate grid seat IDs and positions', () => {
+    const project = validProject()
+    project.room = {
+      layout: 'grid',
+      rows: 2,
+      columns: 2,
+      seats: [
+        { id: 'seat-a', row: 0, column: 0, enabled: true },
+        { id: 'seat-a', row: 0, column: 0, enabled: true },
+      ],
+    }
+
+    const result = classGraphProjectSchema.safeParse(project)
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.message.includes('duplicate seat id'))).toBe(
+        true,
+      )
+      expect(
+        result.error.issues.some((issue) => issue.message.includes('duplicate grid seat position')),
+      ).toBe(true)
+    }
+  })
+
+  it('rejects grid seats outside the configured room bounds', () => {
+    const project = validProject()
+    project.room = {
+      layout: 'grid',
+      rows: 2,
+      columns: 2,
+      seats: [{ id: 'seat-a', row: 2, column: 0, enabled: true }],
+    }
+
+    const result = classGraphProjectSchema.safeParse(project)
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('outside configured room rows')
+    }
+  })
+
+  it('requires coordinates for custom room seats', () => {
+    const project = validProject()
+    project.room = {
+      layout: 'custom',
+      seats: [{ id: 'seat-a', enabled: true }],
+    }
+
+    const result = classGraphProjectSchema.safeParse(project)
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('custom room seats require x and y')
+    }
+  })
 })

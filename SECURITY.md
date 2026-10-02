@@ -4,7 +4,7 @@ ClassGraph is designed as a local-first application that may contain student inf
 
 ## Current pre-release architecture
 
-Phase 0 provides the UI-independent schema/generation/analysis core. Phase 1 adds a small local HTTP boundary and browser interface.
+Phase 0 provides the UI-independent schema/generation/analysis core. Phase 1 adds a small local HTTP boundary and browser interface. Phase 2 adds UI-independent room/planning/grouping services and read-only candidate-generation endpoints; candidate data is not persisted until the teacher explicitly applies it through a validated project mutation.
 
 The local server binds to `127.0.0.1` by default. No internet connection is required for the core teacher workflow. A teacher can explicitly override `CLASSGRAPH_HOST`, but a non-loopback host may expose the app and student data to other devices on the network and should only be used deliberately on a trusted network.
 
@@ -14,6 +14,8 @@ The local server binds to `127.0.0.1` by default. No internet connection is requ
 - Error reports/logs should not contain student values by default.
 - Imported JSON is treated only as data and is validated before use.
 - Local HTTP request bodies are size-capped and project mutations are schema-validated before core operations run.
+- Room geometry, seat assignments, locks, groups, and planning rules are validated against existing student/seat/metric references before persistence.
+- Candidate-generation endpoints do not mutate the project; seating/grouping choices persist only after an explicit teacher action.
 - UI assets are served from an explicit allow-list rather than arbitrary filesystem paths.
 - Local responses use no-store, nosniff, and no-referrer protections; the app does not enable cross-origin access by default.
 - Core operation must not require remote scripts, fonts, APIs, or accounts.

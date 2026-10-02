@@ -107,4 +107,107 @@ describe('project mutations', () => {
     expect(project.metricDefinitions).toEqual([])
     expect(project.students[0]?.metrics).toEqual({})
   })
+
+  it('creates and edits a grid room through the typed mutation layer', () => {
+    let project = applyProjectMutation(
+      emptyProject(),
+      { type: 'set-grid-room', rows: 2, columns: 3 },
+      t1,
+    )
+    project = applyProjectMutation(
+      project,
+      { type: 'set-seat-enabled', seatId: 'seat-r1-c2', enabled: false },
+      t1,
+    )
+    project = applyProjectMutation(
+      project,
+      { type: 'set-seat-tags', seatId: 'seat-r1-c1', tags: ['front', 'aisle'] },
+      t1,
+    )
+
+    expect(project.room?.rows).toBe(2)
+    expect(project.room?.columns).toBe(3)
+    expect(project.room?.seats).toHaveLength(6)
+    expect(project.room?.seats.find((seat) => seat.id === 'seat-r1-c2')?.enabled).toBe(false)
+    expect(project.room?.seats.find((seat) => seat.id === 'seat-r1-c1')?.tags).toEqual([
+      'front',
+      'aisle',
+    ])
+  })
+
+  it('rejects malformed room mutation commands before they reach the room core', () => {
+    expect(() =>
+      parseProjectMutationRequest({
+        project: emptyProject(),
+        command: { type: 'set-grid-room', rows: 0, columns: 4 },
+      }),
+    ).toThrow('CG-1001 invalid mutation command')
+  })
+
+  it('persists assignments locks and typed planning rules through mutations', () => {
+    let project = applyProjectMutation(
+      emptyProject(),
+      { type: 'add-student', student: { id: 's1' } },
+      t1,
+    )
+    project = applyProjectMutation(project, { type: 'add-student', student: { id: 's2' } }, t1)
+    project = applyProjectMutation(
+      project,
+      { type: 'set-grid-room', rows: 2, columns: 2, front: 'bottom' },
+      t1,
+    )
+    project = applyProjectMutation(
+      project,
+      { type: 'set-seat-assignment', studentId: 's1', seatId: 'seat-r1-c1', locked: true },
+      t1,
+    )
+    project = applyProjectMutation(
+      project,
+      {
+        type: 'add-planning-rule',
+        rule: {
+          id: 'apart',
+          strength: 'hard',
+          kind: 'keep-apart',
+          studentAId: 's1',
+          studentBId: 's2',
+        },
+      },
+      t1,
+    )
+
+    expect(project.room?.front).toBe('bottom')
+    expect(project.planning?.assignments?.[0]).toEqual({
+      studentId: 's1',
+      seatId: 'seat-r1-c1',
+      locked: true,
+    })
+    expect(project.planning?.rules?.[0]?.kind).toBe('keep-apart')
+  })
+
+  it('rejects planning rules that reference unknown students', () => {
+    let project = applyProjectMutation(
+      emptyProject(),
+      { type: 'add-student', student: { id: 's1' } },
+      t1,
+    )
+    project = applyProjectMutation(project, { type: 'set-grid-room', rows: 2, columns: 2 }, t1)
+
+    expect(() =>
+      applyProjectMutation(
+        project,
+        {
+          type: 'add-planning-rule',
+          rule: {
+            id: 'bad',
+            strength: 'hard',
+            kind: 'keep-apart',
+            studentAId: 's1',
+            studentBId: 'missing',
+          },
+        },
+        t1,
+      ),
+    ).toThrow()
+  })
 })

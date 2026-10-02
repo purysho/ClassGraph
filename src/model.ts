@@ -58,10 +58,13 @@ export interface SeatDefinition {
   tags?: string[]
 }
 
+export type RoomFront = 'top' | 'bottom' | 'left' | 'right'
+
 export interface RoomDefinition {
   layout: 'grid' | 'custom'
   rows?: number
   columns?: number
+  front?: RoomFront
   seats: SeatDefinition[]
 }
 
@@ -74,10 +77,84 @@ export interface ClassInfo {
   notes?: string
 }
 
+export interface PlanningSeatAssignment {
+  studentId: string
+  seatId: string
+  locked: boolean
+}
+
+export interface PlanningGroup {
+  id: string
+  label?: string
+  studentIds: string[]
+  lockedStudentIds?: string[]
+}
+
+interface PlanningRuleBase {
+  id: string
+  label?: string
+}
+
+export type HardPlanningRule =
+  | (PlanningRuleBase & {
+      strength: 'hard'
+      kind: 'fixed-seat'
+      studentId: string
+      seatId: string
+    })
+  | (PlanningRuleBase & {
+      strength: 'hard'
+      kind: 'keep-apart'
+      studentAId: string
+      studentBId: string
+      neighbourMode?: 'orthogonal' | 'king'
+    })
+  | (PlanningRuleBase & {
+      strength: 'hard'
+      kind: 'seat-tag-required'
+      studentId: string
+      tag: string
+    })
+
+export type SoftPlanningRule =
+  | (PlanningRuleBase & {
+      strength: 'soft'
+      kind: 'prefer-together'
+      studentAId: string
+      studentBId: string
+      weight?: number
+    })
+  | (PlanningRuleBase & {
+      strength: 'soft'
+      kind: 'prefer-apart'
+      studentAId: string
+      studentBId: string
+      weight?: number
+    })
+  | (PlanningRuleBase & {
+      strength: 'soft'
+      kind: 'prefer-seat-tag'
+      studentId: string
+      tag: string
+      weight?: number
+    })
+  | (PlanningRuleBase & {
+      strength: 'soft'
+      kind: 'balance-metric-by-row'
+      metricKey: string
+      weight?: number
+    })
+
+export type PlanningRule = HardPlanningRule | SoftPlanningRule
+
 export interface PlanningConfiguration {
+  ruleSchemaVersion?: '1.0'
   seed?: string
   selectedMetricKeys?: string[]
-  rules?: unknown[]
+  assignments?: PlanningSeatAssignment[]
+  rules?: PlanningRule[]
+  groups?: PlanningGroup[]
+  approvedCandidateId?: string
 }
 
 export interface ClassGraphProject {

@@ -4,7 +4,7 @@
 
 ## Project status
 
-**Phase 0 is merged. Phase 1 is complete on PR #3 and has passed its full quality gate.**
+**Phase 0 is merged. Phase 1 is complete on PR #3. Phase 2 is complete on PR #4 and has passed Gate 2.**
 
 ClassGraph remains a **standalone companion to EduBoard**. The apps do not share a live database. ClassGraph Exchange JSON v1 is the portable boundary between them.
 
@@ -21,7 +21,20 @@ ClassGraph remains a **standalone companion to EduBoard**. The apps do not share
 - Export the current project as validated JSON.
 - Run locally without cloud accounts, remote fonts, remote scripts, or telemetry.
 
-Seating/grouping optimisation, DOCX/PDF reporting, and EduBoard hand-back adapters remain later phases.
+### Phase 2 capabilities
+
+- Build and resize deterministic classroom grids with front-of-room orientation.
+- Enable/disable seats and add explicit seat tags.
+- Manually seat students by drag/drop or assignment table.
+- Lock assignments before rerunning candidates.
+- Author distinct hard constraints and soft objectives.
+- Generate deterministic seating candidates with visible hard-rule status and objective penalties.
+- Explain capacity/tag/search infeasibility without silently breaking hard constraints.
+- Generate deterministic grouping candidates with optional explicit metric balancing.
+- Lock group members and rerun around those choices.
+- Persist room/planning/grouping state in validated Exchange v1 JSON.
+
+DOCX/PDF reporting and EduBoard hand-back adapters remain Phase 3 work.
 
 ## Run locally
 
@@ -95,8 +108,9 @@ Integration is through explicit import/export contracts rather than hidden coupl
 - `DESIGN.md` — product/architecture contract.
 - `docs/INTERCHANGE.md` — Exchange v1 interoperability notes.
 - `docs/PHASE1_LOG.md` — Phase 1 recovery/checkpoint log.
+- `docs/PHASE_2.md` — Phase 2 seating/grouping recovery and Gate 2 log.
 
-If work is interrupted during Phase 1, read `docs/PHASE1_LOG.md` and continue from the first unchecked item.
+For completed implementation history, see the phase logs above. New work proceeds from Phase 3 in `DESIGN.md`.
 
 ## Repository
 
