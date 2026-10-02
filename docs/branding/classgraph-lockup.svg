@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 420" role="img" aria-labelledby="title desc">
+  <title id="title">ClassGraph wordmark</title>
+  <desc id="desc">ClassGraph logo lockup in the same visual family as EduBoard.</desc>
+  <rect width="1500" height="420" rx="58" fill="#17212a"/>
+  <g transform="translate(46 46) scale(.32)">
+    <rect width="1024" height="1024" rx="225" fill="#4f46e5"/>
+    <text x="512" y="626" text-anchor="middle"
+      font-family="Arial, Helvetica, sans-serif" font-size="392" font-weight="800"
+      letter-spacing="-26" fill="#ffffff">CG</text>
+    <line x1="356" y1="758" x2="668" y2="758" stroke="#ffffff" stroke-width="34" stroke-linecap="round"/>
+  </g>
+  <text x="430" y="220" font-family="Arial, Helvetica, sans-serif" font-size="126" font-weight="800"
+    letter-spacing="-5" fill="#ffffff">ClassGraph</text>
+  <text x="438" y="286" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="500"
+    fill="#b7c4cd">Local-first classroom analysis &amp; planning</text>
+</svg>
