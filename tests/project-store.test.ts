@@ -16,7 +16,7 @@ describe('local project store', () => {
         env: { LOCALAPPDATA: 'C:\\Users\\Teacher\\AppData\\Local' },
         homeDirectory: 'C:\\Users\\Teacher',
       }),
-    ).toBe('C:\\Users\\Teacher\\AppData\\Local/ClassGraph')
+    ).toBe('C:\\Users\\Teacher\\AppData\\Local\\ClassGraph')
 
     expect(
       defaultClassGraphDataDirectory({
