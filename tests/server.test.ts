@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { AssistanceProvider } from '../src/assistance-provider.js'
 import { serializeProjectJson } from '../src/json.js'
-import { createClassGraphServer } from '../src/server.js'
+import { createClassGraphServer, type StaticAssetMap } from '../src/server.js'
 import { createEmptyProject } from '../src/workspace.js'
 
 const servers: ReturnType<typeof createClassGraphServer>[] = []
@@ -23,11 +23,13 @@ async function startServer(
   maxBodyBytes?: number,
   appDirectory = 'does-not-matter-for-api-tests',
   assistanceProvider?: AssistanceProvider,
+  staticAssets?: StaticAssetMap,
 ): Promise<string> {
   const server = createClassGraphServer({
     appDirectory,
     maxBodyBytes,
     assistanceProvider,
+    staticAssets,
   })
   servers.push(server)
   server.listen(0, '127.0.0.1')
@@ -47,6 +49,28 @@ describe('local app server', () => {
     expect(html).toContain('src="/app.js"')
     expect(html).toContain('href="/styles.css"')
     expect(html).not.toMatch(/https?:\/\//)
+  })
+
+  it('serves embedded desktop assets without filesystem access', async () => {
+    const encode = (value: string) => new TextEncoder().encode(value)
+    const base = await startServer(undefined, 'missing-desktop-assets', undefined, {
+      '/index.html': encode('<!doctype html><div id="app"></div><script src="/app.js"></script>'),
+      '/styles.css': encode('body { font-family: sans-serif; }'),
+      '/app.js': encode('globalThis.__CLASSGRAPH_DESKTOP_TEST__ = true'),
+    })
+
+    const [shell, styles, script] = await Promise.all([
+      fetch(base),
+      fetch(`${base}/styles.css`),
+      fetch(`${base}/app.js`),
+    ])
+
+    expect(shell.status).toBe(200)
+    expect(await shell.text()).toContain('<div id="app"></div>')
+    expect(styles.headers.get('content-type')).toContain('text/css')
+    expect(await styles.text()).toContain('font-family')
+    expect(script.headers.get('content-type')).toContain('text/javascript')
+    expect(await script.text()).toContain('__CLASSGRAPH_DESKTOP_TEST__')
   })
 
   it('reports a local health response', async () => {
