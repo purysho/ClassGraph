@@ -145,7 +145,7 @@ The first full implementation test pass reached 148/149 tests; the sole failure 
 - [x] Dependency/size review.
 - [x] Verify no credentials or assistance student context are written to logs/project exports by assistance code.
 
-Gate 5 verification: run `36917677220` at head `f7700b4ddf832329771f15af4da70b5be43d470c`.
+Final Gate 5 verification: run `36918075588` at head `5b3c8cc8876585a0758e70363ef13356c334ed82`.
 
 - format check passed;
 - lint passed;
@@ -158,7 +158,8 @@ Gate 5 verification: run `36917677220` at head `f7700b4ddf832329771f15af4da70b5b
 - the credential-boundary regression confirms provider tokens do not appear in provider status, assistance requests, or ClassGraph project exports;
 - static review of all nine assistance modules found no `console.*`, browser storage, or telemetry writes;
 - `package.json` and `package-lock.json` are unchanged from the Phase 4 head, so Phase 5 adds **zero runtime dependencies** and no provider SDK/assets.
-- size review against the Phase 4 head: `src/` grew by **66,688 bytes**, the nine assistance core modules total **42,062 bytes**, and `src/app-client.ts + app/styles.css` grew by **23,029 bytes**; this is source-only growth with no framework/provider-SDK payload.
+- size review against the Phase 4 head: `src/` grew by **66,688 bytes**, the nine assistance core modules total **42,062 bytes**, and `src/app-client.ts + app/styles.css` grew by **23,029 bytes**; this is source-only growth with no framework/provider-SDK payload;
+- the post-gate cleanup removed temporary Phase 5 CI/formatter workflows only; the implementation remained unchanged.
 
 ## Gate 5 acceptance
 
