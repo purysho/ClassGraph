@@ -1,94 +1,98 @@
-# ClassGraph
+<p align="center">
+  <img src="docs/branding/classgraph-mark.svg" width="112" alt="ClassGraph logo">
+</p>
 
-**ClassGraph** is a local-first classroom analysis and planning tool for turning explicit student/class information into teacher-facing tables, descriptive graphs, provenance views, and later seating/grouping plans and portable reports.
+<h1 align="center">ClassGraph</h1>
 
-## Project status
+<p align="center">
+  <strong>Local-first classroom analysis, visualisation, seating and grouping.</strong><br>
+  Turn explicit class data into useful views and explainable plans without sending it to a cloud service.
+</p>
 
-**Phases 0–6 are merged to `main` and all six gates have passed. ClassGraph v0.6.0 is released with Windows, macOS, and Linux downloads.**
+<p align="center">
+  <img alt="Release" src="https://img.shields.io/github/v/release/purysho/ClassGraph?style=flat-square">
+  <img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/purysho/ClassGraph/tests.yml?branch=main&label=tests&style=flat-square">
+  <img alt="Local first" src="https://img.shields.io/badge/data-local--first-4f46e5?style=flat-square">
+  <img alt="Node 22" src="https://img.shields.io/badge/runtime-Node%2022-17212a?style=flat-square">
+</p>
 
-ClassGraph remains a **standalone companion to EduBoard**. The apps do not share a live database. ClassGraph Exchange JSON v1 is the portable boundary between them.
+## Download
 
-### Phase 1 capabilities
+<p>
+  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-Windows-x64.exe"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
+  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-macOS-AppleSilicon.app.zip"><img alt="Download for macOS Apple Silicon" src="https://img.shields.io/badge/Download-macOS%20(Apple%20Silicon)-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-macOS-Intel.app.zip"><img alt="Download for macOS Intel" src="https://img.shields.io/badge/Download-macOS%20(Intel)-555555?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/purysho/ClassGraph/releases/latest/download/ClassGraph-Linux-x64.tar.gz"><img alt="Download for Linux" src="https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
+</p>
 
-- Create an empty class manually.
-- Import validated ClassGraph Exchange v1 JSON.
-- Add, rename, and remove students.
-- Define number, category, ordinal, boolean, and text metrics.
-- Edit metric values without conflating zero, false, explicit missing, and not-recorded states.
-- Inspect field-level provenance for student data.
-- View descriptive completeness, distributions, summary statistics, and numeric scatter comparisons.
-- Generate deterministic synthetic classes from a reviewed specification with explicit distributions, weights, missing rates, and seed.
-- Export the current project as validated JSON.
-- Run locally without cloud accounts, remote fonts, remote scripts, or telemetry.
+No Node.js installation is needed for these downloads. Each build contains the runtime and ClassGraph UI.
 
-### Phase 2 capabilities
+- **Windows** — download `ClassGraph-Windows-x64.exe` and run it directly.
+- **macOS Apple Silicon** — for M1/M2/M3/M4 and later Apple-chip Macs.
+- **macOS Intel** — for Intel-based Macs.
+- **Linux** — extract `ClassGraph-Linux-x64.tar.gz`, make the executable runnable if required, and launch it.
+- **Verify a download** — compare it with [`SHA256SUMS.txt`](https://github.com/purysho/ClassGraph/releases/latest/download/SHA256SUMS.txt).
 
-- Build and resize deterministic classroom grids with front-of-room orientation.
-- Enable/disable seats and add explicit seat tags.
-- Manually seat students by drag/drop or assignment table.
-- Lock assignments before rerunning candidates.
-- Author distinct hard constraints and soft objectives.
-- Generate deterministic seating candidates with visible hard-rule status and objective penalties.
-- Explain capacity/tag/search infeasibility without silently breaking hard constraints.
-- Generate deterministic grouping candidates with optional explicit metric balancing.
-- Lock group members and rerun around those choices.
-- Persist room/planning/grouping state in validated Exchange v1 JSON.
+> Windows builds are currently unsigned and macOS builds are ad-hoc signed rather than notarised. Windows SmartScreen or macOS Gatekeeper may therefore show a first-run warning.
 
-### Phase 3 capabilities
+![ClassGraph workspace overview](docs/screenshots/classgraph-overview.png)
 
-- Export deterministic descriptive analysis JSON.
-- Export approved seating/grouping state as versioned seating-plan JSON.
-- Generate a local DOCX report with provenance, missing-data notes, metric summaries, roster values, approved planning, rules, and limitations.
-- Generate a local PDF report for built-in-font-compatible text.
-- Export a landscape seating-plan PDF with room orientation, disabled seats, assignments, locks, tags, and assignment-table fallback.
-- Refuse unsupported PDF Unicode with `CG-5004` instead of silently replacing or corrupting names.
-- Export a versioned EduBoard hand-back envelope separating source-safe fields, derived analysis, synthetic paths, and approved planning.
-- Generate all exports through POST-only local endpoints with safe filenames and `no-store` / `nosniff` / `no-referrer` headers.
-- Use an explicit EduBoard compatibility contract: target class must be selected explicitly and students map by exact ID only.
+## What ClassGraph does
 
-The EduBoard adapter contract is validated on its own isolated EduBoard branch/PR; no live database coupling or automatic overwrite is part of Phase 3.
+| Understand the class | Plan the room | Keep decisions explainable |
+| --- | --- | --- |
+| Descriptive distributions, completeness, scatter comparisons and accessible tables. | Manual or generated seating and grouping with hard constraints, soft objectives, locks and reproducible seeds. | Provenance stays attached to data, missing values stay distinct, and candidate plans expose their rules and trade-offs. |
+| Import or enter the data you actually use rather than adopting a fixed student model. | Track explicit relationship records, repeat neighbours and saved planning scenarios. | Export portable JSON, DOCX and PDF reports without turning derived or synthetic data into observed facts. |
 
-### Phase 4 capabilities
+ClassGraph is designed to support teacher judgement. It does **not** diagnose students, infer hidden personality or ability traits, claim causation from correlations, or predict future attainment.
 
-- Store only explicit teacher/imported/synthetic relationship edges.
-- Inspect deterministic relationship-network views with accessible table equivalents.
-- Track repeat-neighbour history from approved seating records.
-- Save and compare planning scenarios.
-- Compare relationship/network counts and planning changes without inventing social relationships.
+## Screenshots
 
-### Phase 5 capabilities
+| Start a workspace | Explore class data |
+| --- | --- |
+| ![ClassGraph start screen](docs/screenshots/classgraph-start.png) | ![ClassGraph graphs view](docs/screenshots/classgraph-graphs.png) |
 
-- Draft editable synthetic-generation specifications from constrained teacher language without generating students automatically.
-- Draft plain-language explanations from existing descriptive analysis, with explicit missing-data and non-causation caveats.
-- Draft report wording from the canonical validated report snapshot.
-- Suggest soft planning rules only from explicit supported relationship records, with source paths and rationale.
-- Run the assistance layer fully offline with no provider configured.
-- Optionally configure a direct HTTPS provider without adding a provider SDK.
-- Preview the exact network context before transmission and require an explicit confirmation for every network request.
-- Keep assistance output as a proposal until the teacher explicitly copies, validates, or applies it.
-- Keep provider secrets in process environment only; they are not stored in ClassGraph projects or exports.
+## A local-first workflow
 
-### Phase 6 capabilities
+1. **Create, import, or generate** a class.
+2. **Record the metrics you choose** and keep observed, entered, imported, derived, and synthetic values distinguishable.
+3. **Explore descriptive views** before making planning changes.
+4. **Build seating or grouping candidates** against explicit constraints and objectives.
+5. **Review the explanation**, then accept, change, or ignore the suggestion.
+6. **Export** the project, analysis, seating plan, DOCX, or PDF when you need a portable copy.
 
-- Package ClassGraph with the official Node 22 Single Executable Application mechanism rather than Electron.
-- Embed the local HTML, CSS, and browser client directly in each desktop executable.
-- Build a Windows x64 single-file `.exe`.
-- Build macOS Apple Silicon and Intel `.app.zip` downloads.
-- Build a Linux x64 `.tar.gz` containing a self-contained executable.
-- Open the local ClassGraph workspace in the default browser while binding the packaged app only to `127.0.0.1`.
-- Fall back to a free loopback port if the default ClassGraph port is already occupied.
-- Run an executable-level `--self-test` on every native release runner.
-- Publish tagged GitHub releases with SHA-256 checksums.
-- Keep packaging tools build-time-only; no Electron or other desktop runtime framework is added.
+ClassGraph binds to `127.0.0.1` by default. Core workflows work without a cloud account, telemetry, remote fonts, or remote scripts.
 
-## Run locally
+## Optional assistance
+
+The assistance layer is optional and remains proposal-only.
+
+- Draft a structured synthetic-class specification from teacher language.
+- Explain existing descriptive analysis in plain language.
+- Draft report wording from a validated report snapshot.
+- Suggest candidate planning rules from explicit supported relationship records.
+- Preview the exact context before any optional network request.
+- Keep provider credentials outside project files, exports, and browser storage.
+
+With no provider configured, the core app and offline assistance remain usable.
+
+## Key principles
+
+- **Local first.** Student data stays on the device unless the teacher explicitly exports or sends it.
+- **Missing is not zero.** Explicitly missing and not-recorded values remain distinct.
+- **Provenance is visible.** Observed, teacher-entered, imported, derived, and synthetic data are not collapsed together.
+- **No black-box student labels.** ClassGraph does not silently infer intelligence, personality, motivation, behaviour diagnoses, or future outcomes.
+- **Explain the plan.** Seating and grouping candidates show the constraints, objectives, penalties, and remaining trade-offs.
+- **Accessible equivalents.** Important visual views retain table-based alternatives.
+- **Portable by design.** Versioned JSON is the machine-readable source of truth.
+- **Lean runtime.** The desktop downloads use Node Single Executable Applications rather than bundling Electron.
+
+## Run from source
 
 Requirements:
 
 - Node.js 22 or newer
 - npm
-
-Install, verify, build, and start:
 
 ```bash
 npm ci
@@ -97,23 +101,23 @@ npm run build
 npm start
 ```
 
-ClassGraph binds to `127.0.0.1:4317` by default. Open:
+Then open:
 
 ```text
 http://127.0.0.1:4317
 ```
 
-For development after dependencies are installed:
+For development:
 
 ```bash
 npm run dev
 ```
 
-`CLASSGRAPH_PORT` can change the local port. `CLASSGRAPH_HOST` can override the host, but using a non-loopback host may expose student data to other devices on the network and should only be done deliberately on a trusted network.
+`CLASSGRAPH_PORT` can change the local port. `CLASSGRAPH_HOST` can override the host, but a non-loopback host may expose student data to other devices and should only be used deliberately on a trusted network.
 
-### Optional network assistance provider
+### Optional network provider
 
-Network assistance is **off by default**. Offline assistance remains available without configuration. To enable the generic HTTPS provider boundary, set these process environment variables before starting ClassGraph:
+Network assistance is **off by default**. To enable the generic HTTPS provider boundary, set:
 
 ```text
 CLASSGRAPH_ASSISTANCE_URL=https://provider.example/assist
@@ -121,83 +125,78 @@ CLASSGRAPH_ASSISTANCE_PROVIDER_LABEL=Example Provider
 CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 ```
 
-`CLASSGRAPH_ASSISTANCE_URL` must use HTTPS. The token is read from the environment for the running process; ClassGraph does not write it to project JSON, exports, browser storage, or source files. Network assistance still requires a local context preview and an explicit send confirmation for each request.
-
-## Desktop downloads
-
-Release `v0.6.0` and subsequent tagged releases provide:
-
-- `ClassGraph-Windows-x64.exe`
-- `ClassGraph-macOS-AppleSilicon.app.zip`
-- `ClassGraph-macOS-Intel.app.zip`
-- `ClassGraph-Linux-x64.tar.gz`
-- `SHA256SUMS.txt`
-
-The packaged builds include the Node runtime and ClassGraph UI assets, so users do not need to install Node.js. Windows builds are initially unsigned and macOS builds are ad-hoc signed rather than notarised; operating-system reputation/security prompts may therefore appear until formal signing credentials are configured.
-
-## Input paths
-
-- Import a ClassGraph Exchange v1 `.json` file.
-- Enter/edit students and custom metrics manually.
-- Generate a fully synthetic class from an explicit structured specification.
-- Convert teacher-supplied synthetic-class intent into an editable proposed specification before any generation.
+`CLASSGRAPH_ASSISTANCE_URL` must use HTTPS. Every network request still requires a visible context preview and explicit send confirmation.
 
 ## Current outputs
 
-- Editable student/class table.
-- Metric completeness views.
-- Numeric distributions and descriptive statistics.
-- Category/ordinal/boolean/text counts.
-- Numeric scatter comparisons with table equivalents.
-- Field-level provenance inspection.
-- Manual and generated seating/grouping plans with table equivalents.
-- Validated ClassGraph Exchange JSON.
-- Versioned analysis JSON.
-- Versioned approved seating-plan JSON.
-- Versioned EduBoard hand-back JSON.
-- Local DOCX descriptive report.
-- Local PDF descriptive report.
-- Landscape seating-plan PDF.
-- Explicit relationship table and local relationship graph.
-- Repeat-neighbour history and saved planning-scenario comparisons.
-- Offline assistance proposals for synthetic specs, descriptive explanations, report wording, and planning rules.
-- Optional network assistance with pre-send context disclosure and explicit confirmation.
-- Optional offline/network assistance proposals that remain outside canonical project data until explicitly accepted or copied.
+- Editable student/class table
+- Metric completeness views
+- Numeric distributions and descriptive statistics
+- Category, ordinal, boolean and text counts
+- Numeric scatter comparisons with table equivalents
+- Field-level provenance inspection
+- Manual and generated seating/grouping plans
+- Explicit relationship table and relationship graph
+- Repeat-neighbour history
+- Saved planning-scenario comparisons
+- Versioned project, analysis and seating-plan JSON
+- Local DOCX descriptive reports
+- Local PDF descriptive reports
+- Landscape seating-plan PDFs
+- Offline assistance proposals
+- Optional network assistance with pre-send disclosure
 
-## Product principles
+<details>
+<summary><strong>Implementation history — Phases 1–6</strong></summary>
 
-- **Local first.** Student data stays on the teacher's device unless the teacher explicitly exports or shares it.
-- **Observed, entered, imported, derived, and synthetic data remain distinguishable.**
-- **Missing is not zero.** Explicitly missing and not-recorded values are distinct.
-- **No black-box student labels.** ClassGraph supports teacher judgement; it does not diagnose personality, ability, behaviour, or future achievement.
-- **Descriptive analysis before prediction.** Graphs show the data supplied; they do not claim causation or forecast student outcomes.
-- **Explain recommendations.** Seating/grouping suggestions show the constraints/objectives or explicit relationship records that produced them.
-- **Assistance never silently applies itself.** Drafts remain proposals until the teacher explicitly copies, validates, or applies them.
-- **Minimise network context.** Aggregate/redacted data is preferred; any student-level disclosure is visible before an optional send.
-- **Portable by design.** The canonical interchange format is versioned JSON.
-- **Quality gates before features.** Formatting, lint, strict typecheck, tests, build, schema validation, and dependency auditing are required before merge.
-- **Keep the app lean.** New frameworks/dependencies need a concrete product benefit rather than being added by default.
+### Phase 1 — Workspace and analysis
 
-## Relationship to EduBoard
+Manual projects, Exchange JSON import/export, roster and metric editing, provenance inspection, descriptive completeness/distributions/statistics, scatter comparisons, and deterministic synthetic classes.
 
-EduBoard remains the operational teacher dashboard/source-of-truth product. ClassGraph focuses on **analysis, visualisation, layout/group planning, and decision support**.
+### Phase 2 — Seating and grouping
 
-Integration is through explicit import/export contracts rather than hidden coupling. Derived or synthetic ClassGraph values must never silently overwrite observed EduBoard data.
+Grid rooms, enabled/disabled seats, seat tags, manual assignments, locks, hard constraints, soft objectives, deterministic seating/grouping candidates, explanations, and persisted planning state.
+
+### Phase 3 — Reports and portable exports
+
+Versioned analysis/seating exports, DOCX/PDF reports, landscape seating-plan PDF, safe local download endpoints, and portable interchange contracts.
+
+### Phase 4 — Relationships and scenario comparison
+
+Explicit relationship records, deterministic relationship network/table views, repeat-neighbour history, saved scenarios, and descriptive before/after comparisons.
+
+### Phase 5 — Optional assistance
+
+Offline proposal generation plus an optional direct-HTTPS provider boundary with exact-context preview, explicit confirmation, response validation, and no automatic project mutation.
+
+### Phase 6 — Desktop releases
+
+Self-contained Windows, macOS Apple Silicon, macOS Intel, and Linux builds using Node 22 Single Executable Applications, native executable self-tests, release automation, and SHA-256 checksums.
+
+</details>
 
 ## Design and recovery documents
 
-- `DESIGN.md` — product/architecture contract.
-- `docs/INTERCHANGE.md` — Exchange v1 interoperability notes.
-- `docs/PHASE1_LOG.md` — Phase 1 recovery/checkpoint log.
-- `docs/PHASE_2.md` — Phase 2 seating/grouping recovery and Gate 2 log.
-- `docs/PHASE_3.md` — Phase 3 exports/interchange recovery and Gate 3 log.
-- `docs/PHASE3_LOG.md` — recovery alias pointing to the authoritative Phase 3 log.
-- `docs/PHASE_4.md` — Phase 4 relationship/history/scenario recovery and Gate 4 log.
-- `docs/PHASE_5.md` — Phase 5 optional-assistance/provider recovery and Gate 5 log.
-- `docs/PHASE_6.md` — Phase 6 cross-platform desktop release recovery and Gate 6 log.
+- [`DESIGN.md`](DESIGN.md) — product and architecture contract
+- [`docs/INTERCHANGE.md`](docs/INTERCHANGE.md) — Exchange v1 interoperability notes
+- [`docs/PHASE1_LOG.md`](docs/PHASE1_LOG.md) — Phase 1 recovery log
+- [`docs/PHASE_2.md`](docs/PHASE_2.md) — Phase 2 recovery and Gate 2
+- [`docs/PHASE_3.md`](docs/PHASE_3.md) — Phase 3 recovery and Gate 3
+- [`docs/PHASE_4.md`](docs/PHASE_4.md) — Phase 4 recovery and Gate 4
+- [`docs/PHASE_5.md`](docs/PHASE_5.md) — Phase 5 recovery and Gate 5
+- [`docs/PHASE_6.md`](docs/PHASE_6.md) — Phase 6 recovery and Gate 6
 
-For completed implementation history, see the phase logs above. Phase 6 preserves the same local-first core while making ClassGraph directly downloadable on Windows, macOS, and Linux.
+## Branding
 
-## Repository
+- [ClassGraph mark](docs/branding/classgraph-mark.svg)
+- [ClassGraph lockup](docs/branding/classgraph-lockup.svg)
 
-https://github.com/purysho/ClassGraph
+## License and security
+
+See [`SECURITY.md`](SECURITY.md) for the current security boundary and responsible-use notes.
+
+---
+
+<p align="center">
+  <img src="docs/branding/classgraph-lockup.svg" width="620" alt="ClassGraph">
+</p>
