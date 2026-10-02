@@ -51,50 +51,64 @@ Project filenames are based on the class title and remain readable. ClassGraph s
 
 - [x] Create Phase 8 branch and recovery log.
 - [x] Define browser/localhost Phase 7 packaging as superseded.
-- [ ] Preserve old JSON compatibility.
-- [ ] Add one-time migration from the v0.7 hidden local library.
+- [x] Preserve old JSON compatibility.
+- [x] Add one-time migration from the v0.7 hidden local library.
 
 ### P8.1 — Transport-independent ClassGraph API
 
-- [ ] Extract API operation handling from the HTTP server.
-- [ ] Keep HTTP wrapper for source/dev compatibility.
-- [ ] Add IPC transport using the same handler.
-- [ ] Add parity tests for representative HTTP vs IPC requests.
+- [x] Extract API operation handling from the HTTP server.
+- [x] Keep HTTP wrapper for source/dev compatibility.
+- [x] Add IPC transport using the same handler.
+- [x] Add parity tests for representative HTTP vs IPC requests.
 
 ### P8.2 — Real desktop shell
 
-- [ ] Add Electron main process.
-- [ ] Add context-isolated preload bridge.
-- [ ] Add renderer bootstrap that routes ClassGraph API calls over IPC.
-- [ ] Load packaged renderer files directly; no browser launch and no localhost.
-- [ ] Closing the window terminates the app.
+- [x] Add Electron main process.
+- [x] Add context-isolated preload bridge.
+- [x] Add renderer bootstrap that routes ClassGraph API calls over IPC.
+- [x] Load packaged renderer files directly; no browser launch and no localhost.
+- [x] Closing the window terminates the app.
 
 ### P8.3 — Human-readable files
 
-- [ ] Save to OS Documents/ClassGraph/Projects.
-- [ ] Use title-based `.classgraph.json` filenames.
-- [ ] Handle duplicate titles safely.
-- [ ] Reopen recent projects by scanning files and matching project ID.
-- [ ] Keep rolling backups in Documents/ClassGraph/Backups.
-- [ ] Support manual file rename/copy without breaking project discovery.
+- [x] Save to OS Documents/ClassGraph/Projects.
+- [x] Use title-based `.classgraph.json` filenames.
+- [x] Handle duplicate titles safely.
+- [x] Reopen recent projects by scanning files and matching project ID.
+- [x] Keep rolling backups in Documents/ClassGraph/Backups.
+- [x] Support manual file rename/copy without breaking project discovery.
 
 ### P8.4 — Packaging and icons
 
-- [ ] Add real CG `icon.ico`, `icon.icns`, and `icon.png`.
-- [ ] Windows NSIS installer with ClassGraph shortcut.
-- [ ] Windows portable build optional.
-- [ ] macOS DMG/ZIP for Apple Silicon and Intel.
-- [ ] Linux AppImage.
-- [ ] Remove Node SEA packaging from downloadable releases.
+- [x] Add real CG `icon.ico`, `icon.icns`, and `icon.png`.
+- [x] Windows NSIS installer with ClassGraph shortcut.
+- [x] Windows portable build optional.
+- [x] macOS DMG/ZIP for Apple Silicon and Intel.
+- [x] Linux AppImage.
+- [x] Remove Node SEA packaging from downloadable releases.
 
 ### P8.5 — Release
 
-- [ ] Bump to v0.8.0.
-- [ ] Update README download names and desktop behavior.
+- [x] Bump to v0.8.0.
+- [x] Update README download names and desktop behavior.
 - [ ] Pass normal tests and production dependency audit.
 - [ ] Pass native Windows/macOS/Linux package smoke tests.
 - [ ] Merge to `main`.
 - [ ] Publish v0.8.0 and verify downloads.
+
+## Current verification state
+
+Current Phase 8 branch/PR: `feat/phase-8-native-desktop` / PR #11.
+
+Verified on the current architecture:
+
+- Core format, lint, typecheck and test suite pass.
+- 169 tests pass, including visible-file storage, old-file import, manual rename discovery, v0.7 migration, HTTP/direct API parity, and a packaged-desktop no-localhost contract.
+- Production dependency audit passes.
+- Linux x64 unpacked Electron app passes its native self-test under Xvfb and AppImage packaging succeeds.
+- Windows x64 unpacked Electron app passes its native self-test; installer/portable packaging is running in the current Gate 8 matrix.
+- macOS Intel and Apple Silicon unpacked apps pass through build/self-test and are in package generation in the current Gate 8 matrix.
+- The packaged Electron entry point contains no `createClassGraphServer`, `.listen(`, `127.0.0.1`, or `localhost` usage.
 
 ## Gate 8
 
