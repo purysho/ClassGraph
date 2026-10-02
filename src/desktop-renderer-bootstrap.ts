@@ -32,8 +32,16 @@ if (desktop) {
       )
     }
 
-    const responseBody =
-      result.bodyBase64 !== undefined ? base64Bytes(result.bodyBase64) : (result.bodyText ?? '')
+    let responseBody: BodyInit
+    if (result.bodyBase64 !== undefined) {
+      const bytes = base64Bytes(result.bodyBase64)
+      responseBody = bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+      ) as ArrayBuffer
+    } else {
+      responseBody = result.bodyText ?? ''
+    }
 
     return new Response(responseBody, {
       status: result.status,
