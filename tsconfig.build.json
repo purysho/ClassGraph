@@ -5,10 +5,10 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "outDir": "dist/core",
+    "outDir": "dist",
     "rootDir": "src",
     "types": ["node"]
   },
-  "include": ["src/*.ts"],
-  "exclude": ["tests", "dist", "src/app"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["tests", "dist"]
 }
