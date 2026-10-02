@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 6 complete  
-**Design revision:** 0.6  
+**Status:** Phase 7 implementation  
+**Design revision:** 0.7  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -765,6 +765,24 @@ Desktop packaging must not change canonical project data, assistance behavior, E
 
 ---
 
+### Phase 7 — Desktop UX and local saves
+
+Implemented scope:
+
+- filesystem-backed local project library using validated Exchange v1 JSON rather than a new database;
+- autosave after project creation, validated import, synthetic generation, and accepted project mutations;
+- recent-project list plus automatic reopening of the last used project;
+- rolling local safety copies before saved projects are overwritten;
+- explicit **Backup JSON** and **Import / restore backup** flow for reinstalls, cloud copies, and moving computers;
+- platform-appropriate local data locations;
+- Windows GUI-subsystem packaging so normal launch does not leave a console window visible;
+- second-launch detection that reopens an existing local ClassGraph instance instead of starting a duplicate server;
+- CG application branding in Windows executable resources, macOS app metadata, and Linux package metadata.
+
+The local project library stores the same validated portable JSON model that ClassGraph already exports. It must not silently migrate provenance, replace missing values, or create a second competing source-of-truth schema.
+
+---
+
 ## 15. Go/no-go gates
 
 ### Gate 1 — foundation
@@ -831,8 +849,21 @@ Proceed only when:
 - no Electron/runtime desktop framework is introduced;
 - packaging-only tooling does not become a shipped runtime dependency.
 
+### Gate 7 — desktop UX and local saves
+
+Proceed only when:
+
+- create/import/generate/mutate flows save validated projects when the local library is enabled;
+- saved projects survive a fresh store/runtime instance and can be listed/reopened;
+- malformed backup JSON is rejected before it is persisted;
+- overwrites keep a bounded local safety copy;
+- Windows native packaging passes after switching to the GUI subsystem;
+- operating-system packages contain the ClassGraph CG branding assets;
+- portable Backup JSON remains compatible with the canonical Exchange schema;
+- the feature adds no cloud account, telemetry, Electron runtime, or hidden data migration.
+
 ---
 
 ## 16. Immediate implementation instruction
 
-> Phase 0–6 are implemented and merged, with v0.6.0 released for Windows, macOS, and Linux. Preserve explicit provenance, missing-data semantics, the proposal-only assistance boundary, loopback-first operation, and the no-hidden-trait rule. Any future phase must justify every new runtime dependency.
+> Phase 0–6 are implemented and merged. Phase 7 adds normal desktop launch behavior and a JSON-backed local project library without changing ClassGraph's canonical data model. Preserve explicit provenance, missing-data semantics, the proposal-only assistance boundary, loopback-first operation, and the no-hidden-trait rule. Any future phase must justify every new runtime dependency.
