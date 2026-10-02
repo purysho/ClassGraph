@@ -3,24 +3,24 @@ import { classGraphApiFetch } from '../src/api-client-transport.js'
 import type { ClassGraphDesktopBridge } from '../src/desktop-bridge.js'
 
 function fakeBrowserFetch() {
-  return vi.fn(async () => new Response('browser', { status: 200 })) as unknown as typeof fetch
+  return vi.fn(() => Promise.resolve(new Response('browser', { status: 200 }))) as unknown as typeof fetch
 }
 
 describe('ClassGraph renderer API transport', () => {
   it('sends create-class requests through the Electron bridge in file mode', async () => {
     const requests: unknown[] = []
     const bridge: ClassGraphDesktopBridge = {
-      request: async (request) => {
+      request: (request) => {
         requests.push(request)
-        return {
+        return Promise.resolve({
           status: 200,
           contentType: 'application/json; charset=utf-8',
           bodyText: JSON.stringify({
             project: { projectId: 'grade-5a', title: 'Grade 5A English' },
           }),
-        }
+        })
       },
-      saveProjectCopy: async () => ({ canceled: true }),
+      saveProjectCopy: () => Promise.resolve({ canceled: true }),
     }
     const browserFetch = fakeBrowserFetch()
 
@@ -79,13 +79,14 @@ describe('ClassGraph renderer API transport', () => {
 
   it('preserves binary desktop responses for local report downloads', async () => {
     const bridge: ClassGraphDesktopBridge = {
-      request: async () => ({
-        status: 200,
-        contentType: 'application/pdf',
-        filename: 'report.pdf',
-        bodyBase64: 'AQID',
-      }),
-      saveProjectCopy: async () => ({ canceled: true }),
+      request: () =>
+        Promise.resolve({
+          status: 200,
+          contentType: 'application/pdf',
+          filename: 'report.pdf',
+          bodyBase64: 'AQID',
+        }),
+      saveProjectCopy: () => Promise.resolve({ canceled: true }),
     }
 
     const response = await classGraphApiFetch(
