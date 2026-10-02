@@ -1,0 +1,150 @@
+name: Desktop release
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm audit --omit=dev --audit-level=high
+
+  build:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: windows-x64
+            runner: windows-latest
+          - id: linux-x64
+            runner: ubuntu-latest
+          - id: macos-arm64
+            runner: macos-latest
+          - id: macos-intel
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - run: npm ci
+      - run: npm run build:desktop
+
+      - name: Self-test Windows executable
+        if: matrix.id == 'windows-x64'
+        shell: pwsh
+        run: .\release\ClassGraph-Windows-x64.exe --self-test
+
+      - name: Self-test Linux executable
+        if: matrix.id == 'linux-x64'
+        run: ./release/ClassGraph-Linux-x64 --self-test
+
+      - name: Self-test macOS arm64 executable
+        if: matrix.id == 'macos-arm64'
+        run: ./release/ClassGraph-macOS-arm64 --self-test
+
+      - name: Self-test macOS Intel executable
+        if: matrix.id == 'macos-intel'
+        run: ./release/ClassGraph-macOS-x64 --self-test
+
+      - name: Prepare Windows download
+        if: matrix.id == 'windows-x64'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release-package | Out-Null
+          Copy-Item release\ClassGraph-Windows-x64.exe release-package\ClassGraph-Windows-x64.exe
+
+      - name: Prepare Linux download
+        if: matrix.id == 'linux-x64'
+        run: |
+          mkdir -p release-package
+          tar -czf release-package/ClassGraph-Linux-x64.tar.gz -C release ClassGraph-Linux-x64
+
+      - name: Prepare macOS Apple Silicon app
+        if: matrix.id == 'macos-arm64'
+        run: |
+          mkdir -p release-package/ClassGraph.app/Contents/MacOS
+          cp release/ClassGraph-macOS-arm64 release-package/ClassGraph.app/Contents/MacOS/ClassGraph
+          cat > release-package/ClassGraph.app/Contents/Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleExecutable</key><string>ClassGraph</string>
+            <key>CFBundleIdentifier</key><string>com.purysho.classgraph</string>
+            <key>CFBundleName</key><string>ClassGraph</string>
+            <key>CFBundleDisplayName</key><string>ClassGraph</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>0.6.0</string>
+          </dict></plist>
+          PLIST
+          chmod +x release-package/ClassGraph.app/Contents/MacOS/ClassGraph
+          codesign --force --deep --sign - release-package/ClassGraph.app
+          ditto -c -k --sequesterRsrc --keepParent release-package/ClassGraph.app release-package/ClassGraph-macOS-AppleSilicon.app.zip
+          rm -rf release-package/ClassGraph.app
+
+      - name: Prepare macOS Intel app
+        if: matrix.id == 'macos-intel'
+        run: |
+          mkdir -p release-package/ClassGraph.app/Contents/MacOS
+          cp release/ClassGraph-macOS-x64 release-package/ClassGraph.app/Contents/MacOS/ClassGraph
+          cat > release-package/ClassGraph.app/Contents/Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleExecutable</key><string>ClassGraph</string>
+            <key>CFBundleIdentifier</key><string>com.purysho.classgraph</string>
+            <key>CFBundleName</key><string>ClassGraph</string>
+            <key>CFBundleDisplayName</key><string>ClassGraph</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>0.6.0</string>
+          </dict></plist>
+          PLIST
+          chmod +x release-package/ClassGraph.app/Contents/MacOS/ClassGraph
+          codesign --force --deep --sign - release-package/ClassGraph.app
+          ditto -c -k --sequesterRsrc --keepParent release-package/ClassGraph.app release-package/ClassGraph-macOS-Intel.app.zip
+          rm -rf release-package/ClassGraph.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: classgraph-${{ matrix.id }}
+          path: release-package/*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: classgraph-*
+          path: release-assets
+          merge-multiple: true
+      - name: Generate SHA-256 checksums
+        working-directory: release-assets
+        run: sha256sum * > SHA256SUMS.txt
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" release-assets/*             --repo "${GITHUB_REPOSITORY}"             --title "ClassGraph ${GITHUB_REF_NAME}"             --generate-notes
