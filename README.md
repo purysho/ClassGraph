@@ -98,21 +98,9 @@ npm run dev
 
 `CLASSGRAPH_PORT` can change the local port. `CLASSGRAPH_HOST` can override the host, but using a non-loopback host may expose student data to other devices on the network and should only be done deliberately on a trusted network.
 
-Phase 5 network assistance is **off by default**. Optional provider configuration uses environment variables only:
-
-```text
-CLASSGRAPH_ASSISTANCE_URL=https://provider.example/assist
-CLASSGRAPH_ASSISTANCE_PROVIDER_LABEL=Provider name
-CLASSGRAPH_ASSISTANCE_TOKEN=optional-secret
-```
-
-The endpoint must be HTTPS. ClassGraph shows the exact context before transmission and requires a separate explicit send confirmation. The token is never stored in a ClassGraph project or exposed through the assistance status API.
-
 ### Optional network assistance provider
 
-No network provider is enabled by default. Offline assistance remains available without configuration.
-
-To enable the generic HTTPS provider boundary, set these process environment variables before starting ClassGraph:
+Network assistance is **off by default**. Offline assistance remains available without configuration. To enable the generic HTTPS provider boundary, set these process environment variables before starting ClassGraph:
 
 ```text
 CLASSGRAPH_ASSISTANCE_URL=https://provider.example/assist
@@ -180,9 +168,7 @@ Integration is through explicit import/export contracts rather than hidden coupl
 - `docs/PHASE_3.md` — Phase 3 exports/interchange recovery and Gate 3 log.
 - `docs/PHASE3_LOG.md` — recovery alias pointing to the authoritative Phase 3 log.
 - `docs/PHASE_4.md` — Phase 4 relationship/history/scenario recovery and Gate 4 log.
-- `docs/PHASE_5.md` — Phase 5 assistance/provider recovery and Gate 5 log.
-- `docs/PHASE_4.md` — Phase 4 relationship/history/scenario recovery log.
-- `docs/PHASE_5.md` — Phase 5 optional-assistance recovery and Gate 5 log.
+- `docs/PHASE_5.md` — Phase 5 optional-assistance/provider recovery and Gate 5 log.
 
 For completed implementation history, see the phase logs above. Phase 5 preserves the same local-first core and keeps network assistance optional.
 
