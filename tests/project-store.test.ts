@@ -157,9 +157,7 @@ describe('local project store', () => {
     await expect(store.migrateFromLegacy(legacy)).resolves.toBe(1)
     await expect(store.migrateFromLegacy(legacy)).resolves.toBe(0)
 
-    expect(await readdir(join(visible, 'Projects'))).toEqual([
-      'Legacy Grade 4.classgraph.json',
-    ])
+    expect(await readdir(join(visible, 'Projects'))).toEqual(['Legacy Grade 4.classgraph.json'])
   })
 
   it('can import a copied project file into a fresh library', async () => {
@@ -174,10 +172,7 @@ describe('local project store', () => {
     await sourceStore.save(project)
 
     const cloudCopy = join(targetDirectory, 'downloaded-old-edition.json')
-    await copyFile(
-      join(sourceDirectory, 'Projects', 'Portable Class.classgraph.json'),
-      cloudCopy,
-    )
+    await copyFile(join(sourceDirectory, 'Projects', 'Portable Class.classgraph.json'), cloudCopy)
 
     const targetStore = new FileProjectStore(join(targetDirectory, 'library'))
     await expect(targetStore.importFile(cloudCopy)).resolves.toMatchObject({

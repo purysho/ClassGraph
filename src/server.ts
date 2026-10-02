@@ -1,10 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { extname, join } from 'node:path'
-import {
-  dispatchClassGraphApi,
-  type ClassGraphApiResponse,
-} from './api-dispatch.js'
+import { dispatchClassGraphApi, type ClassGraphApiResponse } from './api-dispatch.js'
 import type { AssistanceProvider } from './assistance-provider.js'
 import type { FileProjectStore } from './project-store.js'
 

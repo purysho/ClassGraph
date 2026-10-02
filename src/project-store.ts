@@ -1,14 +1,5 @@
 import { createHash } from 'node:crypto'
-import {
-  copyFile,
-  mkdir,
-  readFile,
-  readdir,
-  rename,
-  rm,
-  stat,
-  writeFile,
-} from 'node:fs/promises'
+import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, join, posix, win32 } from 'node:path'
 import type { ClassGraphProject } from './model.js'
@@ -276,10 +267,7 @@ export class FileProjectStore {
     if (legacyDirectory === this.dataDirectory || (await exists(this.migrationMarkerPath))) return 0
 
     let migrated = 0
-    const legacyProjects = [
-      join(legacyDirectory, 'projects'),
-      join(legacyDirectory, 'Projects'),
-    ]
+    const legacyProjects = [join(legacyDirectory, 'projects'), join(legacyDirectory, 'Projects')]
 
     for (const directory of legacyProjects) {
       if (!(await exists(directory))) continue

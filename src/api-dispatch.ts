@@ -188,9 +188,7 @@ function parseProjectFromRequest(record: Record<string, unknown>) {
   const result = classGraphProjectSchema.safeParse(record.project)
   if (!result.success) {
     const issue = result.error.issues[0]
-    throw new Error(
-      `CG-1001 invalid project in request: ${issue?.message ?? 'validation failed'}`,
-    )
+    throw new Error(`CG-1001 invalid project in request: ${issue?.message ?? 'validation failed'}`)
   }
   return result.data
 }

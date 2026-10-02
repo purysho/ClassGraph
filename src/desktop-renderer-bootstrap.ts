@@ -16,11 +16,7 @@ if (desktop) {
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const rawUrl =
-      typeof input === 'string'
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input.url
+      typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
     const url = new URL(rawUrl, window.location.href)
 
     if (!url.pathname.startsWith('/api/')) {
@@ -39,9 +35,7 @@ if (desktop) {
     }
 
     const responseBody =
-      result.bodyBase64 !== undefined
-        ? base64Bytes(result.bodyBase64)
-        : (result.bodyText ?? '')
+      result.bodyBase64 !== undefined ? base64Bytes(result.bodyBase64) : (result.bodyText ?? '')
 
     return new Response(responseBody, {
       status: result.status,
