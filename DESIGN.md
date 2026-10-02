@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 3 implementation contract  
-**Design revision:** 0.3  
+**Status:** Phase 6 complete  
+**Design revision:** 0.6  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -517,7 +517,7 @@ src/
     export/
   shared/
   app/          # later React UI
-  desktop/      # later Electron boundary
+  desktop/      # packaged Node SEA boundary
 ```
 
 `src/core` must not depend on React or Electron.
@@ -532,12 +532,12 @@ Foundation technology:
 - Prettier;
 - property/invariant tests where useful.
 
-Phase 1–5 UI implementation:
+Phase 1–6 UI implementation:
 
 - local Node 22 HTTP boundary bound to loopback by default;
 - browser UI authored in TypeScript and compiled with the existing TypeScript build;
 - plain local CSS and DOM APIs;
-- no React, Electron, charting library, relationship-graph library, provider SDK, remote font, or remote script required for Phase 1–5;
+- no React, Electron, charting library, relationship-graph library, provider SDK, remote font, or remote script required for Phase 1–6;
 - browser remains a thin client: schema/provenance/generation/analysis/planning/relationship/assistance rules stay in UI-independent TypeScript modules;
 - candidate generation endpoints are read-only previews until the teacher explicitly accepts a candidate through a validated project mutation;
 - assistance has a provider-independent contract, deterministic offline implementation, and an optional HTTPS provider boundary;
@@ -750,7 +750,7 @@ Assistance only proposes. Synthetic generation and planning mutations remain sep
 
 ### Phase 6 — Cross-platform desktop distribution
 
-Implemented/required scope:
+Implemented scope:
 
 - official Node Single Executable Application packaging rather than Electron;
 - embedded local UI assets inside the executable;
@@ -835,4 +835,4 @@ Proceed only when:
 
 ## 16. Immediate implementation instruction
 
-> Phase 0–5 are implemented and merged. Phase 6 adds cross-platform desktop distribution without replacing the lean local architecture. Preserve explicit provenance, missing-data semantics, the proposal-only assistance boundary, loopback-first operation, and the no-hidden-trait rule. Any future phase must justify every new runtime dependency.
+> Phase 0–6 are implemented and merged, with v0.6.0 released for Windows, macOS, and Linux. Preserve explicit provenance, missing-data semantics, the proposal-only assistance boundary, loopback-first operation, and the no-hidden-trait rule. Any future phase must justify every new runtime dependency.
