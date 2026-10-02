@@ -2,3 +2,4 @@ ClassGraph v0.8.0 release trigger
 
 Phase 8: native desktop application and visible project files.
 Merged commit: ba54ddb80eaf23493ada3a61d93da1aec0cbc22a
+Release retry: use dedicated publisher only.
