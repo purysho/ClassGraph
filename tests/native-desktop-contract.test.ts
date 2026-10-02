@@ -32,8 +32,27 @@ describe('native desktop packaging contract', () => {
   it('loads renderer assets from local packaged files', async () => {
     const html = await readFile('app/index.html', 'utf8')
 
-    expect(html).toContain('../dist/desktop-renderer-bootstrap.js')
+    expect(html).not.toContain('desktop-renderer-bootstrap.js')
     expect(html).toContain('../dist/app-client.js')
     expect(html).not.toMatch(/https?:\/\//)
+  })
+
+  it('routes packaged API calls directly through the desktop bridge', async () => {
+    const source = await readFile('src/app-client.ts', 'utf8')
+    const transport = await readFile('src/api-client-transport.ts', 'utf8')
+
+    expect(source).toContain('classGraphApiFetch')
+    expect(transport).toContain('environment.desktopBridge.request')
+    expect(transport).toContain("environment.protocol === 'file:'")
+    expect(transport).toContain('CG-2014')
+  })
+
+  it('native smoke test exercises the renderer preload bridge and create route', async () => {
+    const source = await readFile('src/electron-main.ts', 'utf8')
+
+    expect(source).toContain('runRendererSelfTest')
+    expect(source).toContain('window.classGraphDesktop')
+    expect(source).toContain("path: '/api/project/create'")
+    expect(source).toContain('ClassGraph renderer/preload self-test passed.')
   })
 })

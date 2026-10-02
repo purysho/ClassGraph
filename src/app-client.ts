@@ -1,3 +1,5 @@
+import { classGraphApiFetch } from './api-client-transport.js'
+
 interface ProvenanceEntry {
   kind: string
   source?: string
@@ -651,7 +653,7 @@ async function responseError(response: Response): Promise<Error> {
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(path, {
+  const response = await classGraphApiFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -661,13 +663,13 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(path)
+  const response = await classGraphApiFetch(path)
   if (!response.ok) throw await responseError(response)
   return (await response.json()) as T
 }
 
 async function postText<T>(path: string, body: string): Promise<T> {
-  const response = await fetch(path, { method: 'POST', body })
+  const response = await classGraphApiFetch(path, { method: 'POST', body })
   if (!response.ok) throw await responseError(response)
   return (await response.json()) as T
 }
@@ -3097,7 +3099,7 @@ async function downloadReportExport(path: string, fallback: string): Promise<voi
   clearStatus()
 
   try {
-    const response = await fetch(path, {
+    const response = await classGraphApiFetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project }),
@@ -5080,7 +5082,7 @@ async function exportProject(): Promise<void> {
       return
     }
 
-    const response = await fetch('/api/export', {
+    const response = await classGraphApiFetch('/api/export', {
       method: 'POST',
       body: JSON.stringify(project),
     })
