@@ -77,9 +77,13 @@ async function exists(path: string): Promise<boolean> {
 }
 
 export function safeProjectFileStem(title: string): string {
-  const cleaned = title
-    .normalize('NFKC')
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
+  const safeCharacters = [...title.normalize('NFKC')].map((character) => {
+    const code = character.codePointAt(0) ?? 0
+    return code < 32 || '<>:"/\\|?*'.includes(character) ? ' ' : character
+  })
+
+  const cleaned = safeCharacters
+    .join('')
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/[. ]+$/g, '')
