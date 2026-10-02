@@ -24,7 +24,7 @@ Default data folders:
 
 - Windows: `%LOCALAPPDATA%\\ClassGraph` (falling back to `%APPDATA%\\ClassGraph`)
 - macOS: `~/Library/Application Support/ClassGraph`
-- Linux: `\${XDG_DATA_HOME:-~/.local/share}/ClassGraph`
+- Linux: `${XDG_DATA_HOME:-~/.local/share}/ClassGraph`
 
 The library contains current project files plus a small rolling local backup before overwrites. It is not a database and does not change the canonical ClassGraph JSON format.
 
@@ -63,6 +63,7 @@ Portable recovery remains explicit:
 - [x] Windows packaged executable uses GUI subsystem and does not create a console window.
 - [x] A second launch reopens an already-running ClassGraph instance instead of starting a duplicate hidden server.
 - [x] Native self-test still verifies the Windows GUI executable by process exit code.
+- [x] Packaged UI exposes an explicit Quit control so the hidden local server can be stopped cleanly.
 
 ### P7.4 — OS branding
 
