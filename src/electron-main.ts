@@ -53,7 +53,7 @@ async function createProjectStore(): Promise<FileProjectStore> {
   return store
 }
 
-function createWindow(): BrowserWindow {
+function createWindow(showWhenReady = true): BrowserWindow {
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -75,7 +75,7 @@ function createWindow(): BrowserWindow {
   window.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith('file://')) event.preventDefault()
   })
-  window.once('ready-to-show', () => window.show())
+  if (showWhenReady) window.once('ready-to-show', () => window.show())
   void window.loadFile(packagedAsset('app', 'index.html'))
 
   return window
@@ -98,6 +98,51 @@ async function runSelfTest(store: FileProjectStore): Promise<void> {
   console.log('ClassGraph native desktop self-test passed.')
 }
 
+async function runRendererSelfTest(): Promise<void> {
+  const window = createWindow(false)
+
+  await new Promise<void>((resolve, reject) => {
+    window.webContents.once('did-finish-load', () => resolve())
+    window.webContents.once('did-fail-load', (_event, code, description) => {
+      reject(new Error(`Renderer self-test failed to load: ${code} ${description}`))
+    })
+  })
+
+  const result = (await window.webContents.executeJavaScript(`
+    (async () => {
+      const bridge = window.classGraphDesktop
+      if (!bridge) return { ok: false, reason: 'preload bridge missing' }
+
+      const response = await bridge.request({
+        method: 'POST',
+        path: '/api/project/create',
+        body: JSON.stringify({
+          projectId: 'renderer-self-test',
+          title: 'Renderer Self Test',
+          classInfo: { subject: 'Self Test' }
+        })
+      })
+
+      if (response.status !== 200 || typeof response.bodyText !== 'string') {
+        return { ok: false, reason: 'unexpected desktop API response' }
+      }
+
+      const parsed = JSON.parse(response.bodyText)
+      return {
+        ok: parsed?.project?.projectId === 'renderer-self-test',
+        reason: parsed?.project?.title ?? 'project missing'
+      }
+    })()
+  `)) as { ok?: boolean; reason?: string }
+
+  if (result.ok !== true) {
+    throw new Error(`ClassGraph renderer/preload self-test failed: ${result.reason ?? 'unknown error'}`)
+  }
+
+  console.log('ClassGraph renderer/preload self-test passed.')
+  window.destroy()
+}
+
 async function start(): Promise<void> {
   const gotLock = app.requestSingleInstanceLock()
   if (!gotLock) {
@@ -114,13 +159,6 @@ async function start(): Promise<void> {
 
   await app.whenReady()
   const store = await createProjectStore()
-
-  if (process.argv.includes('--self-test')) {
-    await runSelfTest(store)
-    app.quit()
-    return
-  }
-
   const assistanceProvider = createEnvironmentAssistanceProvider()
 
   ipcMain.handle('classgraph:request', async (_event, request: ClassGraphApiRequest) => {
@@ -154,6 +192,13 @@ async function start(): Promise<void> {
       return { canceled: false, filePath: result.filePath }
     },
   )
+
+  if (process.argv.includes('--self-test')) {
+    await runSelfTest(store)
+    await runRendererSelfTest()
+    app.quit()
+    return
+  }
 
   mainWindow = createWindow()
   mainWindow.on('closed', () => {
