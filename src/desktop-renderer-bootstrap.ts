@@ -1,30 +1,4 @@
-interface DesktopApiRequest {
-  method: 'GET' | 'POST'
-  path: string
-  body?: string
-}
-
-interface DesktopApiResponse {
-  status: number
-  contentType: string
-  filename?: string
-  bodyText?: string
-  bodyBase64?: string
-}
-
-interface ClassGraphDesktopBridge {
-  request(request: DesktopApiRequest): Promise<DesktopApiResponse>
-  saveProjectCopy(
-    serializedProject: string,
-    suggestedTitle: string,
-  ): Promise<{ canceled: boolean; filePath?: string }>
-}
-
-declare global {
-  interface Window {
-    classGraphDesktop?: ClassGraphDesktopBridge
-  }
-}
+import type { DesktopApiRequest } from './desktop-bridge.js'
 
 function base64Bytes(value: string): Uint8Array {
   const binary = atob(value)
