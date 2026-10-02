@@ -23,17 +23,11 @@ function base64Bytes(value: string): Uint8Array {
   return bytes
 }
 
-function desktopResponseBody(result: {
-  bodyText?: string
-  bodyBase64?: string
-}): BodyInit {
+function desktopResponseBody(result: { bodyText?: string; bodyBase64?: string }): BodyInit {
   if (result.bodyBase64 === undefined) return result.bodyText ?? ''
 
   const bytes = base64Bytes(result.bodyBase64)
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
 }
 
 function normalizedApiPath(path: string): string {

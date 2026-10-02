@@ -41,8 +41,8 @@ describe('native desktop packaging contract', () => {
     const source = await readFile('src/app-client.ts', 'utf8')
     const transport = await readFile('src/api-client-transport.ts', 'utf8')
 
-    expect(source).toContain("classGraphApiFetch")
-    expect(transport).toContain("environment.desktopBridge.request")
+    expect(source).toContain('classGraphApiFetch')
+    expect(transport).toContain('environment.desktopBridge.request')
     expect(transport).toContain("environment.protocol === 'file:'")
     expect(transport).toContain('CG-2014')
   })
@@ -51,7 +51,7 @@ describe('native desktop packaging contract', () => {
     const source = await readFile('src/electron-main.ts', 'utf8')
 
     expect(source).toContain('runRendererSelfTest')
-    expect(source).toContain("window.classGraphDesktop")
+    expect(source).toContain('window.classGraphDesktop')
     expect(source).toContain("path: '/api/project/create'")
     expect(source).toContain('ClassGraph renderer/preload self-test passed.')
   })

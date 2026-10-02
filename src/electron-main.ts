@@ -136,7 +136,9 @@ async function runRendererSelfTest(): Promise<void> {
   `)) as { ok?: boolean; reason?: string }
 
   if (result.ok !== true) {
-    throw new Error(`ClassGraph renderer/preload self-test failed: ${result.reason ?? 'unknown error'}`)
+    throw new Error(
+      `ClassGraph renderer/preload self-test failed: ${result.reason ?? 'unknown error'}`,
+    )
   }
 
   console.log('ClassGraph renderer/preload self-test passed.')

@@ -52,10 +52,14 @@ describe('ClassGraph renderer API transport', () => {
     const browserFetch = fakeBrowserFetch()
 
     await expect(
-      classGraphApiFetch('/api/project/create', { method: 'POST', body: '{}' }, {
-        browserFetch,
-        protocol: 'file:',
-      }),
+      classGraphApiFetch(
+        '/api/project/create',
+        { method: 'POST', body: '{}' },
+        {
+          browserFetch,
+          protocol: 'file:',
+        },
+      ),
     ).rejects.toThrow('CG-2014')
 
     expect(browserFetch).not.toHaveBeenCalled()
