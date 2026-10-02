@@ -1,0 +1,70 @@
+appId: com.purysho.classgraph
+productName: ClassGraph
+directories:
+  buildResources: build
+  output: release-desktop
+
+files:
+  - app/**
+  - dist/**
+  - package.json
+  - build/icon.png
+  - build/icon.ico
+  - build/icon.icns
+  - '!**/*.map'
+  - '!**/*.d.ts'
+  - '!**/*.d.ts.map'
+
+asar: true
+npmRebuild: false
+
+win:
+  executableName: ClassGraph
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+
+nsis:
+  artifactName: ClassGraph-Setup.${ext}
+  shortcutName: ClassGraph
+  uninstallDisplayName: ClassGraph
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+portable:
+  artifactName: ClassGraph-Portable.${ext}
+
+mac:
+  icon: build/icon.icns
+  category: public.app-category.education
+  target:
+    - dmg
+    - zip
+  artifactName: ClassGraph-macOS-${arch}.${ext}
+  extendInfo:
+    - NSDocumentsFolderUsageDescription: ClassGraph stores readable project files in your Documents folder.
+  hardenedRuntime: false
+
+dmg:
+  artifactName: ClassGraph-macOS-${arch}.${ext}
+
+linux:
+  icon: build/icon.png
+  category: Education
+  target:
+    - AppImage
+  artifactName: ClassGraph-Linux-x64.AppImage
+
+appImage:
+  artifactName: ClassGraph-Linux-x64.AppImage
+
+publish:
+  provider: github
+  owner: purysho
+  repo: ClassGraph
+  releaseType: release

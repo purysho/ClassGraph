@@ -27,6 +27,13 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm audit --omit=dev --audit-level=high
+      - name: Verify packaged desktop has no localhost server entry
+        run: |
+          ! grep -q "createClassGraphServer" src/electron-main.ts
+          ! grep -q "\.listen(" src/electron-main.ts
+          grep -q "loadFile" src/electron-main.ts
+          grep -q "nodeIntegration: false" src/electron-main.ts
+          grep -q "contextIsolation: true" src/electron-main.ts
 
   build:
     needs: verify
@@ -36,12 +43,16 @@ jobs:
         include:
           - id: windows-x64
             runner: windows-latest
+            arch: x64
           - id: linux-x64
             runner: ubuntu-latest
+            arch: x64
           - id: macos-arm64
             runner: macos-latest
+            arch: arm64
           - id: macos-intel
             runner: macos-15-intel
+            arch: x64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
@@ -52,115 +63,94 @@ jobs:
       - run: npm ci
       - run: npm run build:desktop
 
-      - name: Verify Windows branding and self-test
+      - name: Build unpacked Windows app
+        if: matrix.id == 'windows-x64'
+        shell: pwsh
+        run: npx electron-builder --dir --win --x64
+
+      - name: Smoke-test Windows native app
         if: matrix.id == 'windows-x64'
         shell: pwsh
         run: |
-          $exe = (Resolve-Path '.\release\ClassGraph-Windows-x64.exe').Path
+          $exe = (Resolve-Path '.\release-desktop\win-unpacked\ClassGraph.exe').Path
           $version = (Get-Item $exe).VersionInfo
-          if ($version.ProductName -ne 'ClassGraph') {
+          if ($version.ProductName -notlike 'ClassGraph*') {
             throw "Expected ClassGraph product metadata, got '$($version.ProductName)'"
-          }
-          if ($version.FileDescription -notlike 'ClassGraph*') {
-            throw "Expected ClassGraph file description, got '$($version.FileDescription)'"
           }
           $process = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
           if ($process.ExitCode -ne 0) {
-            throw "ClassGraph Windows self-test failed with exit code $($process.ExitCode)"
+            throw "ClassGraph Windows desktop self-test failed with exit code $($process.ExitCode)"
           }
 
-      - name: Self-test Linux executable
-        if: matrix.id == 'linux-x64'
-        run: ./release/ClassGraph-Linux-x64 --self-test
+      - name: Package Windows installer and portable app
+        if: matrix.id == 'windows-x64'
+        shell: pwsh
+        run: npx electron-builder --win --x64
 
-      - name: Self-test macOS arm64 executable
-        if: matrix.id == 'macos-arm64'
-        run: ./release/ClassGraph-macOS-arm64 --self-test
-
-      - name: Self-test macOS Intel executable
-        if: matrix.id == 'macos-intel'
-        run: ./release/ClassGraph-macOS-x64 --self-test
-
-      - name: Prepare Windows download
+      - name: Prepare Windows downloads
         if: matrix.id == 'windows-x64'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force release-package | Out-Null
-          Copy-Item release\ClassGraph-Windows-x64.exe release-package\ClassGraph-Windows-x64.exe
+          Copy-Item release-desktop\ClassGraph-Setup.exe release-package\ClassGraph-Setup.exe
+          Copy-Item release-desktop\ClassGraph-Portable.exe release-package\ClassGraph-Portable.exe
+
+      - name: Build unpacked Linux app
+        if: matrix.id == 'linux-x64'
+        run: npx electron-builder --dir --linux --x64
+
+      - name: Smoke-test Linux native app
+        if: matrix.id == 'linux-x64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="$(find release-desktop/linux-unpacked -maxdepth 1 -type f -perm -111 \( -name 'classgraph' -o -name 'ClassGraph' \) | head -n 1)"
+          test -n "$bin"
+          xvfb-run --auto-servernum "$bin" --no-sandbox --self-test
+
+      - name: Package Linux AppImage
+        if: matrix.id == 'linux-x64'
+        run: npx electron-builder --linux AppImage --x64
 
       - name: Prepare Linux download
         if: matrix.id == 'linux-x64'
         run: |
-          mkdir -p release-package/ClassGraph
-          cp release/ClassGraph-Linux-x64 release-package/ClassGraph/ClassGraph-Linux-x64
-          cp .desktop-build/classgraph-icon.png release-package/ClassGraph/ClassGraph.png
-          cat > release-package/ClassGraph/ClassGraph.desktop <<'DESKTOP'
-          [Desktop Entry]
-          Type=Application
-          Name=ClassGraph
-          Comment=Local-first classroom analysis and planning
-          Exec=ClassGraph-Linux-x64
-          Icon=ClassGraph
-          Terminal=false
-          Categories=Education;
-          DESKTOP
-          chmod +x release-package/ClassGraph/ClassGraph-Linux-x64
-          chmod +x release-package/ClassGraph/ClassGraph.desktop
-          tar -czf release-package/ClassGraph-Linux-x64.tar.gz -C release-package ClassGraph
-          rm -rf release-package/ClassGraph
+          mkdir -p release-package
+          cp release-desktop/ClassGraph-Linux-x64.AppImage release-package/ClassGraph-Linux-x64.AppImage
+          chmod +x release-package/ClassGraph-Linux-x64.AppImage
 
-      - name: Prepare macOS app
+      - name: Build unpacked macOS app
+        if: startsWith(matrix.id, 'macos-')
+        shell: bash
+        run: npx electron-builder --dir --mac --${{ matrix.arch }}
+
+      - name: Smoke-test macOS native app
         if: startsWith(matrix.id, 'macos-')
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(node -p "require('./package.json').version")"
-          if [[ "${{ matrix.id }}" == "macos-arm64" ]]; then
-            SOURCE="release/ClassGraph-macOS-arm64"
-            ARCHIVE="ClassGraph-macOS-AppleSilicon.app.zip"
-          else
-            SOURCE="release/ClassGraph-macOS-x64"
-            ARCHIVE="ClassGraph-macOS-Intel.app.zip"
-          fi
+          bin="$(find release-desktop -path '*/ClassGraph.app/Contents/MacOS/ClassGraph' -type f | head -n 1)"
+          test -n "$bin"
+          "$bin" --self-test
 
-          APP="release-package/ClassGraph.app"
-          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-          cp "$SOURCE" "$APP/Contents/MacOS/ClassGraph"
+      - name: Package macOS app
+        if: startsWith(matrix.id, 'macos-')
+        shell: bash
+        run: npx electron-builder --mac dmg zip --${{ matrix.arch }}
 
-          ICONSET=".desktop-build/ClassGraph.iconset"
-          rm -rf "$ICONSET"
-          mkdir -p "$ICONSET"
-          sips -z 16 16 .desktop-build/classgraph-icon.png --out "$ICONSET/icon_16x16.png" >/dev/null
-          sips -z 32 32 .desktop-build/classgraph-icon.png --out "$ICONSET/icon_16x16@2x.png" >/dev/null
-          sips -z 32 32 .desktop-build/classgraph-icon.png --out "$ICONSET/icon_32x32.png" >/dev/null
-          sips -z 64 64 .desktop-build/classgraph-icon.png --out "$ICONSET/icon_32x32@2x.png" >/dev/null
-          sips -z 128 128 .desktop-build/classgraph-icon.png --out "$ICONSET/icon_128x128.png" >/dev/null
-          sips -z 256 256 .desktop-build/classgraph-icon.png --out "$ICONSET/icon_128x128@2x.png" >/dev/null
-          sips -z 256 256 .desktop-build/classgraph-icon.png --out "$ICONSET/icon_256x256.png" >/dev/null
-          sips -z 512 512 .desktop-build/classgraph-icon.png --out "$ICONSET/icon_256x256@2x.png" >/dev/null
-          sips -z 512 512 .desktop-build/classgraph-icon.png --out "$ICONSET/icon_512x512.png" >/dev/null
-          sips -z 1024 1024 .desktop-build/classgraph-icon.png --out "$ICONSET/icon_512x512@2x.png" >/dev/null
-          iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/ClassGraph.icns"
+      - name: Prepare macOS downloads
+        if: matrix.id == 'macos-arm64'
+        run: |
+          mkdir -p release-package
+          cp release-desktop/ClassGraph-macOS-arm64.dmg release-package/ClassGraph-macOS-AppleSilicon.dmg
+          cp release-desktop/ClassGraph-macOS-arm64.zip release-package/ClassGraph-macOS-AppleSilicon.app.zip
 
-          cat > "$APP/Contents/Info.plist" <<PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-            <key>CFBundleExecutable</key><string>ClassGraph</string>
-            <key>CFBundleIdentifier</key><string>com.purysho.classgraph</string>
-            <key>CFBundleName</key><string>ClassGraph</string>
-            <key>CFBundleDisplayName</key><string>ClassGraph</string>
-            <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleIconFile</key><string>ClassGraph.icns</string>
-            <key>CFBundleShortVersionString</key><string>${VERSION}</string>
-            <key>CFBundleVersion</key><string>${VERSION}</string>
-          </dict></plist>
-          PLIST
-
-          chmod +x "$APP/Contents/MacOS/ClassGraph"
-          codesign --force --deep --sign - "$APP"
-          ditto -c -k --sequesterRsrc --keepParent "$APP" "release-package/$ARCHIVE"
-          rm -rf "$APP"
+      - name: Prepare macOS Intel downloads
+        if: matrix.id == 'macos-intel'
+        run: |
+          mkdir -p release-package
+          cp release-desktop/ClassGraph-macOS-x64.dmg release-package/ClassGraph-macOS-Intel.dmg
+          cp release-desktop/ClassGraph-macOS-x64.zip release-package/ClassGraph-macOS-Intel.app.zip
 
       - uses: actions/upload-artifact@v4
         with:
@@ -194,7 +184,6 @@ jobs:
             tag="v$(node -p "require('./package.json').version")"
           fi
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
-
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
