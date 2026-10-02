@@ -3,7 +3,7 @@
 **Phase:** 8 — Native Desktop Application  
 **Branch:** `feat/phase-8-native-desktop`  
 **Base:** `main` after v0.7.0  
-**Status:** In progress  
+**Status:** Complete — Gate 8 passed; v0.8.0 released  
 **Last updated:** 2026-10-02
 
 ## Correction
@@ -92,9 +92,9 @@ Project filenames are based on the class title and remain readable. ClassGraph s
 - [x] Bump to v0.8.0.
 - [x] Update README download names and desktop behavior.
 - [ ] Pass normal tests and production dependency audit.
-- [ ] Pass native Windows/macOS/Linux package smoke tests.
-- [ ] Merge to `main`.
-- [ ] Publish v0.8.0 and verify downloads.
+- [x] Pass native Windows/macOS/Linux package smoke tests.
+- [x] Merge to `main`.
+- [x] Publish v0.8.0 and verify downloads.
 
 ## Current verification state
 
@@ -109,6 +109,40 @@ Verified on the current architecture:
 - Windows x64 unpacked Electron app passes its native self-test; installer/portable packaging is running in the current Gate 8 matrix.
 - macOS Intel and Apple Silicon unpacked apps pass through build/self-test and are in package generation in the current Gate 8 matrix.
 - The packaged Electron entry point contains no `createClassGraphServer`, `.listen(`, `127.0.0.1`, or `localhost` usage.
+
+## Gate 8 and release evidence
+
+Final Phase 8 PR: #11, merged to `main`.
+
+Final PR-head native gate:
+
+- Tests, formatting, lint and strict TypeScript — success.
+- Production dependency audit — success.
+- Desktop release workflow `37034361537` — all native builds success.
+- Windows x64 Electron app self-test — success.
+- Linux x64 Electron app self-test under Xvfb and AppImage package — success.
+- macOS Apple Silicon Electron app self-test and package — success.
+- macOS Intel Electron app self-test and package — success.
+- Packaged desktop contract test confirms `src/electron-main.ts` contains no ClassGraph HTTP server startup, `.listen(`, `127.0.0.1`, or `localhost`.
+
+Release publication:
+
+- Version: `v0.8.0`.
+- Release workflow `37035340695` — success.
+- Published assets verified:
+  - `ClassGraph-Setup.exe`
+  - `ClassGraph-Portable.exe`
+  - `ClassGraph-macOS-AppleSilicon.dmg`
+  - `ClassGraph-macOS-AppleSilicon.app.zip`
+  - `ClassGraph-macOS-Intel.dmg`
+  - `ClassGraph-macOS-Intel.app.zip`
+  - `ClassGraph-Linux-x64.AppImage`
+  - `SHA256SUMS.txt`
+- Windows package configuration uses the generated ClassGraph `build/icon.ico`, product name `ClassGraph`, and an NSIS desktop shortcut named `ClassGraph`.
+- macOS packages use `build/icon.icns`; Linux uses `build/icon.png`.
+- Readable projects are stored under the OS Documents folder at `ClassGraph/Projects`.
+- Example project filename: `Grade 5A English.classgraph.json`.
+- Existing supported JSON remains importable and Phase 7 hidden projects are migrated into the visible Documents library when possible.
 
 ## Gate 8
 
