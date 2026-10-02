@@ -491,6 +491,7 @@ CG-2xxx project/data
 CG-3xxx analysis
 CG-4xxx seating/grouping
 CG-5xxx export
+CG-6xxx assistance/provider
 CG-9xxx unexpected/internal
 ```
 
@@ -531,14 +532,16 @@ Foundation technology:
 - Prettier;
 - property/invariant tests where useful.
 
-Phase 1–3 UI implementation:
+Phase 1–5 UI implementation:
 
 - local Node 22 HTTP boundary bound to loopback by default;
 - browser UI authored in TypeScript and compiled with the existing TypeScript build;
 - plain local CSS and DOM APIs;
-- no React, Electron, charting library, remote font, or remote script required for Phase 1–3;
-- browser remains a thin client: schema/provenance/generation/analysis/planning rules stay in UI-independent TypeScript modules;
-- candidate generation endpoints are read-only previews until the teacher explicitly accepts a candidate through a validated project mutation.
+- no React, Electron, charting library, relationship-graph library, provider SDK, remote font, or remote script required for Phase 1–5;
+- browser remains a thin client: schema/provenance/generation/analysis/planning/relationship/assistance rules stay in UI-independent TypeScript modules;
+- candidate generation endpoints are read-only previews until the teacher explicitly accepts a candidate through a validated project mutation;
+- assistance has a provider-independent contract, deterministic offline implementation, and an optional HTTPS provider boundary;
+- no network assistance provider is configured by default, and every network request requires a visible transmission preview plus an explicit send action.
 
 Framework rule for later phases:
 
@@ -717,24 +720,31 @@ fixtures exist in both repositories
 
 ### Phase 4 — Relationship graph and advanced comparison
 
-Add only if useful:
+Implemented scope:
 
-- explicit relationship network;
-- group network comparison;
-- repeat-neighbour history;
-- saved scenario comparisons;
-- selected before/after views.
+- explicit teacher/imported/synthetic relationship records only;
+- deterministic relationship network with table equivalent;
+- repeat-neighbour history from approved seating records;
+- saved planning scenarios and deterministic comparisons;
+- selected before/after planning/network views;
+- no relationship inference from grades, demographics, names, attendance, or other unrelated metrics.
 
 ### Phase 5 — Optional assistance layer
 
-Possible later assistance:
+Implemented scope:
 
-- convert teacher natural-language class description into an editable synthetic-generation specification;
-- explain visible distributions;
-- draft report wording;
-- suggest candidate planning rules.
+- provider-independent request/proposal/disclosure contracts;
+- deterministic offline synthetic-spec drafting from constrained teacher intent;
+- descriptive analysis explanation with missing-data and non-causation caveats;
+- report wording drafted from the canonical validated snapshot;
+- planning-rule suggestions only from explicit supported relationship records;
+- teacher-visible source paths, rationale, and soft/hard rule status;
+- assistance workspace with provider status, exact-context disclosure, editable/copyable drafts, and explicit acceptance boundaries;
+- optional direct-HTTPS provider configured only through process environment variables;
+- explicit per-request network confirmation, timeout/response-size limits, and response validation;
+- no provider enabled by default and no provider SDK dependency.
 
-AI only suggests; the teacher previews/edits before applying.
+Assistance only proposes. Synthetic generation and planning mutations remain separate explicit teacher actions.
 
 ---
 
@@ -769,8 +779,30 @@ Proceed only when:
 - unsupported fields are rejected or preserved explicitly;
 - derived/synthetic values cannot overwrite observed EduBoard data without an explicit mapping/approval step.
 
+### Gate 4 — relationship/network features
+
+Proceed only when:
+
+- relationship records are explicit and provenance-marked;
+- no metric, demographic, name, or seating-history field silently creates an edge;
+- network/group comparison remains descriptive rather than evaluative;
+- history analysis consumes explicit approved snapshots only;
+- visual relationship views retain a table equivalent.
+
+### Gate 5 — assistance
+
+Proceed only when:
+
+- assistance remains optional and offline core workflows are unchanged;
+- all outputs are proposals/drafts until explicit teacher action;
+- network-bound context is visible before transmission and requires explicit confirmation;
+- analysis/report tasks use aggregate or redacted context when possible;
+- hidden traits, diagnoses, relationships, causation, and future outcomes are not invented;
+- provider secrets remain outside project/export/browser state;
+- CI passes without a provider key or live external service.
+
 ---
 
 ## 16. Immediate implementation instruction
 
-> Phase 0–3 are complete and Gate 3 passed. Preserve the lean local architecture. Proceed to Phase 4 only with explicit relationship-network and advanced-comparison features grounded in teacher-supplied or clearly synthetic edges, with accessible table equivalents. Do not infer social relationships from unrelated student data.
+> Phase 0–5 are implemented. Preserve the lean local architecture, explicit provenance, missing-data semantics, and proposal-only assistance boundary. Any future phase must keep the core usable with no network provider, avoid hidden student-trait inference, and justify every new runtime dependency.

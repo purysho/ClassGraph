@@ -2,6 +2,14 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
+import { acceptPlanningRuleSuggestions, acceptSyntheticSpecDraft } from './assistance-acceptance.js'
+import type { AssistanceExecutionMode, AssistanceTask } from './assistance-contract.js'
+import type { AssistanceProvider } from './assistance-provider.js'
+import {
+  assistanceServiceStatus,
+  buildAssistanceRequest,
+  runAssistance,
+} from './assistance-service.js'
 import { generateGroupingCandidates } from './grouping.js'
 import { serializeEduBoardHandback } from './eduboard-handback.js'
 import { ClassGraphExportError } from './export-errors.js'
@@ -27,6 +35,7 @@ export interface ClassGraphServerOptions {
   appDirectory?: string
   buildDirectory?: string
   maxBodyBytes?: number
+  assistanceProvider?: AssistanceProvider
 }
 
 interface ProjectSetupRequest {
@@ -154,6 +163,48 @@ function requiredPositiveInteger(record: Record<string, unknown>, key: string): 
   return value
 }
 
+function parseAssistanceTask(record: Record<string, unknown>): AssistanceTask {
+  const value = record.task
+  if (
+    value === 'synthetic-spec-draft' ||
+    value === 'analysis-explanation' ||
+    value === 'report-wording-draft' ||
+    value === 'planning-rule-suggestions'
+  ) {
+    return value
+  }
+  throw new Error('CG-6001 task must be a supported assistance task')
+}
+
+function parseAssistanceMode(record: Record<string, unknown>): AssistanceExecutionMode {
+  const value = record.mode
+  if (value === 'offline' || value === 'network') return value
+  throw new Error('CG-6001 mode must be offline or network')
+}
+
+function optionalBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
+  const value = record[key]
+  if (value === undefined) return undefined
+  if (typeof value !== 'boolean') throw new Error(`CG-6001 ${key} must be a boolean`)
+  return value
+}
+
+function requiredIndexArray(record: Record<string, unknown>, key: string): number[] {
+  const value = record[key]
+  if (!Array.isArray(value)) {
+    throw new Error(`CG-6001 ${key} must be an array of non-negative integer indexes`)
+  }
+
+  const indexes: number[] = []
+  for (const item of value) {
+    if (typeof item !== 'number' || !Number.isInteger(item) || item < 0) {
+      throw new Error(`CG-6001 ${key} must be an array of non-negative integer indexes`)
+    }
+    indexes.push(item)
+  }
+  return indexes
+}
+
 function parseProjectSetup(value: unknown): ProjectSetupRequest {
   const record = expectRecord(value)
   const classInfoValue = record.classInfo
@@ -243,6 +294,7 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
   const appDirectory = options.appDirectory ?? join(process.cwd(), 'app')
   const buildDirectory = options.buildDirectory ?? join(process.cwd(), 'dist')
   const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
+  const assistanceProvider = options.assistanceProvider
 
   return createServer((request, response) => {
     void (async () => {
@@ -255,6 +307,64 @@ export function createClassGraphServer(options: ClassGraphServerOptions = {}): S
             service: 'ClassGraph',
             schemaVersion: '1.0',
           })
+          return
+        }
+
+        if (request.method === 'GET' && url.pathname === '/api/assistance/status') {
+          sendJson(response, 200, assistanceServiceStatus(assistanceProvider))
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/assistance/preview') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const project = parseProjectFromRequest(record)
+          const task = parseAssistanceTask(record)
+          const mode = parseAssistanceMode(record)
+          const requestEnvelope = buildAssistanceRequest(
+            {
+              project,
+              task,
+              mode,
+              prompt: optionalString(record, 'prompt'),
+              requestId: optionalString(record, 'requestId'),
+            },
+            assistanceProvider,
+          )
+          sendJson(response, 200, { request: requestEnvelope })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/assistance/run') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const result = await runAssistance(
+            {
+              project: parseProjectFromRequest(record),
+              task: parseAssistanceTask(record),
+              mode: parseAssistanceMode(record),
+              prompt: optionalString(record, 'prompt'),
+              requestId: optionalString(record, 'requestId'),
+              confirmSend: optionalBoolean(record, 'confirmSend') === true,
+            },
+            assistanceProvider,
+          )
+          sendJson(response, 200, result)
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/assistance/accept-synthetic') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const specification = acceptSyntheticSpecDraft(record.proposal)
+          sendJson(response, 200, { specification })
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/assistance/accept-planning') {
+          const record = expectRecord(await readJsonBody(request, maxBodyBytes))
+          const accepted = acceptPlanningRuleSuggestions(
+            record.proposal,
+            requiredIndexArray(record, 'selectedIndexes'),
+          )
+          sendJson(response, 200, { accepted })
           return
         }
 

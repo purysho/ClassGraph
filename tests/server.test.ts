@@ -1,6 +1,7 @@
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { AssistanceProvider } from '../src/assistance-provider.js'
 import { serializeProjectJson } from '../src/json.js'
 import { createClassGraphServer } from '../src/server.js'
 import { createEmptyProject } from '../src/workspace.js'
@@ -21,10 +22,12 @@ afterEach(async () => {
 async function startServer(
   maxBodyBytes?: number,
   appDirectory = 'does-not-matter-for-api-tests',
+  assistanceProvider?: AssistanceProvider,
 ): Promise<string> {
   const server = createClassGraphServer({
     appDirectory,
     maxBodyBytes,
+    assistanceProvider,
   })
   servers.push(server)
   server.listen(0, '127.0.0.1')
@@ -488,5 +491,202 @@ describe('local app server', () => {
     const body = (await pdfResponse.json()) as { error: { code: string; message: string } }
     expect(body.error.code).toBe('CG-5004')
     expect(body.error.message).toContain('Unicode')
+  })
+  it('reports offline assistance availability without enabling a network provider', async () => {
+    const base = await startServer()
+    const response = await fetch(`${base}/api/assistance/status`)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      offlineAvailable: true,
+      network: { enabled: false, mode: 'network' },
+    })
+  })
+
+  it('runs local assistance as a proposal without mutating or generating project data', async () => {
+    const base = await startServer()
+    const project = createEmptyProject({
+      projectId: 'assist-api',
+      title: 'Assistance API',
+      now: '2026-10-02T01:00:00.000Z',
+    })
+
+    const response = await fetch(`${base}/api/assistance/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project,
+        task: 'synthetic-spec-draft',
+        mode: 'offline',
+        requestId: 'assist-local-1',
+        prompt:
+          '36 students; metric Assessment mean 70 sd 10 range 0-100 missing 5%; metric Participation ordinal 1:1, 2:2, 3:4, 4:2, 5:1',
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      request: {
+        disclosure: {
+          mode: string
+          requiresExplicitSend: boolean
+          containsStudentLevelData: boolean
+        }
+      }
+      proposal: {
+        status: string
+        task: string
+        specification: { studentCount: number; students?: unknown[] }
+      }
+    }
+    expect(body.request.disclosure).toMatchObject({
+      mode: 'offline',
+      requiresExplicitSend: false,
+      containsStudentLevelData: false,
+    })
+    expect(body.proposal).toMatchObject({
+      status: 'proposal',
+      task: 'synthetic-spec-draft',
+      specification: { studentCount: 36 },
+    })
+    expect(body.proposal.specification.students).toBeUndefined()
+    expect(project.students).toEqual([])
+  })
+
+  it('accepts assistance outputs without silently applying them', async () => {
+    const base = await startServer()
+    const project = createEmptyProject({
+      projectId: 'assist-accept',
+      title: 'Assistance Acceptance',
+      now: '2026-10-02T01:00:00.000Z',
+    })
+
+    const draftResponse = await fetch(`${base}/api/assistance/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project,
+        task: 'synthetic-spec-draft',
+        mode: 'offline',
+        requestId: 'accept-synthetic',
+        prompt: '12 students; metric Assessment mean 70 sd 10 range 0-100',
+      }),
+    })
+    expect(draftResponse.status).toBe(200)
+    const draft = (await draftResponse.json()) as { proposal: unknown }
+
+    const acceptedResponse = await fetch(`${base}/api/assistance/accept-synthetic`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proposal: draft.proposal }),
+    })
+    expect(acceptedResponse.status).toBe(200)
+    const accepted = (await acceptedResponse.json()) as {
+      specification: { studentCount: number; students?: unknown[] }
+    }
+    expect(accepted.specification.studentCount).toBe(12)
+    expect(accepted.specification.students).toBeUndefined()
+    expect(project.students).toEqual([])
+  })
+
+  it('previews network disclosure and requires explicit confirmation before provider execution', async () => {
+    let callCount = 0
+    const provider: AssistanceProvider = {
+      label: 'Fake provider',
+      mode: 'network',
+      status: () => ({
+        enabled: true,
+        mode: 'network',
+        label: 'Fake provider',
+        endpointHost: 'provider.example',
+      }),
+      execute: (request, options) => {
+        if (!options.confirmed) {
+          return Promise.reject(
+            new Error(
+              'CG-6007 explicit confirmation is required before sending assistance context',
+            ),
+          )
+        }
+        callCount += 1
+        return Promise.resolve({
+          version: '1.0',
+          proposalId: 'fake-proposal',
+          requestId: request.requestId,
+          task: 'analysis-explanation',
+          status: 'proposal',
+          providerLabel: 'Fake provider',
+          warnings: [],
+          assumptions: [],
+          text: 'Descriptive draft.',
+          sourceMetricKeys: [],
+          caveats: ['No causal claim.'],
+        })
+      },
+    }
+
+    const base = await startServer(undefined, 'does-not-matter-for-api-tests', provider)
+    const project = createEmptyProject({
+      projectId: 'assist-network',
+      title: 'Assistance Network',
+      now: '2026-10-02T01:00:00.000Z',
+    })
+
+    const preview = await fetch(`${base}/api/assistance/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project,
+        task: 'analysis-explanation',
+        mode: 'network',
+        requestId: 'network-preview',
+      }),
+    })
+    expect(preview.status).toBe(200)
+    const previewBody = (await preview.json()) as {
+      request: {
+        disclosure: {
+          providerLabel: string
+          requiresExplicitSend: boolean
+          containsStudentLevelData: boolean
+        }
+      }
+    }
+    expect(previewBody.request.disclosure).toMatchObject({
+      providerLabel: 'Fake provider',
+      requiresExplicitSend: true,
+      containsStudentLevelData: false,
+    })
+    expect(callCount).toBe(0)
+
+    const unconfirmed = await fetch(`${base}/api/assistance/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project,
+        task: 'analysis-explanation',
+        mode: 'network',
+        requestId: 'network-run',
+        confirmSend: false,
+      }),
+    })
+    expect(unconfirmed.status).toBe(400)
+    expect(callCount).toBe(0)
+
+    const confirmed = await fetch(`${base}/api/assistance/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project,
+        task: 'analysis-explanation',
+        mode: 'network',
+        requestId: 'network-run',
+        confirmSend: true,
+      }),
+    })
+    expect(confirmed.status).toBe(200)
+    const confirmedBody = (await confirmed.json()) as { proposal: { status: string } }
+    expect(confirmedBody.proposal.status).toBe('proposal')
+    expect(callCount).toBe(1)
   })
 })
