@@ -515,22 +515,6 @@ interface AssistanceRunResponseView {
   proposal: AssistanceProposalView
 }
 
-declare global {
-  interface Window {
-    classGraphDesktop?: {
-      request(request: {
-        method: 'GET' | 'POST'
-        path: string
-        body?: string
-      }): Promise<unknown>
-      saveProjectCopy(
-        serializedProject: string,
-        suggestedTitle: string,
-      ): Promise<{ canceled: boolean; filePath?: string }>
-    }
-  }
-}
-
 type WorkspaceView =
   'overview' | 'students' | 'graphs' | 'relationships' | 'seating' | 'assistance' | 'reports'
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
