@@ -4,7 +4,7 @@
 
 ## Project status
 
-**Phases 0–5 are merged to `main` and their gates passed. Phase 6 adds cross-platform downloadable desktop releases.**
+**Phases 0–6 are merged to `main` and all six gates have passed. ClassGraph v0.6.0 is released with Windows, macOS, and Linux downloads.**
 
 ClassGraph remains a **standalone companion to EduBoard**. The apps do not share a live database. ClassGraph Exchange JSON v1 is the portable boundary between them.
 
@@ -125,7 +125,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 
 ## Desktop downloads
 
-Tagged releases provide:
+Release `v0.6.0` and subsequent tagged releases provide:
 
 - `ClassGraph-Windows-x64.exe`
 - `ClassGraph-macOS-AppleSilicon.app.zip`
