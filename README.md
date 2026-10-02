@@ -39,17 +39,17 @@ No Node.js installation is needed for these downloads. Each build contains the r
 
 ## What ClassGraph does
 
-| Understand the class | Plan the room | Keep decisions explainable |
-| --- | --- | --- |
-| Descriptive distributions, completeness, scatter comparisons and accessible tables. | Manual or generated seating and grouping with hard constraints, soft objectives, locks and reproducible seeds. | Provenance stays attached to data, missing values stay distinct, and candidate plans expose their rules and trade-offs. |
-| Import or enter the data you actually use rather than adopting a fixed student model. | Track explicit relationship records, repeat neighbours and saved planning scenarios. | Export portable JSON, DOCX and PDF reports without turning derived or synthetic data into observed facts. |
+| Understand the class                                                                  | Plan the room                                                                                                  | Keep decisions explainable                                                                                              |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Descriptive distributions, completeness, scatter comparisons and accessible tables.   | Manual or generated seating and grouping with hard constraints, soft objectives, locks and reproducible seeds. | Provenance stays attached to data, missing values stay distinct, and candidate plans expose their rules and trade-offs. |
+| Import or enter the data you actually use rather than adopting a fixed student model. | Track explicit relationship records, repeat neighbours and saved planning scenarios.                           | Export portable JSON, DOCX and PDF reports without turning derived or synthetic data into observed facts.               |
 
 ClassGraph is designed to support teacher judgement. It does **not** diagnose students, infer hidden personality or ability traits, claim causation from correlations, or predict future attainment.
 
 ## Screenshots
 
-| Start a workspace | Explore class data |
-| --- | --- |
+| Start a workspace                                                 | Explore class data                                                |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------- |
 | ![ClassGraph start screen](docs/screenshots/classgraph-start.png) | ![ClassGraph graphs view](docs/screenshots/classgraph-graphs.png) |
 
 ## A local-first workflow
