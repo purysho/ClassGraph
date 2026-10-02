@@ -3,7 +3,7 @@
 **Phase:** 7 — Desktop UX and Local Saves  
 **Branch:** `feat/phase-7-desktop-saves`  
 **Base:** `main` after v0.6.0 and README/branding refresh  
-**Status:** Complete — Gate 7 passed; ready to merge and release v0.7.0  
+**Status:** Complete — Gate 7 passed; v0.7.0 released  
 **Last updated:** 2026-10-02
 
 ## Purpose
@@ -77,8 +77,8 @@ Portable recovery remains explicit:
 - [x] Update README with autosave/restore behavior and data locations.
 - [x] Bump to v0.7.0.
 - [x] Pass normal tests, dependency audit, and four native desktop builds.
-- [ ] Merge Phase 7 to `main`.
-- [ ] Publish v0.7.0 and verify all platform downloads.
+- [x] Merge Phase 7 to `main`.
+- [x] Publish v0.7.0 and verify all platform downloads.
 
 ## Implementation checkpoint
 
@@ -108,6 +108,21 @@ Final PR-head commit: `f095c1afa6b920044b9825245a67e954cae992cb`
 - Release job correctly skipped on the pull request; publication is performed only after merge/tag.
 - No Electron or other desktop runtime framework was added.
 - Project persistence remains ordinary validated ClassGraph JSON on disk, with portable backup/restore through the existing schema.
+
+## Release evidence
+
+- Phase 7 PR #10 merged to `main`.
+- Release: `v0.7.0` — published 2026-10-02.
+- Verified release assets:
+  - `ClassGraph-Windows-x64.exe`
+  - `ClassGraph-macOS-AppleSilicon.app.zip`
+  - `ClassGraph-macOS-Intel.app.zip`
+  - `ClassGraph-Linux-x64.tar.gz`
+  - `SHA256SUMS.txt`
+- README latest-download buttons automatically resolve to v0.7.0.
+- Windows build no longer opens a console/PowerShell window during normal launch.
+- Packaged UI exposes **Quit** so the hidden local server can be stopped cleanly.
+- Desktop project library autosaves locally and portable `.classgraph.json` backups can be restored on a reinstall or another computer.
 
 ## Gate 7
 
