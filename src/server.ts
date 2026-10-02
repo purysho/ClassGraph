@@ -116,8 +116,13 @@ async function serveStatic(
   }
 
   try {
-    if (pathname === '/app.js') {
+    if (pathname === '/app.js' || pathname === '/dist/app-client.js') {
       await sendFile(response, join(buildDirectory, 'app-client.js'))
+      return true
+    }
+
+    if (pathname === '/dist/desktop-renderer-bootstrap.js') {
+      await sendFile(response, join(buildDirectory, 'desktop-renderer-bootstrap.js'))
       return true
     }
 
