@@ -115,7 +115,9 @@ describe('local app server', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('content-disposition')).toContain('classgraph-project.classgraph.json')
+    expect(response.headers.get('content-disposition')).toContain(
+      'classgraph-project.classgraph.json',
+    )
     const exported = JSON.parse(await response.text()) as { schemaVersion: string }
     expect(exported.schemaVersion).toBe('1.0')
   })
