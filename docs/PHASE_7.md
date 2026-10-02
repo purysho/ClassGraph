@@ -92,20 +92,33 @@ Current branch implementation includes:
 - `.github/workflows/desktop-release.yml` — Windows GUI self-test, macOS `.icns`, and Linux desktop/icon packaging.
 - `tests/project-store.test.ts` and `tests/project-store-server.test.ts` — filesystem persistence and API autosave/restore coverage.
 
-Verification and release evidence will be appended after the native CI matrix completes.
-
 ## Gate 7 verification evidence
 
-Final PR-head commit: `f095c1afa6b920044b9825245a67e954cae992cb`
+Phase 7 PR: #10  
+Merged-main commit: `e630d7530002f9f56b03217b2f7fa780f63e1b40`
 
-- Tests workflow `37025567739` — success.
+PR verification:
+
+- Tests workflow `37025567739` — success, 159/159 tests across 31 files.
 - Dependency check workflow `37025567444` — success.
-- Desktop release workflow `37025567714` — verification success.
-- Linux x64 native build/self-test — success.
-- Windows x64 native build — success, including CG resource metadata, GUI-subsystem patch, and executable self-test.
-- macOS Intel app build/self-test/icon packaging — success.
-- macOS Apple Silicon app build/self-test/icon packaging — success.
-- Release job correctly skipped on the pull request; publication is performed only after merge/tag.
+- Desktop release workflow `37025567714` — success on Windows x64, Linux x64, macOS Intel, and macOS Apple Silicon.
+
+Merged-main verification and release:
+
+- Tests workflow `37025991125` — success.
+- Dependency check workflow `37025991512` — success.
+- Desktop/release workflow `37025990866` — success.
+- Windows x64 — GUI-subsystem executable, CG branding/metadata, and executable self-test passed.
+- Linux x64 — executable self-test and packaged desktop assets passed.
+- macOS Intel — executable self-test, app bundle, and CG icon packaging passed.
+- macOS Apple Silicon — executable self-test, app bundle, and CG icon packaging passed.
+- Release job — success; `v0.7.0` published from the merged-main commit.
+- Published assets verified:
+  - `ClassGraph-Windows-x64.exe`
+  - `ClassGraph-macOS-AppleSilicon.app.zip`
+  - `ClassGraph-macOS-Intel.app.zip`
+  - `ClassGraph-Linux-x64.tar.gz`
+  - `SHA256SUMS.txt`
 - No Electron or other desktop runtime framework was added.
 - Project persistence remains ordinary validated ClassGraph JSON on disk, with portable backup/restore through the existing schema.
 
