@@ -54,7 +54,7 @@ ClassGraph is designed to support teacher judgement. It does **not** diagnose st
 
 ## A local-first workflow
 
-ClassGraph now **saves projects automatically on this device**. Close the browser or shut down the computer, then launch ClassGraph again and it reopens the most recently used class. The Projects screen also lists locally saved classes.
+ClassGraph now **saves projects automatically on this device**. In the packaged app, use **Quit** when you want to stop the local ClassGraph process completely; launching it again reopens the most recently used class. The Projects screen also lists locally saved classes.
 
 1. **Create, import, restore, or generate** a class.
 2. **Record the metrics you choose** and keep observed, entered, imported, derived, and synthetic values distinguishable.
