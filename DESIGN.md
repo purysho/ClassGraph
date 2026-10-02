@@ -1,6 +1,6 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 7 implementation  
+**Status:** Phase 7 complete  
 **Design revision:** 0.7  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
@@ -866,4 +866,4 @@ Proceed only when:
 
 ## 16. Immediate implementation instruction
 
-> Phase 0–6 are implemented and merged. Phase 7 adds normal desktop launch behavior and a JSON-backed local project library without changing ClassGraph's canonical data model. Preserve explicit provenance, missing-data semantics, the proposal-only assistance boundary, loopback-first operation, and the no-hidden-trait rule. Any future phase must justify every new runtime dependency.
+> Phase 0–7 are implemented and merged, with v0.7.0 released for Windows, macOS, and Linux. Phase 7 adds normal desktop launch behavior and a JSON-backed local project library without changing ClassGraph's canonical data model. Preserve explicit provenance, missing-data semantics, the proposal-only assistance boundary, loopback-first operation, and the no-hidden-trait rule. Any future phase must justify every new runtime dependency.
