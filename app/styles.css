@@ -2441,3 +2441,53 @@ textarea:focus {
   color: #5c4515;
   font-size: 0.82rem;
 }
+
+.updates-panel {
+  margin-top: 18px;
+}
+
+.updates-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.updates-message {
+  margin: 0;
+  font-weight: 600;
+}
+
+.updates-error {
+  margin: 6px 0 0;
+  color: #8a2f22;
+  font-size: 0.8rem;
+}
+
+.updates-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.updates-auto {
+  margin-top: 12px;
+  font-size: 0.82rem;
+}
+
+.updates-note {
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+}
+
+.sidebar-update {
+  display: block;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}

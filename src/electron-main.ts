@@ -3,6 +3,8 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { dispatchClassGraphApi, type ClassGraphApiRequest } from './api-dispatch.js'
 import { createEnvironmentAssistanceProvider } from './assistance-provider.js'
+import { DesktopUpdates } from './desktop-updates.js'
+import { parseUpdateSettings } from './update-policy.js'
 import { parseProjectJson } from './json.js'
 import { createEmptyProject } from './workspace.js'
 import {
@@ -198,6 +200,30 @@ async function start(): Promise<void> {
     return serializeDesktopResponse(response)
   })
 
+  const updates = new DesktopUpdates()
+  ipcMain.handle('classgraph:updates', async (_event, action: unknown, payload: unknown) => {
+    switch (action) {
+      case 'status':
+        return updates.getStatus()
+      case 'check':
+        return updates.check()
+      case 'download':
+        return updates.download()
+      case 'install':
+        updates.install()
+        return updates.getStatus()
+      case 'open-releases':
+        await updates.openReleasePage()
+        return updates.getStatus()
+      case 'get-settings':
+        return updates.getSettings()
+      case 'set-settings':
+        return updates.setSettings(parseUpdateSettings(payload))
+      default:
+        throw new Error('CG-2021 unknown update action')
+    }
+  })
+
   ipcMain.handle(
     'classgraph:save-project-copy',
     async (_event, serializedProject: string, suggestedTitle: string, plain?: boolean) => {
@@ -223,6 +249,10 @@ async function start(): Promise<void> {
   )
 
   if (process.argv.includes('--self-test')) {
+    const updateStatus = updates.getStatus()
+    if (updateStatus.channel === 'unavailable' || updateStatus.checkedAt !== null) {
+      throw new Error('ClassGraph update self-test failed: unexpected channel or network check')
+    }
     await runSelfTest(store)
     await runRendererSelfTest()
     app.quit()

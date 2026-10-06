@@ -665,6 +665,24 @@ interface ProtectionStatusView {
   unlocked: boolean
 }
 
+interface UpdateStatusView {
+  currentVersion: string
+  channel: 'install' | 'notify' | 'unavailable'
+  checking: boolean
+  checkedAt: string | null
+  latestVersion: string | null
+  available: boolean
+  downloading: boolean
+  progress: number | null
+  downloaded: boolean
+  releaseUrl: string
+  error: string | null
+}
+
+interface UpdateSettingsView {
+  checkOnStart: boolean
+}
+
 type UnlockTarget =
   | { kind: 'library'; projectId: string; label: string }
   | { kind: 'import'; fileText: string; fileName: string }
@@ -720,6 +738,10 @@ let selectedGraphMetricKey: string | null = null
 let selectedScatterX: string | null = null
 let spreadsheetImport: SpreadsheetImportState | null = null
 let protectionStatus: ProtectionStatusView | null = null
+let updateStatus: UpdateStatusView | null = null
+let updateSettings: UpdateSettingsView | null = null
+let startupUpdateCheckDone = false
+let updateProgressTimer: ReturnType<typeof setInterval> | null = null
 let spreadsheetPreviewTimer: ReturnType<typeof setTimeout> | null = null
 let selectedScatterY: string | null = null
 let selectedCrossTabRow: string | null = null
@@ -989,6 +1011,8 @@ function renderSetup(): void {
             </div>
           </article>
         </div>
+
+        <section id="updates-panel" class="panel updates-panel" hidden></section>
       </section>
     </main>
   `
@@ -1026,6 +1050,126 @@ function renderSetup(): void {
 
   if (projectLibraryView) renderSavedProjects(projectLibraryView)
   void refreshProjectLibrary()
+  void refreshUpdatesPanel()
+}
+
+async function desktopUpdates<T>(action: string, payload?: unknown): Promise<T | null> {
+  const bridge = window.classGraphDesktop
+  if (!bridge?.updates) return null
+  return (await bridge.updates(
+    action as Parameters<NonNullable<typeof bridge.updates>>[0],
+    payload,
+  )) as T
+}
+
+async function refreshUpdatesPanel(): Promise<void> {
+  if (!window.classGraphDesktop?.updates) return
+  try {
+    updateSettings = await desktopUpdates<UpdateSettingsView>('get-settings')
+    updateStatus = await desktopUpdates<UpdateStatusView>('status')
+    renderUpdatesPanel()
+    if (updateSettings?.checkOnStart && !startupUpdateCheckDone) {
+      startupUpdateCheckDone = true
+      await runUpdateAction('check')
+    }
+  } catch {
+    // Updates are optional; the start screen works without them.
+  }
+}
+
+async function runUpdateAction(
+  action: 'check' | 'download' | 'install' | 'open-releases',
+): Promise<void> {
+  if (action === 'check' && updateStatus) {
+    updateStatus = { ...updateStatus, checking: true, error: null }
+    renderUpdatesPanel()
+  }
+  updateStatus = await desktopUpdates<UpdateStatusView>(action)
+  renderUpdatesPanel()
+  if (action === 'download') watchUpdateDownload()
+}
+
+function watchUpdateDownload(): void {
+  if (updateProgressTimer) clearInterval(updateProgressTimer)
+  updateProgressTimer = setInterval(() => {
+    void desktopUpdates<UpdateStatusView>('status').then((status) => {
+      updateStatus = status
+      renderUpdatesPanel()
+      if (!status?.downloading && updateProgressTimer) {
+        clearInterval(updateProgressTimer)
+        updateProgressTimer = null
+      }
+    })
+  }, 1000)
+}
+
+function renderUpdatesPanel(): void {
+  const panel = document.querySelector<HTMLElement>('#updates-panel')
+  const status = updateStatus
+  if (!panel || !status || status.channel === 'unavailable') return
+  panel.hidden = false
+
+  let message: string
+  let actions = ''
+  if (status.checking) {
+    message = 'Checking for updates…'
+  } else if (status.downloaded) {
+    message = `ClassGraph ${escapeHtml(status.latestVersion ?? '')} is ready to install. Your classes are saved; ClassGraph will restart.`
+    actions =
+      '<button class="primary compact" type="button" data-update-action="install">Restart and update</button>'
+  } else if (status.downloading) {
+    message = `Downloading ClassGraph ${escapeHtml(status.latestVersion ?? '')}… ${status.progress ?? 0}%`
+  } else if (status.available) {
+    message = `ClassGraph ${escapeHtml(status.latestVersion ?? '')} is available (you have ${escapeHtml(status.currentVersion)}).`
+    actions =
+      status.channel === 'install' && !status.error
+        ? '<button class="primary compact" type="button" data-update-action="download">Download and install</button>'
+        : '<button class="primary compact" type="button" data-update-action="open-releases">Open download page</button>'
+  } else if (status.error) {
+    message = `ClassGraph ${escapeHtml(status.currentVersion)}. The last update check did not finish.`
+  } else if (status.checkedAt) {
+    message = `You have the latest version (${escapeHtml(status.currentVersion)}).`
+  } else {
+    message = `ClassGraph ${escapeHtml(status.currentVersion)}`
+  }
+
+  panel.innerHTML = `
+    <div class="updates-row">
+      <div>
+        <p class="eyebrow">Updates</p>
+        <p class="updates-message" role="status" aria-live="polite">${message}</p>
+        ${status.error ? `<p class="updates-error">${escapeHtml(status.error)}</p>` : ''}
+      </div>
+      <div class="updates-actions">
+        ${actions}
+        <button class="ghost compact" type="button" data-update-action="check" ${status.checking || status.downloading ? 'disabled' : ''}>Check for updates</button>
+      </div>
+    </div>
+    <label class="checkbox-label updates-auto">
+      <input id="update-check-on-start" type="checkbox" ${updateSettings?.checkOnStart ? 'checked' : ''} />
+      Check automatically when ClassGraph starts
+    </label>
+    <p class="muted updates-note">
+      A check asks GitHub for the newest version number. No class data, names or file names are
+      sent. ${status.channel === 'notify' ? 'This build updates by downloading the new version from the release page.' : 'Installing always waits for you to choose it.'}
+    </p>
+  `
+
+  for (const button of panel.querySelectorAll<HTMLButtonElement>('[data-update-action]')) {
+    button.addEventListener('click', () => {
+      const action = button.dataset.updateAction as
+        'check' | 'download' | 'install' | 'open-releases'
+      void runUpdateAction(action)
+    })
+  }
+  panel
+    .querySelector<HTMLInputElement>('#update-check-on-start')
+    ?.addEventListener('change', (event) => {
+      const checkOnStart = (event.currentTarget as HTMLInputElement).checked
+      void desktopUpdates<UpdateSettingsView>('set-settings', { checkOnStart }).then((settings) => {
+        updateSettings = settings
+      })
+    })
 }
 
 function savedProjectMeta(summary: ProjectSummaryView): string {
@@ -2417,6 +2561,7 @@ function renderWorkspace(): void {
         <div class="sidebar-footer">
           <span class="local-dot"></span>
           Saved automatically
+          ${updateStatus?.available ? `<button id="sidebar-update" class="sidebar-update" type="button">Update ${escapeHtml(updateStatus.latestVersion ?? '')} available</button>` : ''}
         </div>
       </aside>
 
@@ -2470,6 +2615,10 @@ function renderWorkspace(): void {
   document.querySelector<HTMLButtonElement>('#protection-button')?.addEventListener('click', () => {
     activeView = 'protection'
     renderWorkspace()
+  })
+  document.querySelector<HTMLButtonElement>('#sidebar-update')?.addEventListener('click', () => {
+    project = null
+    renderSetup()
   })
   document.querySelector<HTMLButtonElement>('#new-project')?.addEventListener('click', () => {
     project = null
@@ -6576,7 +6725,20 @@ async function exportProject(plain = false): Promise<void> {
   }
 }
 
+async function startupUpdateCheck(): Promise<void> {
+  try {
+    updateSettings = await desktopUpdates<UpdateSettingsView>('get-settings')
+    if (!updateSettings?.checkOnStart || startupUpdateCheckDone) return
+    startupUpdateCheckDone = true
+    updateStatus = await desktopUpdates<UpdateStatusView>('check')
+    if (updateStatus?.available && project) renderWorkspace()
+  } catch {
+    // Optional.
+  }
+}
+
 async function initializeApp(): Promise<void> {
+  void startupUpdateCheck()
   let restoreError: string | null = null
 
   try {

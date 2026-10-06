@@ -94,6 +94,12 @@ jobs:
           New-Item -ItemType Directory -Force release-package | Out-Null
           Copy-Item release-desktop\ClassGraph-Setup.exe release-package\ClassGraph-Setup.exe
           Copy-Item release-desktop\ClassGraph-Portable.exe release-package\ClassGraph-Portable.exe
+          # In-app updates (electron-updater) read latest.yml; the blockmap enables smaller downloads.
+          Copy-Item release-desktop\latest.yml release-package\latest.yml
+          Copy-Item release-desktop\ClassGraph-Setup.exe.blockmap release-package\ClassGraph-Setup.exe.blockmap
+          if (-not (Select-String -Path release-package\latest.yml -Pattern 'url: ClassGraph-Setup.exe' -Quiet)) {
+            throw 'latest.yml does not reference ClassGraph-Setup.exe'
+          }
 
       - name: Build unpacked Linux app
         if: matrix.id == 'linux-x64'
@@ -118,6 +124,9 @@ jobs:
           mkdir -p release-package
           cp release-desktop/ClassGraph-Linux-x64.AppImage release-package/ClassGraph-Linux-x64.AppImage
           chmod +x release-package/ClassGraph-Linux-x64.AppImage
+          # In-app updates (electron-updater) read latest-linux.yml.
+          cp release-desktop/latest-linux.yml release-package/latest-linux.yml
+          grep -q 'url: ClassGraph-Linux-x64.AppImage' release-package/latest-linux.yml
 
       - name: Build unpacked macOS app
         if: startsWith(matrix.id, 'macos-')
