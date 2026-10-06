@@ -1,3 +1,4 @@
+export * from './analysis-compare.js'
 export * from './analysis-view.js'
 export * from './analysis.js'
 export * from './json.js'

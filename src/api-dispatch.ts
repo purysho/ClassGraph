@@ -1,3 +1,4 @@
+import { buildCrossTab, buildGroupSummary, type GroupingBasis } from './analysis-compare.js'
 import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
 import { acceptPlanningRuleSuggestions, acceptSyntheticSpecDraft } from './assistance-acceptance.js'
 import type { AssistanceExecutionMode, AssistanceTask } from './assistance-contract.js'
@@ -141,6 +142,12 @@ function requiredIndexArray(record: Record<string, unknown>, key: string): numbe
     }
     return item
   })
+}
+
+function expectGroupingBasis(record: Record<string, unknown>): GroupingBasis {
+  const value = record.basis
+  if (value === 'tag' || value === 'planning-group') return value
+  throw new Error('CG-1001 basis must be tag or planning-group')
 }
 
 function parseAssistanceTask(record: Record<string, unknown>): AssistanceTask {
@@ -404,6 +411,28 @@ export async function dispatchClassGraphApi(
           parseProjectFromRequest(record),
           expectString(record, 'xMetricKey'),
           expectString(record, 'yMetricKey'),
+        ),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/analysis/crosstab') {
+      const record = expectRecord(parseJsonBody(body))
+      return jsonResponse(200, {
+        crossTab: buildCrossTab(
+          parseProjectFromRequest(record),
+          expectString(record, 'rowMetricKey'),
+          expectString(record, 'columnMetricKey'),
+        ),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/analysis/group-summary') {
+      const record = expectRecord(parseJsonBody(body))
+      return jsonResponse(200, {
+        groupSummary: buildGroupSummary(
+          parseProjectFromRequest(record),
+          expectString(record, 'metricKey'),
+          expectGroupingBasis(record),
         ),
       })
     }
