@@ -386,8 +386,10 @@ interface ProjectSummaryView {
   projectId: string
   title: string
   updatedAt: string
-  studentCount: number
+  studentCount: number | null
   fileName: string
+  protected?: boolean
+  locked?: boolean
   subject?: string
   gradeOrLevel?: string
 }
@@ -649,7 +651,23 @@ interface AssistanceRunResponseView {
 }
 
 type WorkspaceView =
-  'overview' | 'students' | 'graphs' | 'relationships' | 'seating' | 'assistance' | 'reports'
+  | 'overview'
+  | 'students'
+  | 'graphs'
+  | 'relationships'
+  | 'seating'
+  | 'assistance'
+  | 'reports'
+  | 'protection'
+
+interface ProtectionStatusView {
+  protected: boolean
+  unlocked: boolean
+}
+
+type UnlockTarget =
+  | { kind: 'library'; projectId: string; label: string }
+  | { kind: 'import'; fileText: string; fileName: string }
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
 type SyntheticDraftMetric =
   | {
@@ -701,6 +719,7 @@ let selectedProvenanceStudentId: string | null = null
 let selectedGraphMetricKey: string | null = null
 let selectedScatterX: string | null = null
 let spreadsheetImport: SpreadsheetImportState | null = null
+let protectionStatus: ProtectionStatusView | null = null
 let spreadsheetPreviewTimer: ReturnType<typeof setTimeout> | null = null
 let selectedScatterY: string | null = null
 let selectedCrossTabRow: string | null = null
@@ -1012,9 +1031,14 @@ function renderSetup(): void {
 function savedProjectMeta(summary: ProjectSummaryView): string {
   const parts = [
     summary.fileName,
+    summary.locked
+      ? 'Password protected'
+      : summary.protected
+        ? 'Password protected, unlocked'
+        : null,
     summary.subject,
     summary.gradeOrLevel,
-    `${summary.studentCount} students`,
+    summary.studentCount === null ? null : `${summary.studentCount} students`,
     new Date(summary.updatedAt).toLocaleString(),
   ].filter((item): item is string => Boolean(item))
   return parts.map(escapeHtml).join(' · ')
@@ -1039,12 +1063,14 @@ function renderSavedProjects(library: ProjectLibraryView): void {
           class="saved-project-row"
           type="button"
           data-open-project="${escapeHtml(summary.projectId)}"
+          data-locked="${summary.locked ? 'true' : 'false'}"
+          data-label="${escapeHtml(summary.title)}"
         >
           <span>
-            <strong>${escapeHtml(summary.title)}</strong>
+            <strong>${summary.protected ? '🔒 ' : ''}${escapeHtml(summary.title)}</strong>
             <small>${savedProjectMeta(summary)}</small>
           </span>
-          <b>Open</b>
+          <b>${summary.locked ? 'Unlock' : 'Open'}</b>
         </button>
       `,
     )
@@ -1057,7 +1083,12 @@ function renderSavedProjects(library: ProjectLibraryView): void {
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-open-project]')) {
     button.addEventListener('click', () => {
       const projectId = button.dataset.openProject
-      if (projectId) void openSavedProject(projectId)
+      if (!projectId) return
+      if (button.dataset.locked === 'true') {
+        renderUnlockScreen({ kind: 'library', projectId, label: button.dataset.label ?? '' })
+      } else {
+        void openSavedProject(projectId)
+      }
     })
   }
 }
@@ -1079,7 +1110,80 @@ async function openSavedProject(projectId: string): Promise<void> {
     const response = await postJson<ProjectResponse>('/api/projects/open', { projectId })
     openProject(response.project)
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not open the saved class.')
+    const message = error instanceof Error ? error.message : 'Could not open the saved class.'
+    if (message.includes('CG-2016')) {
+      const summary = projectLibraryView?.projects.find((item) => item.projectId === projectId)
+      renderUnlockScreen({ kind: 'library', projectId, label: summary?.title ?? '' })
+      return
+    }
+    showStatus(message)
+  }
+}
+
+function renderUnlockScreen(target: UnlockTarget): void {
+  const name = target.kind === 'library' ? target.label : target.fileName
+  root.innerHTML = `
+    <main class="closing-shell unlock-shell">
+      <form id="unlock-form" class="panel unlock-panel">
+        <p class="eyebrow">${target.kind === 'library' ? 'Password protected class' : 'Password protected backup'}</p>
+        <h1><span aria-hidden="true">🔒</span> ${escapeHtml(name)}</h1>
+        <p>Enter the password chosen for this class. ClassGraph cannot recover a forgotten password.</p>
+        <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+        <label>
+          Password
+          <input id="unlock-password" type="password" autocomplete="current-password" required autofocus />
+        </label>
+        <div class="unlock-actions">
+          <button class="primary" type="submit">Unlock</button>
+          <button id="unlock-back" class="ghost" type="button">Back</button>
+        </div>
+      </form>
+    </main>
+  `
+  document.querySelector('#unlock-back')?.addEventListener('click', () => renderSetup())
+  document.querySelector<HTMLFormElement>('#unlock-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const input = document.querySelector<HTMLInputElement>('#unlock-password')
+    const password = input?.value ?? ''
+    void unlock(target, password)
+  })
+}
+
+async function unlock(target: UnlockTarget, password: string): Promise<void> {
+  clearStatus()
+  const button = document.querySelector<HTMLButtonElement>('#unlock-form button[type=submit]')
+  if (button) {
+    button.disabled = true
+    button.textContent = 'Unlocking…'
+  }
+  try {
+    const response =
+      target.kind === 'library'
+        ? await postJson<ProjectResponse>('/api/projects/unlock', {
+            projectId: target.projectId,
+            password,
+          })
+        : await postJson<ProjectResponse>('/api/protection/import', {
+            fileText: target.fileText,
+            password,
+          })
+    openProject(response.project)
+  } catch (error) {
+    if (button) {
+      button.disabled = false
+      button.textContent = 'Unlock'
+    }
+    const message = error instanceof Error ? error.message : 'Could not unlock the class.'
+    showStatus(
+      message.includes('CG-2017')
+        ? 'That password does not unlock this class. Try again.'
+        : message,
+    )
+    const input = document.querySelector<HTMLInputElement>('#unlock-password')
+    if (input) {
+      input.value = ''
+      input.focus()
+    }
   }
 }
 
@@ -1109,11 +1213,17 @@ async function importProject(): Promise<void> {
     return
   }
 
+  const fileText = await file.text()
   try {
-    const response = await postText<ProjectResponse>('/api/import', await file.text())
+    const response = await postText<ProjectResponse>('/api/import', fileText)
     openProject(response.project)
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not import the project.')
+    const message = error instanceof Error ? error.message : 'Could not import the project.'
+    if (message.includes('CG-2015')) {
+      renderUnlockScreen({ kind: 'import', fileText, fileName: file.name })
+      return
+    }
+    showStatus(message)
   }
 }
 
@@ -1591,6 +1701,196 @@ async function applySpreadsheetImport(): Promise<void> {
     }
   } catch (error) {
     showStatus(error instanceof Error ? error.message : 'Could not import the spreadsheet.')
+  }
+}
+
+async function refreshProtectionStatus(): Promise<void> {
+  if (!project || !projectLibraryView?.enabled) return
+  const projectIdForRequest = project.projectId
+  try {
+    const response = await postJson<{ protection: ProtectionStatusView }>(
+      '/api/protection/status',
+      { projectId: projectIdForRequest },
+    )
+    if (project?.projectId !== projectIdForRequest) return
+    const changed = protectionStatus?.protected !== response.protection.protected
+    protectionStatus = response.protection
+    if (changed) renderWorkspace()
+  } catch {
+    // Protection status is informational; the class still works without it.
+  }
+}
+
+const FORGOTTEN_PASSWORD_WARNING =
+  'If you forget this password, nobody can open this class again, not even ClassGraph. There is no reset or recovery.'
+
+function renderProtection(content: HTMLElement): void {
+  if (!project) return
+  const status = protectionStatus
+  const passwordField = (id: string, label: string, autocomplete: string) => `
+    <label>
+      ${label}
+      <input id="${id}" type="password" autocomplete="${autocomplete}" minlength="8" required />
+    </label>
+  `
+
+  const enable = `
+    <article class="panel protection-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Not protected</p>
+          <h2>Protect this class with a password</h2>
+        </div>
+      </div>
+      <p>
+        The class file in your Documents folder is currently readable by anyone who can open it,
+        including through OneDrive, iCloud Drive or a USB copy. With a password, the file and its
+        automatic safety copies are encrypted (AES-256). You will be asked for the password each
+        time you open ClassGraph.
+      </p>
+      <form id="enable-protection" class="stack-form protection-form">
+        ${passwordField('protect-password', 'Password (at least 8 characters)', 'new-password')}
+        ${passwordField('protect-confirm', 'Type it again', 'new-password')}
+        <p class="protection-warning" role="note"><b>Important.</b> ${FORGOTTEN_PASSWORD_WARNING}</p>
+        <label class="checkbox-label">
+          <input id="protect-ack" type="checkbox" required />
+          I understand that a forgotten password cannot be recovered.
+        </label>
+        <button class="primary" type="submit">Turn on password protection</button>
+      </form>
+      <p class="muted">
+        Turning this on deletes the unprotected automatic safety copies of this class. Copies you
+        saved yourself earlier, and DOCX/PDF/JSON reports you export, are not encrypted.
+      </p>
+    </article>
+  `
+
+  const manage = `
+    <article class="panel protection-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Protected</p>
+          <h2><span aria-hidden="true">🔒</span> This class is password protected</h2>
+        </div>
+        <button id="lock-now" class="secondary compact" type="button">Lock now</button>
+      </div>
+      <p>
+        The class file and its automatic safety copies are encrypted. <b>Backup JSON</b> saves an
+        encrypted copy that needs the same password to restore. ${FORGOTTEN_PASSWORD_WARNING}
+      </p>
+    </article>
+    <div class="report-card-grid">
+      <article class="panel">
+        <h2>Change password</h2>
+        <form id="change-protection" class="stack-form protection-form">
+          ${passwordField('change-current', 'Current password', 'current-password')}
+          ${passwordField('change-new', 'New password (at least 8 characters)', 'new-password')}
+          ${passwordField('change-confirm', 'Type the new password again', 'new-password')}
+          <button class="secondary" type="submit">Change password</button>
+        </form>
+      </article>
+      <article class="panel">
+        <h2>Remove password</h2>
+        <p class="muted">The class file becomes readable JSON again.</p>
+        <form id="disable-protection" class="stack-form protection-form">
+          ${passwordField('disable-current', 'Current password', 'current-password')}
+          <button class="secondary" type="submit">Remove password protection</button>
+        </form>
+        <hr />
+        <h3>Unprotected copy</h3>
+        <p class="muted">Saves readable JSON somewhere you choose. Anyone with that file can read the class.</p>
+        <button id="plain-backup" class="ghost" type="button">Save an unprotected copy…</button>
+      </article>
+    </div>
+  `
+
+  content.innerHTML =
+    status === null
+      ? '<p class="muted">Checking protection…</p>'
+      : status.protected
+        ? manage
+        : enable
+
+  const read = (id: string) => document.querySelector<HTMLInputElement>(`#${id}`)?.value ?? ''
+  const submit = (selector: string, handler: () => Promise<void>) => {
+    document.querySelector<HTMLFormElement>(selector)?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      void handler()
+    })
+  }
+  const run = async (path: string, body: Record<string, unknown>, done: string) => {
+    clearStatus()
+    try {
+      const response = await postJson<{ protection: ProtectionStatusView }>(path, body)
+      protectionStatus = response.protection
+      renderWorkspace()
+      showStatus(done, 'success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not change protection.'
+      showStatus(message.includes('CG-2017') ? 'The current password is not correct.' : message)
+    }
+  }
+
+  submit('#enable-protection', async () => {
+    if (!project) return
+    if (read('protect-password') !== read('protect-confirm')) {
+      showStatus('The two passwords do not match.')
+      return
+    }
+    await run(
+      '/api/protection/enable',
+      { project, password: read('protect-password') },
+      'Password protection is on. Keep the password somewhere safe.',
+    )
+  })
+  submit('#change-protection', async () => {
+    if (!project) return
+    if (read('change-new') !== read('change-confirm')) {
+      showStatus('The two new passwords do not match.')
+      return
+    }
+    await run(
+      '/api/protection/change',
+      {
+        projectId: project.projectId,
+        currentPassword: read('change-current'),
+        newPassword: read('change-new'),
+      },
+      'Password changed. Automatic safety copies now use the new password.',
+    )
+  })
+  submit('#disable-protection', async () => {
+    if (!project) return
+    await run(
+      '/api/protection/disable',
+      { projectId: project.projectId, currentPassword: read('disable-current') },
+      'Password protection removed. The class file is readable JSON again.',
+    )
+  })
+  document.querySelector('#lock-now')?.addEventListener('click', () => {
+    void lockCurrentProject()
+  })
+  document.querySelector('#plain-backup')?.addEventListener('click', () => {
+    if (
+      window.confirm(
+        'Save an unprotected copy? Anyone who can open that file will be able to read this class.',
+      )
+    ) {
+      void exportProject(true)
+    }
+  })
+}
+
+async function lockCurrentProject(): Promise<void> {
+  if (!project) return
+  try {
+    await postJson('/api/protection/lock', { projectId: project.projectId })
+    project = null
+    protectionStatus = null
+    renderSetup()
+    showStatus('Class locked. Enter its password to open it again.', 'success')
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not lock the class.')
   }
 }
 
@@ -2078,6 +2378,8 @@ async function generateStructuredClass(): Promise<void> {
 
 function openProject(nextProject: ClassGraphProject): void {
   project = nextProject
+  protectionStatus = null
+  void refreshProtectionStatus()
   activeView = 'overview'
   selectedProvenanceStudentId = null
   assistanceRequestView = null
@@ -2127,6 +2429,11 @@ function renderWorkspace(): void {
           </div>
           <div class="header-actions">
             <button id="export-json" class="secondary compact">Backup JSON</button>
+            ${
+              projectLibraryView?.enabled
+                ? `<button id="protection-button" class="ghost compact">${protectionStatus?.protected ? '🔒 Password' : 'Password…'}</button>`
+                : ''
+            }
             <button id="new-project" class="ghost compact">Projects</button>
             ${desktopMode ? '<button id="quit-app" class="ghost compact">Quit</button>' : ''}
           </div>
@@ -2159,6 +2466,10 @@ function renderWorkspace(): void {
 
   document.querySelector<HTMLButtonElement>('#export-json')?.addEventListener('click', () => {
     void exportProject()
+  })
+  document.querySelector<HTMLButtonElement>('#protection-button')?.addEventListener('click', () => {
+    activeView = 'protection'
+    renderWorkspace()
   })
   document.querySelector<HTMLButtonElement>('#new-project')?.addEventListener('click', () => {
     project = null
@@ -2212,6 +2523,11 @@ function renderWorkspaceContent(): void {
 
   if (activeView === 'reports') {
     renderReports(content)
+    return
+  }
+
+  if (activeView === 'protection') {
+    renderProtection(content)
     return
   }
 
@@ -6212,30 +6528,32 @@ async function quitDesktopApp(): Promise<void> {
   }
 }
 
-async function exportProject(): Promise<void> {
+async function exportProject(plain = false): Promise<void> {
   if (!project) return
   clearStatus()
+  const encrypted = protectionStatus?.protected === true && !plain
 
   try {
     if (window.classGraphDesktop) {
       const result = await window.classGraphDesktop.saveProjectCopy(
         JSON.stringify(project),
         project.title,
+        plain,
       )
       if (result.canceled) {
         showStatus('Backup canceled.', 'success')
         return
       }
       showStatus(
-        result.filePath ? `Backup saved to ${result.filePath}` : 'Backup saved.',
+        `${encrypted ? 'Password-protected backup' : 'Backup'} saved${result.filePath ? ` to ${result.filePath}` : ''}.`,
         'success',
       )
       return
     }
 
-    const response = await classGraphApiFetch('/api/export', {
+    const response = await classGraphApiFetch('/api/export/backup', {
       method: 'POST',
-      body: JSON.stringify(project),
+      body: JSON.stringify({ project, plain }),
     })
     if (!response.ok) throw await responseError(response)
 
@@ -6249,7 +6567,10 @@ async function exportProject(): Promise<void> {
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
-    showStatus('Backup JSON downloaded.', 'success')
+    showStatus(
+      encrypted ? 'Password-protected backup downloaded.' : 'Backup JSON downloaded.',
+      'success',
+    )
   } catch (error) {
     showStatus(error instanceof Error ? error.message : 'Could not create the backup JSON.')
   }
@@ -6278,6 +6599,13 @@ async function initializeApp(): Promise<void> {
   } catch (error) {
     restoreError =
       error instanceof Error ? error.message : 'ClassGraph could not restore the last saved class.'
+    const last = projectLibraryView?.projects.find(
+      (item) => item.projectId === projectLibraryView?.lastProjectId,
+    )
+    if (restoreError.includes('CG-2016') && last) {
+      renderUnlockScreen({ kind: 'library', projectId: last.projectId, label: last.title })
+      return
+    }
   }
 
   renderSetup()

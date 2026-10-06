@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { dispatchClassGraphApi, type ClassGraphApiRequest } from './api-dispatch.js'
 import { createEnvironmentAssistanceProvider } from './assistance-provider.js'
-import { parseProjectJson, serializeProjectJson } from './json.js'
+import { parseProjectJson } from './json.js'
 import { createEmptyProject } from './workspace.js'
 import {
   defaultClassGraphDataDirectory,
@@ -200,8 +200,10 @@ async function start(): Promise<void> {
 
   ipcMain.handle(
     'classgraph:save-project-copy',
-    async (_event, serializedProject: string, suggestedTitle: string) => {
+    async (_event, serializedProject: string, suggestedTitle: string, plain?: boolean) => {
       const project = parseProjectJson(serializedProject)
+      // Protected classes stay encrypted in backups unless the teacher chose a plain copy.
+      const contents = await store.serializeBackup(project, plain === true)
       const backupDirectory = join(app.getPath('documents'), 'ClassGraph', 'Backups')
       await mkdir(backupDirectory, { recursive: true })
 
@@ -215,7 +217,7 @@ async function start(): Promise<void> {
       })
 
       if (result.canceled || !result.filePath) return { canceled: true }
-      await writeFile(result.filePath, serializeProjectJson(project), 'utf8')
+      await writeFile(result.filePath, contents, 'utf8')
       return { canceled: false, filePath: result.filePath }
     },
   )

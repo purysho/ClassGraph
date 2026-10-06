@@ -2399,3 +2399,45 @@ textarea:focus {
   padding-left: 18px;
   font-size: 0.8rem;
 }
+
+.unlock-shell {
+  place-items: center;
+}
+
+.unlock-panel {
+  width: min(440px, calc(100vw - 32px));
+  background: #fff;
+  color: #17212a;
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+
+.unlock-panel h1 {
+  margin: 0;
+  color: #17212a;
+  font-size: 1.5rem;
+}
+
+.unlock-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.protection-panel {
+  margin-bottom: 18px;
+}
+
+.protection-form {
+  max-width: 440px;
+}
+
+.protection-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #e3c98d;
+  border-radius: 10px;
+  background: #fdf7e8;
+  color: #5c4515;
+  font-size: 0.82rem;
+}

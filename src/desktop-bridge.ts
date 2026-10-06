@@ -17,6 +17,7 @@ export interface ClassGraphDesktopBridge {
   saveProjectCopy(
     serializedProject: string,
     suggestedTitle: string,
+    plain?: boolean,
   ): Promise<{ canceled: boolean; filePath?: string }>
 }
 
