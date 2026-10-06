@@ -213,7 +213,7 @@ jobs:
         if: startsWith(matrix.id, 'macos-')
         shell: bash
         # Notarise only the final DMG/ZIP build below; this unpacked copy just runs the self-test.
-        run: npx electron-builder --dir --mac --${{ matrix.arch }} --publish never $MAC_SIGN_FLAGS -c.mac.notarize=false
+        run: npx electron-builder --dir --mac --${{ matrix.arch }} --publish never ${MAC_SIGN_FLAGS:-} -c.mac.notarize=false
 
       - name: Smoke-test macOS native app
         if: startsWith(matrix.id, 'macos-')
@@ -229,7 +229,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never $MAC_SIGN_FLAGS
+          npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never ${MAC_SIGN_FLAGS:-}
           if [ "${MAC_SIGNED:-}" = "true" ]; then
             app="$(find release-desktop -maxdepth 3 -name 'ClassGraph.app' -type d | head -n 1)"
             codesign --verify --deep --strict --verbose=2 "$app"
