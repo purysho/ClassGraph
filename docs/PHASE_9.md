@@ -3,7 +3,7 @@
 **Phase:** 9 — Multi-metric descriptive comparisons  
 **Branch:** `claude/intelligent-cerf-9dyifr`  
 **Base:** `main` after v0.8.1  
-**Status:** Implemented on branch — awaiting review, merge and release decision  
+**Status:** Implemented — PR open, v0.9.0 release on merge  
 **Last updated:** 2026-10-06
 
 ## Why this phase
@@ -85,4 +85,7 @@ or new persisted data.
 
 ## Release
 
-No `.release/` trigger has been added. Publishing v0.9.0 is a separate, explicit step after merge.
+- [x] Bump to v0.9.0.
+- [x] Add `.release/v0.9.0`; merging this branch to `main` triggers the desktop release workflow.
+- [ ] Native Windows, Linux, macOS Apple Silicon and macOS Intel build/self-test on the PR.
+- [ ] Merge and verify published v0.9.0 assets.
