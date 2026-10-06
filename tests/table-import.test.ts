@@ -160,6 +160,10 @@ describe('suggesting a column mapping', () => {
   it('treats full-width digits and thousands separators as numbers', () => {
     expect(inferMetricKind(['８５', '1,200', 3]).kind).toBe('number')
   })
+
+  it('keeps date columns as text instead of one category per day', () => {
+    expect(inferMetricKind(['2024-09-01', '2024-09-01', '2024/9/2']).kind).toBe('text')
+  })
 })
 
 describe('planning and applying an import', () => {

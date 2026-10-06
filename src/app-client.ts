@@ -321,6 +321,63 @@ type ReportComparison =
   | { kind: 'association'; xMetricKey: string; yMetricKey: string }
   | { kind: 'group-summary'; metricKey: string; basis: 'tag' | 'planning-group' }
 
+type TableCell = string | number | boolean | null
+
+interface ReadTableView {
+  format: 'csv' | 'xlsx'
+  encoding?: 'utf-8' | 'gb18030'
+  sheets: Array<{ name: string; rows: TableCell[][] }>
+}
+
+type ImportColumnMapping =
+  | { role: 'ignore' }
+  | { role: 'student-id' }
+  | { role: 'display-name' }
+  | { role: 'tags' }
+  | {
+      role: 'metric'
+      metricKey: string
+      label: string
+      kind: MetricKind
+      categories?: string[]
+      ordinalScale?: string[]
+      existing?: boolean
+    }
+
+interface ImportSuggestionView {
+  headerRow: boolean
+  headers: string[]
+  columns: ImportColumnMapping[]
+}
+
+interface ImportPlanView {
+  mode: 'new-project' | 'merge'
+  studentCount: number
+  studentsAdded: number
+  studentsUpdated: number
+  studentsNotInFile: number
+  newMetrics: Array<{ key: string; label: string; kind: string }>
+  valueCount: number
+  missingCount: number
+  blanksKeptExisting: number
+  generatedIds: boolean
+  changes: Array<{ studentId: string; field: string; from: string; to: string }>
+  errors: Array<{ row?: number; column?: string; message: string }>
+}
+
+interface SpreadsheetImportState {
+  mode: 'new' | 'merge'
+  fileName: string
+  table: ReadTableView
+  sheetIndex: number
+  headerRow: boolean
+  headers: string[]
+  columns: ImportColumnMapping[]
+  title: string
+  plan: ImportPlanView | null
+  planError: string | null
+}
+
 interface ProjectResponse {
   project: ClassGraphProject
 }
@@ -643,6 +700,8 @@ let activeView: WorkspaceView = 'overview'
 let selectedProvenanceStudentId: string | null = null
 let selectedGraphMetricKey: string | null = null
 let selectedScatterX: string | null = null
+let spreadsheetImport: SpreadsheetImportState | null = null
+let spreadsheetPreviewTimer: ReturnType<typeof setTimeout> | null = null
 let selectedScatterY: string | null = null
 let selectedCrossTabRow: string | null = null
 let selectedCrossTabColumn: string | null = null
@@ -872,6 +931,28 @@ function renderSetup(): void {
 
           <article class="setup-card">
             <div class="card-number">03</div>
+            <h3>Import a class list</h3>
+            <p>
+              Start from a spreadsheet you already have. Choose which columns hold IDs, names,
+              tags and marks, and preview everything before it is saved.
+            </p>
+            <form id="spreadsheet-form" class="stack-form">
+              <label class="file-input">
+                Choose .xlsx or .csv
+                <input
+                  id="spreadsheet-file"
+                  name="file"
+                  type="file"
+                  accept=".xlsx,.csv,.tsv,.txt,text/csv"
+                  required
+                />
+              </label>
+              <button class="secondary" type="submit">Review columns</button>
+            </form>
+          </article>
+
+          <article class="setup-card">
+            <div class="card-number">04</div>
             <h3>Generate a class</h3>
             <p>
               Build a reviewed synthetic specification with explicit distributions, value weights,
@@ -903,6 +984,15 @@ function renderSetup(): void {
     event.preventDefault()
     void importProject()
   })
+
+  document
+    .querySelector<HTMLFormElement>('#spreadsheet-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const file = document.querySelector<HTMLInputElement>('#spreadsheet-file')?.files?.[0]
+      if (file) void startSpreadsheetImport(file, 'new')
+      else showStatus('Choose a spreadsheet first.')
+    })
 
   document.querySelector<HTMLButtonElement>('#quit-app')?.addEventListener('click', () => {
     void quitDesktopApp()
@@ -1024,6 +1114,483 @@ async function importProject(): Promise<void> {
     openProject(response.project)
   } catch (error) {
     showStatus(error instanceof Error ? error.message : 'Could not import the project.')
+  }
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ''
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
+  }
+  return btoa(binary)
+}
+
+async function startSpreadsheetImport(file: File, mode: 'new' | 'merge'): Promise<void> {
+  clearStatus()
+  try {
+    const response = await postJson<{
+      table: ReadTableView
+      suggestions: ImportSuggestionView[]
+    }>('/api/import/table/read', {
+      fileName: file.name,
+      dataBase64: await fileToBase64(file),
+      ...(mode === 'merge' && project ? { project } : {}),
+    })
+    const firstUsable = Math.max(
+      0,
+      response.table.sheets.findIndex((sheet) => sheet.rows.length > 0),
+    )
+    const suggestion = response.suggestions[firstUsable]
+    spreadsheetImport = {
+      mode,
+      fileName: file.name,
+      table: response.table,
+      sheetIndex: firstUsable,
+      headerRow: suggestion?.headerRow ?? true,
+      headers: suggestion?.headers ?? [],
+      columns: suggestion?.columns ?? [],
+      title:
+        mode === 'merge' && project
+          ? project.title
+          : file.name.replace(/\.[^.]+$/, '') || 'New class',
+      plan: null,
+      planError: null,
+    }
+    renderSpreadsheetImport()
+    void refreshSpreadsheetPreview()
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not read the spreadsheet.')
+  }
+}
+
+function spreadsheetRequest(state: SpreadsheetImportState): Record<string, unknown> {
+  return {
+    sourceName: state.fileName,
+    rows: state.table.sheets[state.sheetIndex]?.rows ?? [],
+    headerRow: state.headerRow,
+    columns: state.columns,
+  }
+}
+
+async function resuggestSpreadsheetColumns(): Promise<void> {
+  const state = spreadsheetImport
+  if (!state) return
+  try {
+    const response = await postJson<{ suggestion: ImportSuggestionView }>(
+      '/api/import/table/suggest',
+      {
+        request: spreadsheetRequest(state),
+        ...(state.mode === 'merge' && project ? { project } : {}),
+      },
+    )
+    state.headers = response.suggestion.headers
+    state.columns = response.suggestion.columns
+    renderSpreadsheetImport()
+    void refreshSpreadsheetPreview()
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not read those columns.')
+  }
+}
+
+function scheduleSpreadsheetPreview(): void {
+  if (spreadsheetPreviewTimer) clearTimeout(spreadsheetPreviewTimer)
+  spreadsheetPreviewTimer = setTimeout(() => void refreshSpreadsheetPreview(), 250)
+}
+
+async function refreshSpreadsheetPreview(): Promise<void> {
+  const state = spreadsheetImport
+  if (!state) return
+  try {
+    const response = await postJson<{ plan: ImportPlanView }>('/api/import/table/preview', {
+      request: spreadsheetRequest(state),
+      ...(state.mode === 'merge' && project ? { project } : {}),
+    })
+    state.plan = response.plan
+    state.planError = null
+  } catch (error) {
+    state.plan = null
+    state.planError = error instanceof Error ? error.message : 'Could not preview the import.'
+  }
+  const target = document.querySelector<HTMLElement>('#spreadsheet-preview')
+  if (target) target.innerHTML = renderSpreadsheetPreview(state)
+  const apply = document.querySelector<HTMLButtonElement>('#apply-spreadsheet')
+  if (apply) apply.disabled = !state.plan || state.plan.errors.length > 0
+}
+
+function distinctColumnValues(state: SpreadsheetImportState, index: number): string[] {
+  const rows = (state.table.sheets[state.sheetIndex]?.rows ?? []).slice(state.headerRow ? 1 : 0)
+  const values = rows
+    .map((row) => row[index])
+    .filter((cell): cell is string | number | boolean => cell !== null && cell !== undefined)
+    .map((cell) => String(cell).trim())
+    .filter(Boolean)
+  return [...new Set(values)]
+}
+
+function sampleValues(state: SpreadsheetImportState, index: number): string {
+  const samples = distinctColumnValues(state, index).slice(0, 3)
+  return samples.length ? samples.map(escapeHtml).join(', ') : '<span class="muted">empty</span>'
+}
+
+function metricKeyForHeader(header: string, index: number): string {
+  const used = new Set([
+    ...(spreadsheetImport?.mode === 'merge' ? (project?.metricDefinitions ?? []) : []).map(
+      (metric) => metric.key,
+    ),
+    ...(spreadsheetImport?.columns ?? []).flatMap((column) =>
+      column.role === 'metric' ? [column.metricKey] : [],
+    ),
+  ])
+  const base =
+    header
+      .normalize('NFKD')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || `column-${index + 1}`
+  let key = base
+  for (let suffix = 2; used.has(key); suffix += 1) key = `${base}-${suffix}`
+  return key
+}
+
+function roleValue(column: ImportColumnMapping): string {
+  if (column.role !== 'metric') return column.role
+  return column.existing ? `existing:${column.metricKey}` : 'new-metric'
+}
+
+function renderColumnMappingRow(
+  state: SpreadsheetImportState,
+  column: ImportColumnMapping,
+  index: number,
+): string {
+  const existingOptions =
+    state.mode === 'merge'
+      ? (project?.metricDefinitions ?? [])
+          .map((metric) =>
+            optionHtml(
+              `existing:${metric.key}`,
+              `Existing: ${metric.label}`,
+              roleValue(column) === `existing:${metric.key}`,
+            ),
+          )
+          .join('')
+      : ''
+  const role = roleValue(column)
+  const metricDetails =
+    column.role === 'metric' && !column.existing
+      ? `
+        <div class="mapping-metric">
+          <label>
+            Label
+            <input data-mapping-label="${index}" value="${escapeHtml(column.label)}" />
+          </label>
+          <label>
+            Kind
+            <select data-mapping-kind="${index}">
+              ${(['number', 'category', 'ordinal', 'boolean', 'text'] as const)
+                .map((kind) =>
+                  optionHtml(kind, kind === 'boolean' ? 'yes/no' : kind, column.kind === kind),
+                )
+                .join('')}
+            </select>
+          </label>
+          ${
+            column.kind === 'category' || column.kind === 'ordinal'
+              ? `<label class="mapping-levels">
+                  ${column.kind === 'ordinal' ? 'Scale, lowest first' : 'Categories'} (comma-separated)
+                  <input data-mapping-levels="${index}" value="${escapeHtml(
+                    (column.kind === 'ordinal' ? column.ordinalScale : column.categories)?.join(
+                      ', ',
+                    ) ?? '',
+                  )}" />
+                </label>`
+              : ''
+          }
+        </div>
+      `
+      : column.role === 'metric'
+        ? `<div class="mapping-metric"><small>${escapeHtml(column.kind)} metric already in this class</small></div>`
+        : ''
+
+  return `
+    <tr>
+      <th scope="row">${escapeHtml(state.headers[index] ?? `Column ${index + 1}`)}</th>
+      <td class="mapping-samples">${sampleValues(state, index)}</td>
+      <td>
+        <select data-mapping-role="${index}" aria-label="Use column ${escapeHtml(state.headers[index] ?? String(index + 1))} as">
+          ${optionHtml('ignore', 'Ignore', role === 'ignore')}
+          ${optionHtml('student-id', 'Student ID', role === 'student-id')}
+          ${optionHtml('display-name', 'Name', role === 'display-name')}
+          ${optionHtml('tags', 'Tags', role === 'tags')}
+          ${optionHtml('new-metric', 'New metric', role === 'new-metric')}
+          ${existingOptions}
+        </select>
+        ${metricDetails}
+      </td>
+    </tr>
+  `
+}
+
+function renderSpreadsheetPreview(state: SpreadsheetImportState): string {
+  if (state.planError) return `<p class="status">${escapeHtml(state.planError)}</p>`
+  const plan = state.plan
+  if (!plan) return '<p class="muted">Checking the spreadsheet…</p>'
+
+  const errors = plan.errors.length
+    ? `
+      <div class="import-errors" role="alert">
+        <h3>Fix ${plan.errors.length} problem(s) before importing</h3>
+        <ul>
+          ${plan.errors
+            .slice(0, 25)
+            .map(
+              (issue) =>
+                `<li>${issue.row ? `<b>Row ${issue.row}</b> ` : ''}${issue.column ? `(${escapeHtml(issue.column)}) ` : ''}${escapeHtml(issue.message)}</li>`,
+            )
+            .join('')}
+        </ul>
+        ${plan.errors.length > 25 ? `<p class="muted">…and ${plan.errors.length - 25} more.</p>` : ''}
+        <p class="muted">Fix the cells in your spreadsheet and choose the file again, or change how the column is used.</p>
+      </div>
+    `
+    : ''
+
+  const changes =
+    plan.mode === 'merge' && plan.changes.length
+      ? `
+        <h3>Values that will change (${plan.changes.length})</h3>
+        <div class="data-table-wrap">
+          <table class="source-table">
+            <thead><tr><th>Student</th><th>Field</th><th>Now</th><th>After import</th></tr></thead>
+            <tbody>
+              ${plan.changes
+                .slice(0, 50)
+                .map(
+                  (change) =>
+                    `<tr><td>${escapeHtml(change.studentId)}</td><td>${escapeHtml(change.field)}</td><td>${escapeHtml(change.from)}</td><td>${escapeHtml(change.to)}</td></tr>`,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      `
+      : ''
+
+  const facts = [
+    plan.mode === 'merge'
+      ? `${plan.studentsUpdated} existing student(s) updated, ${plan.studentsAdded} added`
+      : `${plan.studentCount} student(s)`,
+    `${plan.valueCount} value(s) recorded`,
+    `${plan.missingCount} blank cell(s) saved as Missing`,
+    plan.newMetrics.length ? `${plan.newMetrics.length} new metric(s)` : null,
+    plan.blanksKeptExisting
+      ? `${plan.blanksKeptExisting} blank cell(s) left existing values unchanged`
+      : null,
+    plan.studentsNotInFile
+      ? `${plan.studentsNotInFile} student(s) not in the file stay as they are`
+      : null,
+    plan.generatedIds ? 'No ID column: IDs s001, s002… are created in row order' : null,
+  ].filter((fact): fact is string => Boolean(fact))
+
+  return `
+    ${errors}
+    <ul class="import-facts">${facts.map((fact) => `<li>${escapeHtml(fact)}</li>`).join('')}</ul>
+    <p class="muted">Every imported value is marked <b>imported</b> from ${escapeHtml(state.fileName)}. Blank cells are never turned into zero or "no".</p>
+    ${changes}
+  `
+}
+
+function renderSpreadsheetImport(): void {
+  const state = spreadsheetImport
+  if (!state) return
+  const sheets = state.table.sheets
+  root.innerHTML = `
+    <main class="generator-shell">
+      <header class="generator-header">
+        <div>
+          <p class="eyebrow">${state.mode === 'merge' ? 'Update class from spreadsheet' : 'Import a class list'}</p>
+          <h1>${escapeHtml(state.fileName)}</h1>
+          <p>
+            Tell ClassGraph what each column holds. Nothing is saved until you choose
+            ${state.mode === 'merge' ? '<b>Update class</b>' : '<b>Create class</b>'}.
+            ${state.table.encoding === 'gb18030' ? 'This CSV was read as GBK/GB18030 Chinese text.' : ''}
+          </p>
+        </div>
+        <button id="cancel-spreadsheet" class="ghost compact" type="button">Cancel</button>
+      </header>
+
+      <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+
+      <section class="generator-grid">
+        <article class="panel generator-config">
+          <div class="spreadsheet-options">
+            ${
+              sheets.length > 1
+                ? `<label class="compact-label">Sheet
+                    <select id="spreadsheet-sheet">
+                      ${sheets.map((sheet, index) => optionHtml(String(index), `${sheet.name} (${Math.max(0, sheet.rows.length - 1)} rows)`, index === state.sheetIndex)).join('')}
+                    </select>
+                  </label>`
+                : ''
+            }
+            ${
+              state.mode === 'new'
+                ? `<label class="compact-label">Class name
+                    <input id="spreadsheet-title" value="${escapeHtml(state.title)}" />
+                  </label>`
+                : ''
+            }
+            <label class="checkbox-label">
+              <input id="spreadsheet-header-row" type="checkbox" ${state.headerRow ? 'checked' : ''} />
+              First row is column headings
+            </label>
+          </div>
+          <div class="data-table-wrap">
+            <table class="source-table mapping-table">
+              <thead><tr><th>Column</th><th>Examples</th><th>Use as</th></tr></thead>
+              <tbody>
+                ${state.columns.map((column, index) => renderColumnMappingRow(state, column, index)).join('')}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Preview</p>
+              <h2>What will happen</h2>
+            </div>
+          </div>
+          <div id="spreadsheet-preview">${renderSpreadsheetPreview(state)}</div>
+          <button id="apply-spreadsheet" class="primary" type="button" ${state.plan && state.plan.errors.length === 0 ? '' : 'disabled'}>
+            ${state.mode === 'merge' ? 'Update class' : 'Create class'}
+          </button>
+        </article>
+      </section>
+    </main>
+  `
+
+  document.querySelector('#cancel-spreadsheet')?.addEventListener('click', () => {
+    spreadsheetImport = null
+    if (project) renderWorkspace()
+    else renderSetup()
+  })
+  document
+    .querySelector<HTMLSelectElement>('#spreadsheet-sheet')
+    ?.addEventListener('change', (event) => {
+      state.sheetIndex = Number((event.currentTarget as HTMLSelectElement).value)
+      state.headerRow = true
+      void resuggestSpreadsheetColumns()
+    })
+  document
+    .querySelector<HTMLInputElement>('#spreadsheet-title')
+    ?.addEventListener('input', (event) => {
+      state.title = (event.currentTarget as HTMLInputElement).value
+    })
+  document
+    .querySelector<HTMLInputElement>('#spreadsheet-header-row')
+    ?.addEventListener('change', (event) => {
+      state.headerRow = (event.currentTarget as HTMLInputElement).checked
+      void resuggestSpreadsheetColumns()
+    })
+
+  for (const select of document.querySelectorAll<HTMLSelectElement>('[data-mapping-role]')) {
+    select.addEventListener('change', () => {
+      const index = Number(select.dataset.mappingRole)
+      const value = select.value
+      const header = state.headers[index] ?? `Column ${index + 1}`
+      if (value.startsWith('existing:')) {
+        const metric = project?.metricDefinitions.find((item) => `existing:${item.key}` === value)
+        if (metric) {
+          state.columns[index] = {
+            role: 'metric',
+            metricKey: metric.key,
+            label: metric.label,
+            kind: metric.kind,
+            existing: true,
+          }
+        }
+      } else if (value === 'new-metric') {
+        state.columns[index] = {
+          role: 'metric',
+          metricKey: metricKeyForHeader(header, index),
+          label: header,
+          kind: 'text',
+        }
+      } else {
+        state.columns[index] = { role: value as 'ignore' | 'student-id' | 'display-name' | 'tags' }
+      }
+      renderSpreadsheetImport()
+      void refreshSpreadsheetPreview()
+    })
+  }
+  for (const input of document.querySelectorAll<HTMLInputElement>('[data-mapping-label]')) {
+    input.addEventListener('input', () => {
+      const column = state.columns[Number(input.dataset.mappingLabel)]
+      if (column?.role === 'metric') column.label = input.value
+      scheduleSpreadsheetPreview()
+    })
+  }
+  for (const select of document.querySelectorAll<HTMLSelectElement>('[data-mapping-kind]')) {
+    select.addEventListener('change', () => {
+      const index = Number(select.dataset.mappingKind)
+      const column = state.columns[index]
+      if (column?.role !== 'metric') return
+      column.kind = select.value as MetricKind
+      const levels = distinctColumnValues(state, index)
+      delete column.categories
+      delete column.ordinalScale
+      if (column.kind === 'category') column.categories = levels
+      if (column.kind === 'ordinal')
+        column.ordinalScale = [...levels].sort((a, b) => a.localeCompare(b))
+      renderSpreadsheetImport()
+      void refreshSpreadsheetPreview()
+    })
+  }
+  for (const input of document.querySelectorAll<HTMLInputElement>('[data-mapping-levels]')) {
+    input.addEventListener('input', () => {
+      const column = state.columns[Number(input.dataset.mappingLevels)]
+      if (column?.role !== 'metric') return
+      const levels = input.value
+        .split(/[,，]/)
+        .map((level) => level.trim())
+        .filter(Boolean)
+      if (column.kind === 'ordinal') column.ordinalScale = levels
+      else column.categories = levels
+      scheduleSpreadsheetPreview()
+    })
+  }
+  document.querySelector('#apply-spreadsheet')?.addEventListener('click', () => {
+    void applySpreadsheetImport()
+  })
+}
+
+async function applySpreadsheetImport(): Promise<void> {
+  const state = spreadsheetImport
+  if (!state) return
+  clearStatus()
+  try {
+    const response = await postJson<ProjectResponse>('/api/import/table/apply', {
+      request: spreadsheetRequest(state),
+      ...(state.mode === 'merge' && project
+        ? { project }
+        : { projectId: projectId(), title: state.title.trim() || 'Imported class' }),
+    })
+    spreadsheetImport = null
+    if (state.mode === 'merge') {
+      project = response.project
+      activeView = 'students'
+      renderWorkspace()
+      showStatus('Class updated from the spreadsheet.', 'success')
+    } else {
+      openProject(response.project)
+      activeView = 'students'
+      renderWorkspace()
+    }
+  } catch (error) {
+    showStatus(error instanceof Error ? error.message : 'Could not import the spreadsheet.')
   }
 }
 
@@ -1879,6 +2446,14 @@ function renderStudents(content: HTMLElement): void {
           <span class="schema-badge">${project.students.length} records</span>
         </div>
 
+        <div class="spreadsheet-update">
+          <label class="file-input compact-file">
+            Update from spreadsheet (.xlsx or .csv)
+            <input id="spreadsheet-update-file" type="file" accept=".xlsx,.csv,.tsv,.txt,text/csv" />
+          </label>
+          <small>Matches students by ID. You review every change before it is saved.</small>
+        </div>
+
         <form id="add-student-form" class="inline-form">
           <label>
             Student ID
@@ -2158,6 +2733,12 @@ function renderProvenanceInspector(): string {
 }
 
 function bindStudentViewEvents(): void {
+  document
+    .querySelector<HTMLInputElement>('#spreadsheet-update-file')
+    ?.addEventListener('change', (event) => {
+      const file = (event.currentTarget as HTMLInputElement).files?.[0]
+      if (file) void startSpreadsheetImport(file, 'merge')
+    })
   document
     .querySelector<HTMLFormElement>('#add-student-form')
     ?.addEventListener('submit', (event) => {

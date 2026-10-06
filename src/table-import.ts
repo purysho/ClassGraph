@@ -195,6 +195,11 @@ export function inferMetricKind(cells: TableCell[]): {
   if (recorded.length === 0) return { kind: 'text' }
   if (recorded.every((cell) => parseNumber(cell) !== null)) return { kind: 'number' }
   if (recorded.every((cell) => parseBoolean(cell) !== null)) return { kind: 'boolean' }
+  // Dates (as read from .xlsx date cells or typed as 2024-09-01 / 2024/9/1) stay as text rather
+  // than becoming a category whose levels are individual days.
+  if (recorded.every((cell) => /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(cellText(cell) ?? ''))) {
+    return { kind: 'text' }
+  }
   const distinct = [...new Set(recorded.map((cell) => cellText(cell) as string))]
   if (distinct.length <= MAX_CATEGORY_LEVELS && distinct.length < recorded.length) {
     return { kind: 'category', categories: distinct }
