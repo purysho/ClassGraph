@@ -53,4 +53,5 @@ test checks that every glyph offset in the shipped font is even.
       to PNG: report and seating plan both legible, bold names crisp at 200 dpi.
 - [x] Packaged the Linux app locally; `--self-test` under Xvfb passed, including the Chinese
       PDF export from inside the app archive.
-- [ ] Native self-tests on all four platforms in the PR workflow.
+- [x] Native self-tests on all four platforms in PR #15 (Desktop release run `37409826177`):
+      Windows x64, Linux x64, macOS Apple Silicon and macOS Intel each exported the Chinese PDF.
