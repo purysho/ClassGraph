@@ -118,6 +118,12 @@ async function serveStatic(
       return true
     }
 
+    // Runtime module imported by app-client.js; must be served for browser development mode.
+    if (pathname === '/dist/api-client-transport.js') {
+      await sendFile(response, join(buildDirectory, 'api-client-transport.js'))
+      return true
+    }
+
     if (pathname === '/dist/desktop-renderer-bootstrap.js') {
       await sendFile(response, join(buildDirectory, 'desktop-renderer-bootstrap.js'))
       return true

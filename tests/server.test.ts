@@ -1,4 +1,7 @@
 import { once } from 'node:events'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { AssistanceProvider } from '../src/assistance-provider.js'
@@ -49,6 +52,37 @@ describe('local app server', () => {
     expect(html).toContain('src="../dist/app-client.js"')
     expect(html).toContain('href="./styles.css"')
     expect(html).not.toMatch(/https?:\/\//)
+  })
+
+  it('serves every runtime module the browser client imports in development mode', async () => {
+    const source = await readFile('src/app-client.ts', 'utf8')
+    const runtimeImports = [
+      ...source.matchAll(/^import\s+(?!type\b)[^;]*?from\s+'\.\/([\w-]+\.js)'/gm),
+    ]
+      .map((match) => match[1])
+      .filter((name): name is string => name !== undefined)
+    expect(runtimeImports).toContain('api-client-transport.js')
+
+    const buildDirectory = await mkdtemp(join(tmpdir(), 'classgraph-build-'))
+    try {
+      for (const name of ['app-client.js', ...runtimeImports]) {
+        await writeFile(join(buildDirectory, name), `// ${name}`)
+      }
+      const server = createClassGraphServer({ appDirectory: 'app', buildDirectory })
+      servers.push(server)
+      server.listen(0, '127.0.0.1')
+      await once(server, 'listening')
+      const { port } = server.address() as AddressInfo
+
+      for (const name of ['app-client.js', ...runtimeImports]) {
+        const response = await fetch(`http://127.0.0.1:${port}/dist/${name}`)
+        expect(response.status, name).toBe(200)
+        expect(response.headers.get('content-type'), name).toContain('javascript')
+        expect(await response.text()).toBe(`// ${name}`)
+      }
+    } finally {
+      await rm(buildDirectory, { recursive: true, force: true })
+    }
   })
 
   it('serves embedded desktop assets without filesystem access', async () => {
