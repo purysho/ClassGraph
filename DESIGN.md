@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 9 released (v0.9.0); Phases 10–12 implemented  
-**Design revision:** 0.12  
+**Status:** Phase 9 released (v0.9.0); Phases 10–13 implemented  
+**Design revision:** 0.13  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -485,7 +485,7 @@ Requirements:
 - future AI/network features are opt-in and explicitly show what data would leave the device;
 - names optional throughout the product.
 
-Encryption/password protection must be considered before a production release that persistently stores identifiable student data.
+Encryption/password protection must be considered before a production release that persistently stores identifiable student data. Phase 13 provides optional per-class encryption.
 
 ClassGraph error codes use:
 
@@ -861,6 +861,20 @@ See `docs/PHASE_12.md`.
 
 ---
 
+### Phase 13 — Password protection
+
+Answers §11's encryption requirement:
+
+- optional per-class protection; the encrypted envelope exposes only the random project ID;
+- AES-256-GCM with a scrypt-derived key; no recovery mechanism, stated before it is enabled;
+- keys only in main-process memory; a locked class is never rewritten as plain JSON;
+- automatic safety copies and default backups stay encrypted; plain copies are an explicit,
+  confirmed choice.
+
+See `docs/PHASE_13.md`.
+
+---
+
 ## 15. Go/no-go gates
 
 ### Gate 1 — foundation
@@ -989,6 +1003,16 @@ Proceed only when:
 - invalid cells block the import and are reported by row and column;
 - imported values carry `imported` provenance naming the source file;
 - GBK-encoded Chinese CSVs and .xlsx date cells read correctly.
+
+### Gate 13 — password protection
+
+Proceed only when:
+
+- no readable student data remains in the Projects or Backups folders for a protected class;
+- a locked class cannot be saved, and a wrong password cannot open it;
+- the forgotten-password consequence is acknowledged before protection is turned on;
+- backups of protected classes stay encrypted unless a plain copy is explicitly confirmed;
+- unprotected classes behave exactly as before.
 
 ---
 

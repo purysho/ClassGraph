@@ -65,6 +65,10 @@ ClassGraph **saves projects automatically as ordinary files in your Documents fo
 
 The packaged desktop app does not bind to `127.0.0.1`, does not open a browser, and does not require a background PowerShell/terminal window.
 
+### Password protection
+
+Choose **Password…** in a class to encrypt its file and automatic safety copies. You will be asked for the password each time ClassGraph opens that class. **There is no way to recover a forgotten password**, so keep it somewhere safe. Reports you export (DOCX, PDF, JSON) are not encrypted.
+
 ### Saving, backups, and moving computers
 
 Your projects are readable JSON files in:
@@ -166,7 +170,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Optional network assistance with pre-send disclosure
 
 <details>
-<summary><strong>Implementation history — Phases 1–12</strong></summary>
+<summary><strong>Implementation history — Phases 1–13</strong></summary>
 
 ### Phase 1 — Workspace and analysis
 
@@ -216,6 +220,10 @@ PDF reports and seating plans embed a bundled Noto Sans SC subset when they cont
 
 Create a class from an `.xlsx` or CSV file (including GBK-encoded Chinese CSVs), or update an existing class from one. Teachers map each column, see every change and problem before saving, and blank cells stay Missing.
 
+### Phase 13 — Password protection
+
+Any class can be protected with a password. Its file and automatic safety copies are encrypted (AES-256-GCM, scrypt), backups stay encrypted unless a plain copy is explicitly chosen, and a forgotten password cannot be recovered.
+
 </details>
 
 ## Design and recovery documents
@@ -235,6 +243,7 @@ Create a class from an `.xlsx` or CSV file (including GBK-encoded Chinese CSVs),
 - [`docs/PHASE_10.md`](docs/PHASE_10.md) — Phase 10 comparisons in reports and Gate 10
 - [`docs/PHASE_11.md`](docs/PHASE_11.md) — Phase 11 Chinese text in PDFs and Gate 11
 - [`docs/PHASE_12.md`](docs/PHASE_12.md) — Phase 12 spreadsheet import and Gate 12
+- [`docs/PHASE_13.md`](docs/PHASE_13.md) — Phase 13 password protection and Gate 13
 
 ## Branding
 
