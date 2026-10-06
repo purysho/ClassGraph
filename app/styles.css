@@ -749,6 +749,10 @@
     -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    'Noto Sans CJK SC',
+    'Source Han Sans SC',
     sans-serif;
   background: var(--bg-eef1f4);
   color: var(--fg-182028);
@@ -1137,6 +1141,7 @@ button {
 }
 
 .status {
+  white-space: pre-line;
   margin: 0 0 18px;
   padding: 12px 14px;
   border-radius: 12px;
@@ -3334,4 +3339,9 @@ textarea:focus-visible {
   * {
     scroll-behavior: auto !important;
   }
+}
+
+/* Chinese text has no uppercase, and wide letter-spacing breaks up characters. */
+:root:lang(zh) .eyebrow {
+  letter-spacing: 0.06em;
 }
