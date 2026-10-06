@@ -1,5 +1,12 @@
 import { buildCrossTab, buildGroupSummary, type GroupingBasis } from './analysis-compare.js'
 import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
+import {
+  applyTableImport,
+  parseTableImportRequest,
+  planTableImport,
+  suggestTableImport,
+} from './table-import.js'
+import { readTableFile } from './table-read.js'
 import { acceptPlanningRuleSuggestions, acceptSyntheticSpecDraft } from './assistance-acceptance.js'
 import type { AssistanceExecutionMode, AssistanceTask } from './assistance-contract.js'
 import type { AssistanceProvider } from './assistance-provider.js'
@@ -500,6 +507,55 @@ export async function dispatchClassGraphApi(
         'application/pdf',
         `${stem}-seating-plan.pdf`,
       )
+    }
+
+    if (method === 'POST' && path === '/api/import/table/read') {
+      const record = expectRecord(parseJsonBody(body))
+      const fileName = expectString(record, 'fileName')
+      const bytes = Buffer.from(expectString(record, 'dataBase64'), 'base64')
+      const table = await readTableFile(fileName, new Uint8Array(bytes))
+      const existing = record.project === undefined ? undefined : parseProjectFromRequest(record)
+      return jsonResponse(200, {
+        table,
+        suggestions: table.sheets.map((sheet) => suggestTableImport(sheet.rows, existing)),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/import/table/suggest') {
+      const record = expectRecord(parseJsonBody(body))
+      const request = parseTableImportRequest({ ...expectRecord(record.request), columns: [] })
+      const existing = record.project === undefined ? undefined : parseProjectFromRequest(record)
+      return jsonResponse(200, {
+        suggestion: suggestTableImport(request.rows, existing, request.headerRow),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/import/table/preview') {
+      const record = expectRecord(parseJsonBody(body))
+      const request = parseTableImportRequest(record.request)
+      const existing = record.project === undefined ? undefined : parseProjectFromRequest(record)
+      return jsonResponse(200, { plan: planTableImport(request, existing) })
+    }
+
+    if (method === 'POST' && path === '/api/import/table/apply') {
+      const record = expectRecord(parseJsonBody(body))
+      const request = parseTableImportRequest(record.request)
+      const now = new Date().toISOString()
+      const project =
+        record.project === undefined
+          ? applyTableImport(request, {
+              mode: 'new-project',
+              projectId: expectString(record, 'projectId'),
+              title: expectString(record, 'title'),
+              now,
+            })
+          : applyTableImport(request, {
+              mode: 'merge',
+              project: parseProjectFromRequest(record),
+              now,
+            })
+      await projectStore?.save(project)
+      return jsonResponse(200, { project })
     }
 
     if (method === 'POST' && path === '/api/import') {
