@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { canonicalRelationshipKey } from './relationship-semantics.js'
+import type { ReportComparison } from './model.js'
 
 const provenanceKindSchema = z.enum([
   'observed',
@@ -314,6 +315,42 @@ const planningConfigurationSchema = z.object({
   scenarios: z.array(planningScenarioSchema).optional(),
 })
 
+export const MAX_REPORT_COMPARISONS = 24
+
+export const reportComparisonSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('crosstab'),
+    rowMetricKey: z.string().min(1),
+    columnMetricKey: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal('association'),
+    xMetricKey: z.string().min(1),
+    yMetricKey: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal('group-summary'),
+    metricKey: z.string().min(1),
+    basis: z.enum(['tag', 'planning-group']),
+  }),
+])
+
+/** Stable identity for a report comparison; two selections with the same id are duplicates. */
+export function reportComparisonId(comparison: ReportComparison): string {
+  switch (comparison.kind) {
+    case 'crosstab':
+      return JSON.stringify(['crosstab', comparison.rowMetricKey, comparison.columnMetricKey])
+    case 'association':
+      return JSON.stringify(['association', comparison.xMetricKey, comparison.yMetricKey])
+    case 'group-summary':
+      return JSON.stringify(['group-summary', comparison.metricKey, comparison.basis])
+  }
+}
+
+const reportingConfigurationSchema = z.object({
+  comparisons: z.array(reportComparisonSchema).max(MAX_REPORT_COMPARISONS).optional(),
+})
+
 export const classGraphProjectSchema = z
   .object({
     schemaVersion: z.literal('1.0'),
@@ -334,6 +371,7 @@ export const classGraphProjectSchema = z
     relationships: z.array(relationshipSchema).optional(),
     room: roomSchema.optional(),
     planning: planningConfigurationSchema.optional(),
+    reporting: reportingConfigurationSchema.optional(),
     provenance: z.record(z.string(), provenanceEntrySchema),
     extensions: z.record(z.string(), z.unknown()).optional(),
   })
@@ -693,6 +731,49 @@ export const classGraphProjectSchema = z
         }
         historyStudents.add(assignment.studentId)
         historySeats.add(assignment.seatId)
+      }
+    }
+
+    const comparisonIds = new Set<string>()
+    for (const [index, comparison] of (project.reporting?.comparisons ?? []).entries()) {
+      const path = ['reporting', 'comparisons', index]
+      const id = reportComparisonId(comparison)
+      if (comparisonIds.has(id)) {
+        ctx.addIssue({ code: 'custom', path, message: 'duplicate report comparison' })
+      }
+      comparisonIds.add(id)
+
+      const keys =
+        comparison.kind === 'crosstab'
+          ? [comparison.rowMetricKey, comparison.columnMetricKey]
+          : comparison.kind === 'association'
+            ? [comparison.xMetricKey, comparison.yMetricKey]
+            : [comparison.metricKey]
+      if (keys.length === 2 && keys[0] === keys[1]) {
+        ctx.addIssue({
+          code: 'custom',
+          path,
+          message: 'report comparison needs two different metrics',
+        })
+      }
+      for (const key of keys) {
+        const kind = metricDefinitions.get(key)?.kind
+        const eligible =
+          kind !== undefined &&
+          (comparison.kind === 'association'
+            ? kind === 'number'
+            : comparison.kind === 'crosstab'
+              ? kind === 'category' || kind === 'ordinal' || kind === 'boolean'
+              : kind !== 'text')
+        if (!eligible) {
+          ctx.addIssue({
+            code: 'custom',
+            path,
+            message: kind
+              ? `metric ${key} (${kind}) is not eligible for a ${comparison.kind} comparison`
+              : `unknown report comparison metric: ${key}`,
+          })
+        }
       }
     }
 

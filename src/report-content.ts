@@ -1,4 +1,6 @@
+import { ASSOCIATION_CAVEAT } from './analysis-compare.js'
 import type { ClassGraphProject, PlanningRule } from './model.js'
+import type { ReportComparisonResult } from './report-comparisons.js'
 import { buildReportSnapshot } from './report-model.js'
 import { classGraphProjectSchema } from './schema.js'
 
@@ -109,6 +111,105 @@ function metricSummaryTables(project: ClassGraphProject): HumanReportTable[] {
         'Median',
       ],
       rows,
+    },
+  ]
+}
+
+function comparisonTable(result: ReportComparisonResult): HumanReportTable {
+  if ('crossTab' in result) {
+    const view = result.crossTab
+    return {
+      title: `Students by ${view.rowLabel} (rows) and ${view.columnLabel} (columns): ${view.bothRecordedCount} of ${view.studentCount} have both values recorded`,
+      headers: [view.rowLabel, ...view.columns.map((level) => level.label), 'Total'],
+      rows: [
+        ...view.rows.map((level, r) => [
+          level.label,
+          ...view.columns.map((_, c) => String(view.counts[r]?.[c] ?? 0)),
+          String(view.rowTotals[r] ?? 0),
+        ]),
+        ['Total', ...view.columnTotals.map(String), String(view.studentCount)],
+      ],
+    }
+  }
+
+  if ('association' in result) {
+    const view = result.association
+    const { association } = view
+    const coefficient =
+      association.coefficient === null
+        ? association.unavailableReason === 'no-variation'
+          ? 'Not shown: no variation in one metric'
+          : 'Not shown: fewer than 3 students with both values'
+        : association.coefficient.toFixed(2)
+    const direction =
+      association.direction === 'positive'
+        ? 'Higher values tend to appear together'
+        : association.direction === 'negative'
+          ? 'Higher values of one appear with lower values of the other'
+          : association.direction === 'none'
+            ? 'No linear pattern'
+            : '—'
+    return {
+      title: `Association between ${view.xLabel} and ${view.yLabel}`,
+      headers: ['Pearson r', 'Students with both values', 'Students omitted', 'Pattern'],
+      rows: [[coefficient, String(association.pairCount), String(view.omittedCount), direction]],
+    }
+  }
+
+  const view = result.groupSummary
+  const basis = view.basis === 'tag' ? 'student tag' : 'planning group'
+  const title = `${view.metricLabel} by ${basis}${view.overlapping ? ' (students with several tags are counted in each)' : ''}`
+  const segmentLabel = (segment: { label: string; studentCount: number }) =>
+    `${segment.label} (${segment.studentCount})`
+
+  if (view.metricKind === 'number') {
+    return {
+      title,
+      headers: [
+        'Segment (students)',
+        'Recorded',
+        'Missing',
+        'Not recorded',
+        'Min',
+        'Median',
+        'Mean',
+        'Max',
+      ],
+      rows: view.segments.map((item) => [
+        segmentLabel(item.segment),
+        String(item.recordedCount),
+        String(item.missingCount),
+        String(item.notRecordedCount),
+        numberText(item.min),
+        numberText(item.median),
+        numberText(item.mean),
+        numberText(item.max),
+      ]),
+    }
+  }
+
+  return {
+    title,
+    headers: ['Segment (students)', ...view.levels.map((level) => level.label)],
+    rows: view.segments.map((item) => [
+      segmentLabel(item.segment),
+      ...view.levels.map((_, index) => String(item.counts[index] ?? 0)),
+    ]),
+  }
+}
+
+function comparisonSection(comparisons: ReportComparisonResult[]): HumanReportSection[] {
+  if (comparisons.length === 0) return []
+  const hasAssociation = comparisons.some((result) => 'association' in result)
+  return [
+    {
+      title: 'Selected comparisons',
+      paragraphs: [
+        'These comparisons were chosen by the teacher and are recalculated from the current data. Missing and Not recorded values are shown as their own rows, columns or counts and are never imputed.',
+        ...(hasAssociation ? [ASSOCIATION_CAVEAT] : []),
+        'Differences between rows, columns or segments describe the recorded data only; they are not explanations or predictions.',
+      ],
+      tables: comparisons.map(comparisonTable),
     },
   ]
 }
@@ -225,6 +326,7 @@ export function buildHumanReport(input: ClassGraphProject): HumanReport {
         ],
         tables: metricSummaryTables(project),
       },
+      ...comparisonSection(snapshot.comparisons),
       { title: 'Roster values', paragraphs: [], tables: [rosterTable(project)] },
       {
         title: 'Approved seating and groups',

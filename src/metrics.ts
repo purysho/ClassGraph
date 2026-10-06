@@ -1,5 +1,6 @@
 import type { ClassGraphProject, MetricDefinition, MetricValue, ProvenanceEntry } from './model.js'
 import { classGraphProjectSchema } from './schema.js'
+import { withoutComparisonsForMetric } from './report-comparisons.js'
 
 function teacherEntered(source: string): ProvenanceEntry {
   return { kind: 'teacher-entered', source }
@@ -112,6 +113,18 @@ export function removeMetricDefinition(
   }
 
   next.provenance = remapped
+
+  if (next.reporting?.comparisons) {
+    const comparisons = withoutComparisonsForMetric(next.reporting.comparisons, metricKey)
+    if (comparisons.length > 0) {
+      next.reporting.comparisons = comparisons
+    } else {
+      delete next.reporting.comparisons
+      delete next.provenance['/reporting/comparisons']
+      if (Object.keys(next.reporting).length === 0) delete next.reporting
+    }
+  }
+
   next.updatedAt = now
   return validate(next)
 }

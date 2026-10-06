@@ -2260,3 +2260,56 @@ textarea:focus {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+.report-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e3e9ec;
+  color: #6c7b86;
+  font-size: 0.76rem;
+}
+
+.report-toggle[data-included='true'] span {
+  color: #2f5d46;
+  font-weight: 600;
+}
+
+.report-comparison-list {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: comparison;
+}
+
+.report-comparison-list li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f1f4f6;
+  counter-increment: comparison;
+}
+
+.report-comparison-list li > span::before {
+  content: counter(comparison) '. ';
+  color: #7b8992;
+}
+
+.report-comparison-list small {
+  display: inline-block;
+  margin-right: 8px;
+  color: #6c7b86;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

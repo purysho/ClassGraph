@@ -6,9 +6,13 @@ import {
 } from './report-model.js'
 import { classGraphProjectSchema } from './schema.js'
 
+/**
+ * Analysis export v1.1 = v1.0 plus `comparisons` (teacher-selected cross-tabs, associations and
+ * tag/group summaries). All v1.0 fields are unchanged.
+ */
 export interface AnalysisExportV1 {
   format: 'classgraph-analysis'
-  version: '1.0'
+  version: '1.1'
   project: {
     schemaVersion: '1.0'
     projectId: string
@@ -16,6 +20,7 @@ export interface AnalysisExportV1 {
     updatedAt: string
   }
   analysis: ReturnType<typeof buildReportSnapshot>['analysis']
+  comparisons: ReturnType<typeof buildReportSnapshot>['comparisons']
   provenanceSummary: ProvenanceSummary
   syntheticPaths: string[]
   limitations: string[]
@@ -104,9 +109,10 @@ export function buildAnalysisExport(project: ClassGraphProject): AnalysisExportV
 
   return {
     format: 'classgraph-analysis',
-    version: '1.0',
+    version: '1.1',
     project: projectIdentity(validated),
     analysis: snapshot.analysis,
+    comparisons: snapshot.comparisons,
     provenanceSummary: snapshot.provenanceSummary,
     syntheticPaths: snapshot.syntheticPaths,
     limitations: snapshot.limitations,
