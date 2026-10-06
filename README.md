@@ -35,7 +35,7 @@ No Node.js installation is needed. These are normal desktop builds: ClassGraph o
 
 **Updates:** from v0.10.0, use **Check for updates** on the start screen. The Windows installer and Linux AppImage can update themselves; macOS and the portable build link to the new download. ClassGraph never checks unless you ask or tick _Check automatically_.
 
-> Windows builds are currently unsigned and macOS builds are ad-hoc signed rather than notarised. Windows SmartScreen or macOS Gatekeeper may therefore show a first-run warning.
+> Windows builds are currently unsigned and macOS builds are ad-hoc signed rather than notarised. Windows SmartScreen or macOS Gatekeeper may therefore show a first-run warning. The release workflow signs and notarises automatically once signing secrets are added; see [`docs/SIGNING.md`](docs/SIGNING.md).
 
 ![ClassGraph workspace overview](docs/screenshots/classgraph-overview.png)
 
@@ -262,6 +262,7 @@ A Playwright suite drives the real interface in CI: spreadsheet import, comparis
 - [`docs/PHASE_13.md`](docs/PHASE_13.md) — Phase 13 password protection and Gate 13
 - [`docs/PHASE_14.md`](docs/PHASE_14.md) — Phase 14 browser end-to-end tests
 - [`docs/PHASE_15.md`](docs/PHASE_15.md) — Phase 15 in-app updates
+- [`docs/SIGNING.md`](docs/SIGNING.md) — enabling code signing and notarisation
 
 ## Branding
 
