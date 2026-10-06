@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 9 released (v0.9.0); Phase 10 implemented  
-**Design revision:** 0.10  
+**Status:** Phase 9 released (v0.9.0); Phases 10–11 implemented  
+**Design revision:** 0.11  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -831,6 +831,22 @@ See `docs/PHASE_10.md`.
 
 ---
 
+### Phase 11 — Chinese text in PDFs
+
+Implemented scope:
+
+- bundled Noto Sans SC subset (OFL 1.1) covering Latin, CJK punctuation, kana and the full CJK
+  Unified Ideographs block, rebuilt reproducibly from a pinned upstream commit;
+- per-document font choice: Helvetica when the text fits WinAnsi, otherwise the CJK font,
+  subset per document;
+- characters neither font covers fail with `CG-5004` naming them; nothing is dropped;
+- the native self-test exports a Chinese-titled PDF from the packaged app.
+
+New runtime dependency: `@pdf-lib/fontkit` (MIT), required by pdf-lib for custom fonts.
+See `docs/PHASE_11.md`.
+
+---
+
 ## 15. Go/no-go gates
 
 ### Gate 1 — foundation
@@ -938,6 +954,17 @@ Proceed only when:
 - removing a metric cannot leave a dangling selection;
 - every exported comparison keeps the Phase 9 missing-data, withholding and caveat rules;
 - the analysis export version changes with the new field, and the EduBoard hand-back does not.
+
+### Gate 11 — Chinese text in PDFs
+
+Proceed only when:
+
+- Chinese titles, names, tags and labels render in both PDF reports;
+- English-only PDFs are unchanged and still use the built-in fonts;
+- unsupported characters stop export with `CG-5004` and are named;
+- embedded fonts are subset per document;
+- packaged builds on every platform export a Chinese PDF in the native self-test;
+- the font licence ships with the font.
 
 ---
 

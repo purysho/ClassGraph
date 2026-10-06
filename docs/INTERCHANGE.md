@@ -135,5 +135,12 @@ The matching EduBoard parser/fixture tests live on isolated branch `feat/classgr
 DOCX and PDF are presentation formats, not interchange sources of truth.
 
 - DOCX supports full Unicode content through WordprocessingML.
-- The current lean PDF path uses PDF built-in fonts. If any rendered text cannot be encoded safely, ClassGraph fails with `CG-5004` rather than substituting or corrupting it.
-- A future packaged Unicode PDF font requires a separate licensing/size review before bundling.
+- PDFs whose text fits the built-in Latin fonts use Helvetica, unchanged from earlier releases.
+- Any other text (for example Chinese names) switches the whole PDF to the bundled Noto Sans SC
+  subset. Only the glyphs a document uses are embedded, so a typical class PDF stays well under
+  100 KB. Bold is drawn with a fill-and-outline effect because one weight is bundled.
+- Characters the bundled font does not cover (for example emoji, Hangul, or CJK Extension A/B)
+  make export fail with `CG-5004`, naming the characters, rather than substituting or dropping
+  them. DOCX export still works for such text.
+- Font: Noto Sans SC (SIL Open Font License 1.1), pinned upstream commit and checksums in
+  `scripts/build-cjk-font.py`; licence text in `assets/fonts/OFL.txt`.

@@ -159,13 +159,13 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Saved planning-scenario comparisons
 - Versioned project, analysis and seating-plan JSON
 - Local DOCX descriptive reports
-- Local PDF descriptive reports
-- Landscape seating-plan PDFs
+- Local PDF descriptive reports, including Chinese names and titles
+- Landscape seating-plan PDFs, including Chinese names
 - Offline assistance proposals
 - Optional network assistance with pre-send disclosure
 
 <details>
-<summary><strong>Implementation history — Phases 1–10</strong></summary>
+<summary><strong>Implementation history — Phases 1–11</strong></summary>
 
 ### Phase 1 — Workspace and analysis
 
@@ -207,6 +207,10 @@ Teacher-selected cross-tabulations, a caveated Pearson association on the scatte
 
 **Include in report** saves a comparison with the project. Selected comparisons are recalculated at export time and appear in DOCX/PDF reports and Analysis JSON v1.1.
 
+### Phase 11 — Chinese text in PDFs
+
+PDF reports and seating plans embed a bundled Noto Sans SC subset when they contain Chinese or other non-Latin text, carrying only the characters each document uses. Characters the font cannot draw stop the export with `CG-5004` and are named, never dropped.
+
 </details>
 
 ## Design and recovery documents
@@ -224,11 +228,17 @@ Teacher-selected cross-tabulations, a caveated Pearson association on the scatte
 - [`docs/V0.8.1_HOTFIX.md`](docs/V0.8.1_HOTFIX.md) — v0.8.1 desktop transport hotfix
 - [`docs/PHASE_9.md`](docs/PHASE_9.md) — Phase 9 multi-metric comparisons and Gate 9
 - [`docs/PHASE_10.md`](docs/PHASE_10.md) — Phase 10 comparisons in reports and Gate 10
+- [`docs/PHASE_11.md`](docs/PHASE_11.md) — Phase 11 Chinese text in PDFs and Gate 11
 
 ## Branding
 
 - [ClassGraph mark](docs/branding/classgraph-mark.svg)
 - [ClassGraph lockup](docs/branding/classgraph-lockup.svg)
+
+## Third-party fonts
+
+PDF exports bundle a subset of [Noto Sans SC](https://github.com/notofonts/noto-cjk) under the
+SIL Open Font License 1.1 (`assets/fonts/OFL.txt`).
 
 ## License and security
 
