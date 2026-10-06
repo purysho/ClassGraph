@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 7 complete  
-**Design revision:** 0.7  
+**Status:** Phase 8 released (v0.8.1); Phase 9 implemented  
+**Design revision:** 0.9  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -316,6 +316,10 @@ Multi-metric views:
 - heatmaps/cross-tabs;
 - correlation display only for eligible numeric metrics, with an "association is not causation" note;
 - selected metric summaries by group/tag.
+
+Phase 9 implements these as teacher-selected views: one metric pair or one metric/segment
+combination at a time, never an automatic all-pairs search. A Pearson coefficient is withheld
+below 3 complete pairs or when either axis has no variation.
 
 Never silently treat missing values as zero, average, "normal", or false.
 
@@ -783,6 +787,36 @@ The local project library stores the same validated portable JSON model that Cla
 
 ---
 
+### Phase 8 — Native desktop application
+
+Implemented scope (supersedes the Phase 6/7 Node SEA + loopback packaging):
+
+- Electron shell with context isolation, no renderer Node integration, and a narrow preload bridge;
+- API operations dispatched through the same transport-independent handler over IPC;
+- packaged builds start no HTTP listener and open no browser;
+- readable title-based project files in `Documents/ClassGraph/Projects` with rolling backups;
+- NSIS installer, DMG and AppImage packages with the CG icon;
+- v0.8.1: packaged API calls use the IPC bridge directly rather than a `fetch` monkey-patch.
+
+The loopback HTTP server remains for source development and tests only.
+
+---
+
+### Phase 9 — Multi-metric descriptive comparisons
+
+Implemented scope:
+
+- cross-tabulation of two explicitly selected category/ordinal/yes-no metrics, with explicit
+  Missing and Not recorded levels;
+- Pearson association on the scatter view over pairwise-recorded students, with withholding rules
+  and a non-causation caveat carried in the data model;
+- metric summaries by student tag or planning group, with overlap disclosure;
+- table-first rendering; heatmap shading only repeats printed counts.
+
+No schema change, persisted data, or runtime dependency is added. See `docs/PHASE_9.md`.
+
+---
+
 ## 15. Go/no-go gates
 
 ### Gate 1 — foundation
@@ -846,7 +880,7 @@ Proceed only when:
 - UI assets are embedded and served locally;
 - packaged runtime binds only to loopback;
 - all four release downloads and SHA-256 checksums are produced;
-- no Electron/runtime desktop framework is introduced;
+- no Electron/runtime desktop framework is introduced (superseded by Gate 8);
 - packaging-only tooling does not become a shipped runtime dependency.
 
 ### Gate 7 — desktop UX and local saves
@@ -864,6 +898,25 @@ Proceed only when:
 
 ---
 
+### Gate 8 — native desktop
+
+See `docs/PHASE_8.md`. Packaged builds open a desktop window, start no localhost listener, keep
+renderer Node integration disabled, and pass native self-tests on all four targets.
+
+### Gate 9 — multi-metric comparisons
+
+Proceed only when:
+
+- every comparison is built from metrics/segments the teacher explicitly selected;
+- missing and not-recorded values stay distinct and are never imputed;
+- correlation is withheld for fewer than 3 complete pairs or zero variation;
+- every coefficient carries the non-causation caveat;
+- overlapping tag segments are disclosed;
+- every view is a table first, with shading that only repeats counts;
+- packaged desktop IPC and development HTTP return identical results.
+
+---
+
 ## 16. Immediate implementation instruction
 
-> Phase 0–7 are implemented and merged, with v0.7.0 released for Windows, macOS, and Linux. Phase 7 adds normal desktop launch behavior and a JSON-backed local project library without changing ClassGraph's canonical data model. Preserve explicit provenance, missing-data semantics, the proposal-only assistance boundary, loopback-first operation, and the no-hidden-trait rule. Any future phase must justify every new runtime dependency.
+> Phase 0–8 are implemented and released (v0.8.1). Phase 9 adds teacher-selected cross-tabs, scatter association and tag/group summaries without changing the canonical data model. Preserve explicit provenance, missing-data semantics, the proposal-only assistance boundary, the no-localhost packaged desktop boundary, and the no-hidden-trait rule. Any future phase must justify every new runtime dependency.
