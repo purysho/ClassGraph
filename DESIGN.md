@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 9 released (v0.9.0); Phases 10–14 implemented  
-**Design revision:** 0.14  
+**Status:** Phase 9 released (v0.9.0); Phases 10–15 implemented  
+**Design revision:** 0.15  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -882,6 +882,15 @@ server and a temporary data folder, and runs as the `e2e` job of the Tests workf
 spreadsheet import (.xlsx and GBK CSV), comparisons and include-in-report, PDF/DOCX/Analysis JSON
 exports with Chinese names, password protection including the locked-at-startup path, and JSON
 backup/restore. See `docs/PHASE_14.md`.
+
+---
+
+### Phase 15 — In-app updates
+
+Teacher-initiated (or opted-in) update checks against GitHub releases; in-app install for the
+Windows installer and Linux AppImage via electron-updater; download-page link for macOS and the
+portable build. No class data is sent and nothing installs without a click. See
+`docs/PHASE_15.md`.
 
 ---
 

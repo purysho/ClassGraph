@@ -33,6 +33,8 @@ No Node.js installation is needed. These are normal desktop builds: ClassGraph o
 - **Linux** — use `ClassGraph-Linux-x64.AppImage`.
 - **Verify a download** — compare it with [`SHA256SUMS.txt`](https://github.com/purysho/ClassGraph/releases/latest/download/SHA256SUMS.txt).
 
+**Updates:** from v0.10.0, use **Check for updates** on the start screen. The Windows installer and Linux AppImage can update themselves; macOS and the portable build link to the new download. ClassGraph never checks unless you ask or tick _Check automatically_.
+
 > Windows builds are currently unsigned and macOS builds are ad-hoc signed rather than notarised. Windows SmartScreen or macOS Gatekeeper may therefore show a first-run warning.
 
 ![ClassGraph workspace overview](docs/screenshots/classgraph-overview.png)
@@ -176,7 +178,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Optional network assistance with pre-send disclosure
 
 <details>
-<summary><strong>Implementation history — Phases 1–14</strong></summary>
+<summary><strong>Implementation history — Phases 1–15</strong></summary>
 
 ### Phase 1 — Workspace and analysis
 
@@ -234,6 +236,10 @@ Any class can be protected with a password. Its file and automatic safety copies
 
 A Playwright suite drives the real interface in CI: spreadsheet import, comparisons, report exports with Chinese names, password protection, and backup/restore.
 
+### Phase 15 — In-app updates
+
+**Check for updates** on the start screen. The Windows installer and Linux AppImage download and install new versions in the app; macOS and the portable build link to the download page. Nothing is checked unless you ask or opt in.
+
 </details>
 
 ## Design and recovery documents
@@ -255,6 +261,7 @@ A Playwright suite drives the real interface in CI: spreadsheet import, comparis
 - [`docs/PHASE_12.md`](docs/PHASE_12.md) — Phase 12 spreadsheet import and Gate 12
 - [`docs/PHASE_13.md`](docs/PHASE_13.md) — Phase 13 password protection and Gate 13
 - [`docs/PHASE_14.md`](docs/PHASE_14.md) — Phase 14 browser end-to-end tests
+- [`docs/PHASE_15.md`](docs/PHASE_15.md) — Phase 15 in-app updates
 
 ## Branding
 

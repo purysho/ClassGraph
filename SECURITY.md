@@ -38,6 +38,7 @@ The local server binds to `127.0.0.1` by default. No internet connection is requ
 - Turning protection on deletes that class's existing plain automatic safety copies; changing the password re-encrypts them. Backups of protected classes stay encrypted unless the teacher explicitly confirms a plain copy.
 - There is no password recovery. Exported reports (DOCX, PDF, JSON) are not encrypted.
 - Unprotected classes remain readable JSON by design, so teachers can copy and inspect them.
+- Update checks contact `api.github.com` only when the teacher presses **Check for updates** or has opted in to checking at startup (off by default). They send no class data. In-app installs (Windows installer, Linux AppImage) use electron-updater, which verifies the downloaded file's SHA-512 against the release's `latest*.yml`; installing always needs an explicit click. Only `github.com/purysho/ClassGraph` release links are opened.
 
 ## Reporting a vulnerability
 
