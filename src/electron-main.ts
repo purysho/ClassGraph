@@ -220,7 +220,7 @@ async function start(): Promise<void> {
       case 'set-settings':
         return updates.setSettings(parseUpdateSettings(payload))
       default:
-        throw new Error('CG-2021 unknown update action')
+        throw new Error('CG-2028 unknown update action')
     }
   })
 

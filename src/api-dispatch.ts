@@ -267,7 +267,7 @@ export async function dispatchClassGraphApi(
     }
 
     if (method === 'POST' && path === '/api/projects/open') {
-      if (!projectStore) throw new Error('CG-2010 local project storage is not enabled')
+      if (!projectStore) throw new Error('CG-2026 local project storage is not enabled')
       const record = expectRecord(parseJsonBody(body))
       return jsonResponse(200, {
         project: await projectStore.load(expectString(record, 'projectId')),
@@ -275,7 +275,7 @@ export async function dispatchClassGraphApi(
     }
 
     if (path.startsWith('/api/protection/') || path === '/api/projects/unlock') {
-      if (!projectStore) throw new Error('CG-2010 local project storage is not enabled')
+      if (!projectStore) throw new Error('CG-2026 local project storage is not enabled')
     }
 
     if (method === 'POST' && path === '/api/projects/unlock') {

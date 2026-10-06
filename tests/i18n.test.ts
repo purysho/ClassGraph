@@ -1,8 +1,9 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
-import { setUiLanguage, tr, trn, trServer } from '../src/i18n.js'
+import { localizeError, setUiLanguage, tr, trn, trServer } from '../src/i18n.js'
 import { translateServerMessage, ZH_SERVER_PATTERNS } from '../src/i18n-zh-server.js'
 import { ZH } from '../src/i18n-zh.js'
+import { ZH_ERRORS } from '../src/i18n-zh-errors.js'
 
 const CLIENT = readFileSync(new URL('../src/app-client.ts', import.meta.url), 'utf8')
 
@@ -78,11 +79,34 @@ describe('Chinese interface text', () => {
 
   it('translates, fills placeholders and falls back to English', () => {
     setUiLanguage('zh')
-    expect(tr('Students')).toBe(ZH.Students)
+    expect(tr('Students')).toBe(ZH.Students ?? 'Students')
     expect(tr('A sentence that has no entry {x}', { x: 1 })).toBe('A sentence that has no entry 1')
     setUiLanguage('en')
     expect(trn('{n} student', '{n} students', 1)).toBe('1 student')
     expect(trn('{n} student', '{n} students', 3)).toBe('3 students')
+  })
+})
+
+describe('Chinese error summaries', () => {
+  const sourceDirectory = new URL('../src/', import.meta.url)
+  const used = new Set(
+    readdirSync(sourceDirectory)
+      .filter((name) => name.endsWith('.ts') && !name.startsWith('i18n'))
+      .flatMap(
+        (name) => readFileSync(new URL(name, sourceDirectory), 'utf8').match(/CG-\d{4}/g) ?? [],
+      ),
+  )
+
+  it('summarises every error code ClassGraph can raise', () => {
+    expect([...used].filter((code) => !(code in ZH_ERRORS))).toEqual([])
+  })
+
+  it('shows the summary first and keeps the English detail', () => {
+    setUiLanguage('zh')
+    const text = localizeError('CG-2017 that password does not unlock this class')
+    expect(text.startsWith(`${ZH_ERRORS['CG-2017']}（CG-2017）`)).toBe(true)
+    expect(text).toContain('that password does not unlock this class')
+    expect(localizeError('No code here')).toBe('No code here')
   })
 })
 

@@ -135,7 +135,7 @@ export function parseProtectedFile(text: string): ProtectedProjectFile | null {
   }
   const result = protectedFileSchema.safeParse(raw)
   if (!result.success) {
-    throw protectionError('CG-2020', 'the password-protected file is damaged and cannot be read')
+    throw protectionError('CG-2027', 'the password-protected file is damaged and cannot be read')
   }
   return result.data
 }
@@ -155,7 +155,7 @@ export function decryptProject(file: ProtectedProjectFile, key: ProjectKey): Cla
   }
   const project = parseProjectJson(plaintext)
   if (project.projectId !== file.projectId) {
-    throw protectionError('CG-2020', 'the password-protected file is damaged and cannot be read')
+    throw protectionError('CG-2027', 'the password-protected file is damaged and cannot be read')
   }
   return project
 }

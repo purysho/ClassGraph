@@ -65,7 +65,7 @@ export function localizeError(message: string): string {
   const summary = code ? ZH_ERRORS[code] : undefined
   if (!code || !summary) return message
   const detail = message
-    .replace(code, '')
+    .replaceAll(code, '')
     .replace(/^[\s:：-]+/, '')
     .trim()
   return detail ? `${summary}（${code}）\n英文详情：${detail}` : `${summary}（${code}）`

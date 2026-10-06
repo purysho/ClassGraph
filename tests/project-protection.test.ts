@@ -75,7 +75,7 @@ describe('protected project file format', () => {
     expect(parseProtectedFile(serializeProjectJson(classProject()))).toBeNull()
     expect(() =>
       parseProtectedFile(JSON.stringify({ format: 'classgraph-protected-project', version: '1' })),
-    ).toThrow('CG-2020')
+    ).toThrow('CG-2027')
   })
 })
 

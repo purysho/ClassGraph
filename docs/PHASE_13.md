@@ -43,7 +43,7 @@ OneDrive, iCloud Drive and similar services often sync.
 - `CG-2017` wrong password
 - `CG-2018` password shorter than 8 characters
 - `CG-2019` the class has no password
-- `CG-2020` damaged protected file
+- `CG-2027` damaged protected file
 
 ## Deliverables
 
