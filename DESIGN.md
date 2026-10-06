@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 9 released (v0.9.0); Phases 10–11 implemented  
-**Design revision:** 0.11  
+**Status:** Phase 9 released (v0.9.0); Phases 10–12 implemented  
+**Design revision:** 0.12  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -847,6 +847,20 @@ See `docs/PHASE_11.md`.
 
 ---
 
+### Phase 12 — Spreadsheet import
+
+Implements input Mode A for spreadsheets alongside JSON:
+
+- CSV/TSV (UTF-8 or GB18030) and .xlsx, read without a spreadsheet library;
+- teacher-confirmed column mapping (ID, name, tags, metrics with kind and scale);
+- preview with per-row problems and every value that would change; nothing saved before it;
+- `imported` provenance naming the file; blank cells stay explicitly missing; a blank never
+  erases a recorded value when updating.
+
+See `docs/PHASE_12.md`.
+
+---
+
 ## 15. Go/no-go gates
 
 ### Gate 1 — foundation
@@ -965,6 +979,16 @@ Proceed only when:
 - embedded fonts are subset per document;
 - packaged builds on every platform export a Chinese PDF in the native self-test;
 - the font licence ships with the font.
+
+### Gate 12 — spreadsheet import
+
+Proceed only when:
+
+- every column's use is confirmed by the teacher before anything is saved;
+- blank cells import as missing and never overwrite recorded values;
+- invalid cells block the import and are reported by row and column;
+- imported values carry `imported` provenance naming the source file;
+- GBK-encoded Chinese CSVs and .xlsx date cells read correctly.
 
 ---
 

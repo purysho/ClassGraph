@@ -56,7 +56,7 @@ ClassGraph is designed to support teacher judgement. It does **not** diagnose st
 
 ClassGraph **saves projects automatically as ordinary files in your Documents folder**. The packaged app opens in its own desktop window; closing the window closes ClassGraph.
 
-1. **Create, import, restore, or generate** a class.
+1. **Create, import from a spreadsheet, restore, or generate** a class.
 2. **Record the metrics you choose** and keep observed, entered, imported, derived, and synthetic values distinguishable.
 3. **Explore descriptive views** before making planning changes.
 4. **Build seating or grouping candidates** against explicit constraints and objectives.
@@ -144,6 +144,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 
 ## Current outputs
 
+- Class lists imported from Excel (.xlsx) or CSV, with column mapping and a preview
 - Editable student/class table
 - Metric completeness views
 - Numeric distributions and descriptive statistics
@@ -165,7 +166,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Optional network assistance with pre-send disclosure
 
 <details>
-<summary><strong>Implementation history — Phases 1–11</strong></summary>
+<summary><strong>Implementation history — Phases 1–12</strong></summary>
 
 ### Phase 1 — Workspace and analysis
 
@@ -211,6 +212,10 @@ Teacher-selected cross-tabulations, a caveated Pearson association on the scatte
 
 PDF reports and seating plans embed a bundled Noto Sans SC subset when they contain Chinese or other non-Latin text, carrying only the characters each document uses. Characters the font cannot draw stop the export with `CG-5004` and are named, never dropped.
 
+### Phase 12 — Spreadsheet import
+
+Create a class from an `.xlsx` or CSV file (including GBK-encoded Chinese CSVs), or update an existing class from one. Teachers map each column, see every change and problem before saving, and blank cells stay Missing.
+
 </details>
 
 ## Design and recovery documents
@@ -229,6 +234,7 @@ PDF reports and seating plans embed a bundled Noto Sans SC subset when they cont
 - [`docs/PHASE_9.md`](docs/PHASE_9.md) — Phase 9 multi-metric comparisons and Gate 9
 - [`docs/PHASE_10.md`](docs/PHASE_10.md) — Phase 10 comparisons in reports and Gate 10
 - [`docs/PHASE_11.md`](docs/PHASE_11.md) — Phase 11 Chinese text in PDFs and Gate 11
+- [`docs/PHASE_12.md`](docs/PHASE_12.md) — Phase 12 spreadsheet import and Gate 12
 
 ## Branding
 
