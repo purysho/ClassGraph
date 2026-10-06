@@ -183,6 +183,16 @@ export interface PlanningConfiguration {
   scenarios?: PlanningScenario[]
 }
 
+export type ReportComparison =
+  | { kind: 'crosstab'; rowMetricKey: string; columnMetricKey: string }
+  | { kind: 'association'; xMetricKey: string; yMetricKey: string }
+  | { kind: 'group-summary'; metricKey: string; basis: 'tag' | 'planning-group' }
+
+export interface ReportingConfiguration {
+  /** Teacher-selected multi-metric comparisons to include in reports and analysis exports. */
+  comparisons?: ReportComparison[]
+}
+
 export interface ClassGraphProject {
   schemaVersion: '1.0'
   projectId: string
@@ -195,6 +205,7 @@ export interface ClassGraphProject {
   relationships?: RelationshipRecord[]
   room?: RoomDefinition
   planning?: PlanningConfiguration
+  reporting?: ReportingConfiguration
   provenance: FieldProvenanceMap
   extensions?: Record<string, unknown>
 }

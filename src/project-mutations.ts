@@ -20,6 +20,7 @@ import {
   unassignStudentFromSeat,
 } from './planning-state.js'
 import { addRelationship, removeRelationship, updateRelationship } from './relationships.js'
+import { addReportComparison, removeReportComparison } from './report-comparisons.js'
 import { setGridRoom, setRoomFront, setSeatEnabled, setSeatTags } from './room.js'
 import {
   classGraphProjectSchema,
@@ -27,6 +28,7 @@ import {
   planningGroupSchema,
   planningRuleSchema,
   relationshipSchema,
+  reportComparisonSchema,
 } from './schema.js'
 import { addStudent, removeStudent, updateStudent } from './workspace.js'
 
@@ -61,6 +63,14 @@ const relationshipPatchSchema = z.object({
 })
 
 const commandSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('add-report-comparison'),
+    comparison: reportComparisonSchema,
+  }),
+  z.object({
+    type: z.literal('remove-report-comparison'),
+    comparisonId: z.string().min(1),
+  }),
   z.object({
     type: z.literal('add-student'),
     student: z.object({
@@ -306,5 +316,9 @@ export function applyProjectMutation(
       return savePlanningScenario(project, command.label, now)
     case 'remove-planning-scenario':
       return removePlanningScenario(project, command.scenarioId, now)
+    case 'add-report-comparison':
+      return addReportComparison(project, command.comparison, now)
+    case 'remove-report-comparison':
+      return removeReportComparison(project, command.comparisonId, now)
   }
 }
