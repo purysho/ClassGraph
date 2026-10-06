@@ -7,7 +7,12 @@ Before opening a pull request, run:
 ```bash
 npm install
 npm run check
+npm run test:e2e   # browser end-to-end tests (Playwright + Chromium)
 ```
+
+The first time, install the browser with `npx playwright install chromium`. The end-to-end tests
+build the app, start the development server against a temporary data folder, and drive the real
+UI: spreadsheet import, comparisons, report exports, password protection, and backup/restore.
 
 House rules:
 

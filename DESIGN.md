@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 9 released (v0.9.0); Phases 10–13 implemented  
-**Design revision:** 0.13  
+**Status:** Phase 9 released (v0.9.0); Phases 10–14 implemented  
+**Design revision:** 0.14  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -583,7 +583,7 @@ Also:
 - import round-trip tests;
 - schema-version tests;
 - no-network core tests;
-- E2E smoke tests once UI exists;
+- E2E smoke tests once UI exists (Phase 14: Playwright suite in the Tests workflow);
 - size/bloat budget once desktop packaging exists;
 - release notes/changelog once public releases begin.
 
@@ -872,6 +872,16 @@ Answers §11's encryption requirement:
   confirmed choice.
 
 See `docs/PHASE_13.md`.
+
+---
+
+### Phase 14 — Browser end-to-end tests
+
+A Playwright suite (`e2e/`, `npm run test:e2e`) drives the real UI against the development
+server and a temporary data folder, and runs as the `e2e` job of the Tests workflow. It covers
+spreadsheet import (.xlsx and GBK CSV), comparisons and include-in-report, PDF/DOCX/Analysis JSON
+exports with Chinese names, password protection including the locked-at-startup path, and JSON
+backup/restore. See `docs/PHASE_14.md`.
 
 ---
 

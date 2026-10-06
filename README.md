@@ -134,6 +134,12 @@ npm run dev
 
 That development mode uses the loopback server; the downloadable desktop builds do not.
 
+Browser end-to-end tests (needs `npx playwright install chromium` once):
+
+```bash
+npm run test:e2e
+```
+
 ### Optional network provider
 
 Network assistance is **off by default**. To enable the generic HTTPS provider boundary, set:
@@ -170,7 +176,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Optional network assistance with pre-send disclosure
 
 <details>
-<summary><strong>Implementation history — Phases 1–13</strong></summary>
+<summary><strong>Implementation history — Phases 1–14</strong></summary>
 
 ### Phase 1 — Workspace and analysis
 
@@ -224,6 +230,10 @@ Create a class from an `.xlsx` or CSV file (including GBK-encoded Chinese CSVs),
 
 Any class can be protected with a password. Its file and automatic safety copies are encrypted (AES-256-GCM, scrypt), backups stay encrypted unless a plain copy is explicitly chosen, and a forgotten password cannot be recovered.
 
+### Phase 14 — End-to-end tests
+
+A Playwright suite drives the real interface in CI: spreadsheet import, comparisons, report exports with Chinese names, password protection, and backup/restore.
+
 </details>
 
 ## Design and recovery documents
@@ -244,6 +254,7 @@ Any class can be protected with a password. Its file and automatic safety copies
 - [`docs/PHASE_11.md`](docs/PHASE_11.md) — Phase 11 Chinese text in PDFs and Gate 11
 - [`docs/PHASE_12.md`](docs/PHASE_12.md) — Phase 12 spreadsheet import and Gate 12
 - [`docs/PHASE_13.md`](docs/PHASE_13.md) — Phase 13 password protection and Gate 13
+- [`docs/PHASE_14.md`](docs/PHASE_14.md) — Phase 14 browser end-to-end tests
 
 ## Branding
 
