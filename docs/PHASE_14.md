@@ -3,7 +3,7 @@
 **Phase:** 14 — Browser end-to-end tests  
 **Branch:** `claude/intelligent-cerf-9dyifr`  
 **Base:** `main` after Phase 13  
-**Status:** Implemented — PR open  
+**Status:** Implemented — CI green  
 **Last updated:** 2026-10-06
 
 ## Why
@@ -37,4 +37,4 @@ New dev dependency: `@playwright/test` 1.56.1 (Apache-2.0). It is not shipped in
 
 - [x] `npm run test:e2e` locally: 4 passed.
 - [x] `npm run check` unaffected: Vitest still runs only `tests/`.
-- [ ] `e2e` job green in the PR.
+- [x] `e2e` job green in PR #15 (Tests run `37412057193`: Chromium installed, 4 passed).

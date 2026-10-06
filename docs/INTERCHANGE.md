@@ -121,7 +121,24 @@ The Phase 3 adapter therefore requires:
 - no automatic overwrite of observed EduBoard data;
 - no database write as part of the validation/parser contract.
 
-The matching EduBoard parser/fixture tests live on isolated branch `feat/classgraph-handback-contract` / PR #62. That branch is intentionally non-writing: it validates and plans prospective writes but does not call EduBoard database/repository mutation functions.
+The matching EduBoard parser/fixture tests started on branch `feat/classgraph-handback-contract` /
+EduBoard PR #62, which is intentionally non-writing.
+
+### Round trip (EduBoard PR #64)
+
+1. **EduBoard → ClassGraph.** EduBoard's Seating tab → **Export for ClassGraph** writes an Exchange
+   v1 project: EduBoard student IDs and display names, the seating grid as a `grid` room with
+   ClassGraph seat IDs (`seat-r{row+1}-c{col+1}`), current seats as planning assignments, and
+   `imported` provenance with source `eduboard`. No grades, attendance, notes or contact details.
+   Open it in ClassGraph with **Import / restore backup**.
+2. **ClassGraph → EduBoard.** Reports → **EduBoard Hand-back JSON**. EduBoard's **Import from
+   ClassGraph…** previews the plan against the open class, refuses students who are not in that
+   class (`EB-2010`), enlarges the grid only if the teacher allows it, and replaces the class's
+   seating chart in one transaction.
+
+Shared fixtures keep both sides honest: `tests/fixtures/eduboard-class-export-v1.json` and
+`tests/fixtures/eduboard-roundtrip-handback-v1.json` here, with identical copies in EduBoard's
+`src/shared/__tests__/fixtures/`. Each repository tests that its side produces or accepts them.
 
 ## Unsupported or future fields
 
