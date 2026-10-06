@@ -262,6 +262,7 @@ A Playwright suite drives the real interface in CI: spreadsheet import, comparis
 - [`docs/PHASE_13.md`](docs/PHASE_13.md) — Phase 13 password protection and Gate 13
 - [`docs/PHASE_14.md`](docs/PHASE_14.md) — Phase 14 browser end-to-end tests
 - [`docs/PHASE_15.md`](docs/PHASE_15.md) — Phase 15 in-app updates
+- [`docs/PHASE_16.md`](docs/PHASE_16.md) — Phase 16 accessibility and dark mode
 - [`docs/SIGNING.md`](docs/SIGNING.md) — enabling code signing and notarisation
 
 ## Branding

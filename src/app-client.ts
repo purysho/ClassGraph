@@ -729,6 +729,56 @@ function findAppRoot(): HTMLElement {
 
 const root = findAppRoot()
 
+type ThemePreference = 'system' | 'light' | 'dark'
+const THEME_STORAGE_KEY = 'classgraph.theme'
+
+function readThemePreference(): ThemePreference {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
+    return stored === 'light' || stored === 'dark' ? stored : 'system'
+  } catch {
+    return 'system'
+  }
+}
+
+function applyTheme(preference: ThemePreference): void {
+  if (preference === 'system') delete document.documentElement.dataset.theme
+  else document.documentElement.dataset.theme = preference
+}
+
+function saveThemePreference(preference: ThemePreference): void {
+  applyTheme(preference)
+  try {
+    if (preference === 'system') window.localStorage.removeItem(THEME_STORAGE_KEY)
+    else window.localStorage.setItem(THEME_STORAGE_KEY, preference)
+  } catch {
+    // The choice still applies until ClassGraph closes.
+  }
+}
+
+function appearanceControl(): string {
+  const current = readThemePreference()
+  const option = (value: ThemePreference, label: string) =>
+    `<option value="${value}" ${current === value ? 'selected' : ''}>${label}</option>`
+  return `
+    <label class="appearance-control">
+      <span>Appearance</span>
+      <select data-theme-select>
+        ${option('system', 'Match system')}${option('light', 'Light')}${option('dark', 'Dark')}
+      </select>
+    </label>
+  `
+}
+
+applyTheme(readThemePreference())
+document.addEventListener('change', (event) => {
+  const target = event.target
+  if (target instanceof HTMLSelectElement && target.matches('[data-theme-select]')) {
+    const value = target.value
+    saveThemePreference(value === 'light' || value === 'dark' ? value : 'system')
+  }
+})
+
 let project: ClassGraphProject | null = null
 let projectLibraryView: ProjectLibraryView | null = null
 let desktopMode = false
@@ -1013,6 +1063,7 @@ function renderSetup(): void {
         </div>
 
         <section id="updates-panel" class="panel updates-panel" hidden></section>
+        <div class="setup-appearance">${appearanceControl()}</div>
       </section>
     </main>
   `
@@ -2186,7 +2237,7 @@ function renderSyntheticBuilder(): void {
             This is the machine-readable input ClassGraph will use. The same seed and specification
             reproduce the same student values.
           </p>
-          <pre id="synthetic-preview"></pre>
+          <pre id="synthetic-preview" tabindex="0" aria-label="Preview of the class definition"></pre>
           <button id="generate-structured-class" class="primary" type="button">
             Generate synthetic class
           </button>
@@ -2539,6 +2590,7 @@ function renderWorkspace(): void {
   }
 
   root.innerHTML = `
+    <a class="skip-link" href="#workspace-content">Skip to workspace content</a>
     <div class="workspace-shell">
       <aside class="sidebar">
         <div class="sidebar-brand">
@@ -2563,6 +2615,7 @@ function renderWorkspace(): void {
           Saved automatically
           ${updateStatus?.available ? `<button id="sidebar-update" class="sidebar-update" type="button">Update ${escapeHtml(updateStatus.latestVersion ?? '')} available</button>` : ''}
         </div>
+        <div class="sidebar-appearance">${appearanceControl()}</div>
       </aside>
 
       <main class="workspace-main">
@@ -2585,13 +2638,14 @@ function renderWorkspace(): void {
         </header>
 
         <div id="status" class="status" role="status" aria-live="polite" hidden></div>
-        <section id="workspace-content"></section>
+        <section id="workspace-content" tabindex="-1"></section>
       </main>
     </div>
   `
 
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-view]')) {
     button.classList.toggle('active', button.dataset.view === activeView)
+    if (button.dataset.view === activeView) button.setAttribute('aria-current', 'page')
     button.addEventListener('click', () => {
       const nextView = button.dataset.view
       if (
@@ -2605,10 +2659,16 @@ function renderWorkspace(): void {
       ) {
         activeView = nextView
         renderWorkspace()
+        // The sidebar is redrawn, so keep keyboard focus on the chosen item.
+        document.querySelector<HTMLButtonElement>(`[data-view="${nextView}"]`)?.focus()
       }
     })
   }
 
+  document.querySelector<HTMLAnchorElement>('.skip-link')?.addEventListener('click', (event) => {
+    event.preventDefault()
+    document.querySelector<HTMLElement>('#workspace-content')?.focus()
+  })
   document.querySelector<HTMLButtonElement>('#export-json')?.addEventListener('click', () => {
     void exportProject()
   })
@@ -3058,11 +3118,13 @@ function renderMetricCell(
       ? ` max="${definition.numberScale.max}"`
       : ''
 
+  const cellName = escapeHtml(`${student.displayName ?? student.id}, ${definition.label}`)
   return `
     <td>
       <div class="metric-editor" data-metric-editor="${index}:${escapeHtml(definition.key)}">
         <select
           class="state-select"
+          aria-label="${cellName}: whether a value is recorded"
           data-metric-state="${escapeHtml(student.id)}:${escapeHtml(definition.key)}"
         >
           ${stateOptions(state)}
@@ -3070,6 +3132,7 @@ function renderMetricCell(
         <input
           class="cell-input metric-value-input"
           type="${inputType}"${step}${min}${max}
+          aria-label="${cellName}"
           data-metric-value="${escapeHtml(student.id)}:${escapeHtml(definition.key)}"
           value="${escapeHtml(displayedValue)}"
           ${state === 'recorded' ? '' : 'disabled'}
@@ -3079,6 +3142,7 @@ function renderMetricCell(
           type="button"
           data-save-metric="${escapeHtml(student.id)}:${escapeHtml(definition.key)}"
           title="Save metric"
+          aria-label="Save ${cellName}"
         >✓</button>
       </div>
     </td>
@@ -3114,6 +3178,7 @@ function renderSelectMetricCell(
     <td>
       <select
         class="cell-select"
+        aria-label="${escapeHtml(`${student.displayName ?? student.id}, ${definition.label}`)}"
         data-select-metric="${escapeHtml(student.id)}:${escapeHtml(definition.key)}"
       >
         ${[...specialOptions, ...valueOptions].join('')}
@@ -3537,6 +3602,11 @@ function renderRoomGrid(room: RoomRecord): string {
           data-seat-drop="${escapeHtml(seat.id)}"
           ${assignment ? `draggable="true" data-drag-student="${escapeHtml(assignment.studentId)}"` : ''}
           title="${seat.enabled ? 'Disable seat' : 'Enable seat'}"
+          aria-label="${escapeHtml(
+            `Row ${(seat.row ?? 0) + 1}, column ${(seat.column ?? 0) + 1}: ${label}, ${
+              seat.enabled ? 'enabled' : 'disabled'
+            }. ${seat.enabled ? 'Press to disable this seat.' : 'Press to enable this seat.'}`,
+          )}"
         >
           <b>${escapeHtml(label)}</b>
           <span>R${(seat.row ?? 0) + 1} · C${(seat.column ?? 0) + 1}</span>
@@ -3622,7 +3692,7 @@ function renderManualAssignments(): string {
       return `
         <tr>
           <td>${escapeHtml(student.displayName ?? student.id)}</td>
-          <td><select data-assignment-seat="${escapeHtml(student.id)}">${options}</select></td>
+          <td><select aria-label="${escapeHtml(`Seat for ${student.displayName ?? student.id}`)}" data-assignment-seat="${escapeHtml(student.id)}">${options}</select></td>
           <td>
             <label class="lock-toggle">
               <input type="checkbox" data-assignment-lock="${escapeHtml(student.id)}" ${assignment?.locked ? 'checked' : ''} ${assignment ? '' : 'disabled'} />
