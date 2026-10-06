@@ -3258,9 +3258,9 @@ function renderReports(content: HTMLElement): void {
             <button class="secondary" type="button" data-report-export="/api/export/seating-pdf" data-fallback="classgraph-seating-plan.pdf" ${hasSeatingPlan ? '' : 'disabled'}>Landscape Seating PDF</button>
           </div>
           <p class="report-note">
-            DOCX supports Unicode names such as Chinese characters. The current lean PDF renderer
-            uses a built-in Latin font and refuses unsupported Unicode with CG-5004 rather than
-            replacing or corrupting text.
+            DOCX and PDF both support Chinese names. PDFs embed only the characters they use. If a
+            PDF would need a character ClassGraph cannot draw (for example an emoji), export stops
+            with CG-5004 and names the character instead of dropping it; DOCX still works.
           </p>
         </article>
       </div>

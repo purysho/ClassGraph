@@ -535,7 +535,7 @@ describe('local app server', () => {
     const base = await startServer()
     const project = createEmptyProject({
       projectId: 'unicode-export',
-      title: 'Grade 5 英语',
+      title: 'Grade 5 英语 😀',
       now: '2026-10-01T10:00:00.000Z',
     })
 
@@ -550,7 +550,7 @@ describe('local app server', () => {
     expect(pdfResponse.status).toBe(400)
     const body = (await pdfResponse.json()) as { error: { code: string; message: string } }
     expect(body.error.code).toBe('CG-5004')
-    expect(body.error.message).toContain('Unicode')
+    expect(body.error.message).toContain('😀')
   })
   it('reports offline assistance availability without enabling a network provider', async () => {
     const base = await startServer()
