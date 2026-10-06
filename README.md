@@ -151,6 +151,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Numeric scatter comparisons with table equivalents and a caveated Pearson association
 - Cross-tabulations of two category, ordinal or yes/no metrics
 - Metric summaries by student tag or planning group
+- Teacher-selected comparisons saved with the project and included in DOCX/PDF reports and Analysis JSON
 - Field-level provenance inspection
 - Manual and generated seating/grouping plans
 - Explicit relationship table and relationship graph
@@ -164,7 +165,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Optional network assistance with pre-send disclosure
 
 <details>
-<summary><strong>Implementation history — Phases 1–9</strong></summary>
+<summary><strong>Implementation history — Phases 1–10</strong></summary>
 
 ### Phase 1 — Workspace and analysis
 
@@ -202,6 +203,10 @@ ClassGraph now opens in its own desktop window with isolated IPC and no localhos
 
 Teacher-selected cross-tabulations, a caveated Pearson association on the scatter view, and metric summaries by student tag or planning group. Missing and not-recorded values stay distinct, and correlation is withheld when there are too few complete pairs.
 
+### Phase 10 — Comparisons in reports
+
+**Include in report** saves a comparison with the project. Selected comparisons are recalculated at export time and appear in DOCX/PDF reports and Analysis JSON v1.1.
+
 </details>
 
 ## Design and recovery documents
@@ -218,6 +223,7 @@ Teacher-selected cross-tabulations, a caveated Pearson association on the scatte
 - [`docs/PHASE_8.md`](docs/PHASE_8.md) — Phase 8 native desktop correction and Gate 8
 - [`docs/V0.8.1_HOTFIX.md`](docs/V0.8.1_HOTFIX.md) — v0.8.1 desktop transport hotfix
 - [`docs/PHASE_9.md`](docs/PHASE_9.md) — Phase 9 multi-metric comparisons and Gate 9
+- [`docs/PHASE_10.md`](docs/PHASE_10.md) — Phase 10 comparisons in reports and Gate 10
 
 ## Branding
 

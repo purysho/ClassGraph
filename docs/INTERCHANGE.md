@@ -20,6 +20,24 @@ The canonical runtime validator lives in `src/schema.ts`.
 6. ClassGraph does not infer hidden social relationships. Relationship edges must be explicit or marked synthetic.
 7. `extensions` may carry future application-specific data. Core readers must preserve or ignore unsupported extension data rather than reinterpret it as core data.
 
+### Optional `reporting` block (v0.10+)
+
+```text
+reporting?: { comparisons?: ReportComparison[] }   // at most 24
+
+ReportComparison =
+  | { kind: "crosstab"; rowMetricKey; columnMetricKey }        // category / ordinal / boolean
+  | { kind: "association"; xMetricKey; yMetricKey }            // number, two different metrics
+  | { kind: "group-summary"; metricKey; basis: "tag" | "planning-group" }  // any kind except text
+```
+
+- Stores the teacher's choice of comparisons for reports. It never stores computed results.
+- Every referenced metric must exist and be eligible for that comparison kind; duplicates are rejected.
+- Removing a metric removes the selections that reference it.
+- Selection changes record `teacher-entered` provenance at `/reporting/comparisons`.
+- The field is additive and optional, so the Exchange schema stays `1.0`. Releases before v0.10
+  ignore and drop it on save; no student data is affected.
+
 ## Phase 3 portable exports
 
 ### `classgraph-analysis` v1
@@ -34,6 +52,12 @@ Contains:
 - explicit limitations.
 
 It contains no imputed student values.
+
+**v1.1** (v0.10+) adds `comparisons`: one entry per teacher-selected comparison, in selection
+order, each with a stable `id`, the `selection`, and exactly one of `crossTab`, `association`
+or `groupSummary`. Results are recomputed from the project at export time. Association entries
+carry the coefficient (or a withheld reason), pair count, omitted count and the non-causation
+caveat, but no per-student points. All v1.0 fields are unchanged.
 
 ### `classgraph-seating-plan` v1
 
@@ -68,7 +92,8 @@ The envelope separates four data classes:
 
 2. **derivedAnalysis**
    - ClassGraph descriptive summaries;
-   - never presented as raw observed EduBoard student data.
+   - never presented as raw observed EduBoard student data;
+   - does not include the analysis export's teacher-selected `comparisons`.
 
 3. **approvedPlanning**
    - persisted ClassGraph room/planning state;

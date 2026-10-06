@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 8 released (v0.8.1); Phase 9 implemented  
-**Design revision:** 0.9  
+**Status:** Phase 9 released (v0.9.0); Phase 10 implemented  
+**Design revision:** 0.10  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -817,6 +817,20 @@ No schema change, persisted data, or runtime dependency is added. See `docs/PHAS
 
 ---
 
+### Phase 10 — Comparisons in reports and exports
+
+Implemented scope:
+
+- optional `reporting.comparisons` in Exchange v1 persists the teacher's selected comparisons
+  (selection only; results are always recomputed);
+- DOCX/PDF reports include a **Selected comparisons** section with the Phase 9 caveats;
+- `classgraph-analysis` export v1.1 adds `comparisons`;
+- the EduBoard hand-back is unchanged.
+
+See `docs/PHASE_10.md`.
+
+---
+
 ## 15. Go/no-go gates
 
 ### Gate 1 — foundation
@@ -914,6 +928,16 @@ Proceed only when:
 - overlapping tag segments are disclosed;
 - every view is a table first, with shading that only repeats counts;
 - packaged desktop IPC and development HTTP return identical results.
+
+### Gate 10 — comparisons in reports
+
+Proceed only when:
+
+- only teacher selections are persisted, never computed results;
+- invalid, ineligible, or duplicate selections are rejected at the schema boundary;
+- removing a metric cannot leave a dangling selection;
+- every exported comparison keeps the Phase 9 missing-data, withholding and caveat rules;
+- the analysis export version changes with the new field, and the EduBoard hand-back does not.
 
 ---
 
