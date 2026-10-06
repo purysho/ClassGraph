@@ -2214,3 +2214,49 @@ textarea:focus {
     flex-direction: column;
   }
 }
+
+.association-note {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f1f4f6;
+  color: #33434e;
+  font-size: 0.78rem;
+}
+
+.association-note span {
+  display: block;
+  margin-top: 4px;
+  color: #6c7b86;
+}
+
+.comparison-table caption {
+  padding-bottom: 8px;
+  color: #6c7b86;
+  font-size: 0.74rem;
+  text-align: left;
+}
+
+.crosstab-table td,
+.crosstab-table tfoot th {
+  text-align: center;
+}
+
+.crosstab-table em {
+  color: #7b8992;
+}
+
+.heat-cell {
+  background: rgba(83, 107, 122, var(--heat, 0));
+  font-variant-numeric: tabular-nums;
+}
+
+.heat-cell.heat-strong {
+  color: #fff;
+  font-weight: 700;
+}
+
+.total-cell {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

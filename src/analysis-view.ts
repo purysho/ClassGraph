@@ -1,5 +1,6 @@
 import type { ClassGraphProject } from './model.js'
 import { summarizeCategoryMetric, summarizeNumericMetric } from './analysis.js'
+import { computePearsonAssociation, type PearsonAssociation } from './analysis-compare.js'
 
 export interface ProjectCompleteness {
   totalCells: number
@@ -53,6 +54,7 @@ export interface ScatterView {
   yLabel: string
   points: ScatterPoint[]
   omittedCount: number
+  association: PearsonAssociation
 }
 
 function buildHistogram(values: number[], bucketCount = 6): HistogramBucket[] {
@@ -174,5 +176,6 @@ export function buildScatterView(
     yLabel: yDefinition.label,
     points,
     omittedCount,
+    association: computePearsonAssociation(points),
   }
 }

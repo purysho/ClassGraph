@@ -1,0 +1,7 @@
+ClassGraph v0.9.0 release trigger
+
+Phase 9: multi-metric descriptive comparisons.
+- cross-tabulations of two category, ordinal or yes/no metrics
+- caveated Pearson association on the scatter view
+- metric summaries by student tag or planning group
+- browser development mode serves the API transport module again

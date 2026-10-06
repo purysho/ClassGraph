@@ -148,7 +148,9 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Metric completeness views
 - Numeric distributions and descriptive statistics
 - Category, ordinal, boolean and text counts
-- Numeric scatter comparisons with table equivalents
+- Numeric scatter comparisons with table equivalents and a caveated Pearson association
+- Cross-tabulations of two category, ordinal or yes/no metrics
+- Metric summaries by student tag or planning group
 - Field-level provenance inspection
 - Manual and generated seating/grouping plans
 - Explicit relationship table and relationship graph
@@ -162,7 +164,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Optional network assistance with pre-send disclosure
 
 <details>
-<summary><strong>Implementation history — Phases 1–8</strong></summary>
+<summary><strong>Implementation history — Phases 1–9</strong></summary>
 
 ### Phase 1 — Workspace and analysis
 
@@ -196,6 +198,10 @@ Introduced filesystem-backed autosave, recent-project reopening, rolling local s
 
 ClassGraph now opens in its own desktop window with isolated IPC and no localhost server in packaged builds. Projects are readable title-based files in `Documents/ClassGraph/Projects`; Windows uses a normal installer/desktop shortcut with the CG icon, with macOS DMG and Linux AppImage packages.
 
+### Phase 9 — Multi-metric comparisons
+
+Teacher-selected cross-tabulations, a caveated Pearson association on the scatter view, and metric summaries by student tag or planning group. Missing and not-recorded values stay distinct, and correlation is withheld when there are too few complete pairs.
+
 </details>
 
 ## Design and recovery documents
@@ -210,6 +216,8 @@ ClassGraph now opens in its own desktop window with isolated IPC and no localhos
 - [`docs/PHASE_6.md`](docs/PHASE_6.md) — Phase 6 recovery and Gate 6
 - [`docs/PHASE_7.md`](docs/PHASE_7.md) — Phase 7 recovery and Gate 7
 - [`docs/PHASE_8.md`](docs/PHASE_8.md) — Phase 8 native desktop correction and Gate 8
+- [`docs/V0.8.1_HOTFIX.md`](docs/V0.8.1_HOTFIX.md) — v0.8.1 desktop transport hotfix
+- [`docs/PHASE_9.md`](docs/PHASE_9.md) — Phase 9 multi-metric comparisons and Gate 9
 
 ## Branding
 

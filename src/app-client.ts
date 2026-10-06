@@ -414,7 +414,72 @@ interface ScatterView {
     y: number
   }>
   omittedCount: number
+  association: {
+    method: 'pearson'
+    pairCount: number
+    coefficient: number | null
+    direction: 'positive' | 'negative' | 'none' | null
+    unavailableReason?: 'too-few-pairs' | 'no-variation'
+    caveat: string
+  }
 }
+
+interface ComparisonLevel {
+  key: string
+  label: string
+  state: 'recorded' | 'missing' | 'not-recorded'
+}
+
+interface CrossTabView {
+  rowMetricKey: string
+  columnMetricKey: string
+  rowLabel: string
+  columnLabel: string
+  rows: ComparisonLevel[]
+  columns: ComparisonLevel[]
+  counts: number[][]
+  rowTotals: number[]
+  columnTotals: number[]
+  studentCount: number
+  bothRecordedCount: number
+}
+
+type GroupingBasis = 'tag' | 'planning-group'
+
+interface ComparisonSegment {
+  key: string
+  label: string
+  remainder: boolean
+  studentCount: number
+}
+
+interface GroupSummaryBase {
+  metricKey: string
+  metricLabel: string
+  basis: GroupingBasis
+  overlapping: boolean
+  studentCount: number
+}
+
+type GroupSummaryView =
+  | (GroupSummaryBase & {
+      metricKind: 'number'
+      segments: Array<{
+        segment: ComparisonSegment
+        recordedCount: number
+        missingCount: number
+        notRecordedCount: number
+        min: number | null
+        median: number | null
+        mean: number | null
+        max: number | null
+      }>
+    })
+  | (GroupSummaryBase & {
+      metricKind: 'category' | 'ordinal' | 'boolean'
+      levels: ComparisonLevel[]
+      segments: Array<{ segment: ComparisonSegment; counts: number[] }>
+    })
 
 type AssistanceTaskView =
   | 'synthetic-spec-draft'
@@ -573,6 +638,10 @@ let selectedProvenanceStudentId: string | null = null
 let selectedGraphMetricKey: string | null = null
 let selectedScatterX: string | null = null
 let selectedScatterY: string | null = null
+let selectedCrossTabRow: string | null = null
+let selectedCrossTabColumn: string | null = null
+let selectedGroupSummaryMetric: string | null = null
+let selectedGroupSummaryBasis: GroupingBasis = 'tag'
 let selectedRelationshipTypeFilter: RelationshipType | 'all' = 'all'
 let selectedRelationshipFocusStudentId: string | null = null
 let selectedScenarioLeftId: string | null = null
@@ -4667,6 +4736,30 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
     selectedScatterY = numericMetrics[1]?.key ?? numericMetrics[0]?.key ?? null
   }
 
+  const levelledMetrics = analysis.metrics.filter(
+    (metric): metric is CategoryMetricAnalysis =>
+      metric.kind === 'category' && metric.sourceKind !== 'text',
+  )
+  if (!selectedCrossTabRow || !levelledMetrics.some((item) => item.key === selectedCrossTabRow)) {
+    selectedCrossTabRow = levelledMetrics[0]?.key ?? null
+  }
+  if (
+    !selectedCrossTabColumn ||
+    !levelledMetrics.some((item) => item.key === selectedCrossTabColumn)
+  ) {
+    selectedCrossTabColumn = levelledMetrics[1]?.key ?? levelledMetrics[0]?.key ?? null
+  }
+
+  const summaryMetrics = analysis.metrics.filter(
+    (metric) => metric.kind === 'number' || metric.sourceKind !== 'text',
+  )
+  if (
+    !selectedGroupSummaryMetric ||
+    !summaryMetrics.some((item) => item.key === selectedGroupSummaryMetric)
+  ) {
+    selectedGroupSummaryMetric = summaryMetrics[0]?.key ?? null
+  }
+
   const selectedMetric = analysis.metrics.find((item) => item.key === selectedGraphMetricKey)
   const completeness = analysis.completeness
   const completenessPercent =
@@ -4747,6 +4840,81 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
         ${numericMetrics.length < 2 ? renderScatterUnavailable(numericMetrics.length) : '<p class="muted">Choose two numeric metrics and compare them.</p>'}
       </div>
     </article>
+
+    <article class="panel analysis-panel">
+      <div class="analysis-toolbar">
+        <div>
+          <p class="eyebrow">Category comparison</p>
+          <h2>Cross-tabulation</h2>
+        </div>
+        <div class="scatter-controls">
+          <label class="compact-label">
+            Rows
+            <select id="crosstab-row">
+              ${levelledMetrics
+                .map((metric) =>
+                  optionHtml(metric.key, metric.label, metric.key === selectedCrossTabRow),
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="compact-label">
+            Columns
+            <select id="crosstab-column">
+              ${levelledMetrics
+                .map((metric) =>
+                  optionHtml(metric.key, metric.label, metric.key === selectedCrossTabColumn),
+                )
+                .join('')}
+            </select>
+          </label>
+          <button id="load-crosstab" class="secondary compact" type="button" ${levelledMetrics.length < 2 ? 'disabled' : ''}>Compare</button>
+        </div>
+      </div>
+      <div id="crosstab-result">
+        ${
+          levelledMetrics.length < 2
+            ? `<div class="empty-analysis"><p>${levelledMetrics.length === 0 ? 'No category, ordinal or yes/no metrics exist yet.' : 'Add a second category, ordinal or yes/no metric to cross-tabulate.'}</p></div>`
+            : '<p class="muted">Choose two category, ordinal or yes/no metrics to count students across both.</p>'
+        }
+      </div>
+    </article>
+
+    <article class="panel analysis-panel">
+      <div class="analysis-toolbar">
+        <div>
+          <p class="eyebrow">Segment comparison</p>
+          <h2>By tag or group</h2>
+        </div>
+        <div class="scatter-controls">
+          <label class="compact-label">
+            Metric
+            <select id="group-summary-metric">
+              ${summaryMetrics
+                .map((metric) =>
+                  optionHtml(metric.key, metric.label, metric.key === selectedGroupSummaryMetric),
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="compact-label">
+            Split by
+            <select id="group-summary-basis">
+              ${optionHtml('tag', 'Student tags', selectedGroupSummaryBasis === 'tag')}
+              ${optionHtml('planning-group', 'Planning groups', selectedGroupSummaryBasis === 'planning-group')}
+            </select>
+          </label>
+          <button id="load-group-summary" class="secondary compact" type="button" ${summaryMetrics.length === 0 ? 'disabled' : ''}>Summarise</button>
+        </div>
+      </div>
+      <div id="group-summary-result">
+        ${
+          summaryMetrics.length === 0
+            ? renderNoMetrics()
+            : '<p class="muted">Summarise one metric for each student tag or planning group.</p>'
+        }
+      </div>
+    </article>
   `
 
   document
@@ -4765,6 +4933,37 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
   document.querySelector<HTMLButtonElement>('#load-scatter')?.addEventListener('click', () => {
     void loadScatter()
   })
+
+  document
+    .querySelector<HTMLSelectElement>('#crosstab-row')
+    ?.addEventListener('change', (event) => {
+      selectedCrossTabRow = (event.currentTarget as HTMLSelectElement).value
+    })
+  document
+    .querySelector<HTMLSelectElement>('#crosstab-column')
+    ?.addEventListener('change', (event) => {
+      selectedCrossTabColumn = (event.currentTarget as HTMLSelectElement).value
+    })
+  document.querySelector<HTMLButtonElement>('#load-crosstab')?.addEventListener('click', () => {
+    void loadCrossTab()
+  })
+
+  document
+    .querySelector<HTMLSelectElement>('#group-summary-metric')
+    ?.addEventListener('change', (event) => {
+      selectedGroupSummaryMetric = (event.currentTarget as HTMLSelectElement).value
+    })
+  document
+    .querySelector<HTMLSelectElement>('#group-summary-basis')
+    ?.addEventListener('change', (event) => {
+      const value = (event.currentTarget as HTMLSelectElement).value
+      selectedGroupSummaryBasis = value === 'planning-group' ? 'planning-group' : 'tag'
+    })
+  document
+    .querySelector<HTMLButtonElement>('#load-group-summary')
+    ?.addEventListener('click', () => {
+      void loadGroupSummary()
+    })
 }
 
 function renderNoMetrics(): string {
@@ -5019,6 +5218,7 @@ function renderScatter(scatter: ScatterView): string {
           ${dots}
         </div>
         <div class="scatter-x-title">→ ${escapeHtml(scatter.xLabel)}</div>
+        ${renderAssociation(scatter.association)}
         <p class="analysis-footnote">
           ${scatter.omittedCount} students omitted because one or both selected values are not recorded.
           Position shows association only; it does not imply causation.
@@ -5040,6 +5240,224 @@ function renderScatter(scatter: ScatterView): string {
         </div>
       </div>
     </div>
+  `
+}
+
+function renderAssociation(association: ScatterView['association']): string {
+  if (association.coefficient === null) {
+    const reason =
+      association.unavailableReason === 'no-variation'
+        ? 'one of the metrics has the same value for every compared student'
+        : `at least 3 students need both values recorded (currently ${association.pairCount})`
+    return `<p class="association-note">Correlation not shown: ${reason}.</p>`
+  }
+  const direction =
+    association.direction === 'positive'
+      ? 'higher values of one tend to appear with higher values of the other'
+      : association.direction === 'negative'
+        ? 'higher values of one tend to appear with lower values of the other'
+        : 'no linear pattern'
+  return `
+    <p class="association-note">
+      <strong>Pearson r = ${association.coefficient.toFixed(2)}</strong>
+      across ${association.pairCount} students with both values recorded — ${direction}.
+      <span>${escapeHtml(association.caveat)}</span>
+    </p>
+  `
+}
+
+async function loadCrossTab(): Promise<void> {
+  if (!project || !selectedCrossTabRow || !selectedCrossTabColumn) return
+  const target = document.querySelector<HTMLElement>('#crosstab-result')
+  if (!target) return
+
+  if (selectedCrossTabRow === selectedCrossTabColumn) {
+    target.innerHTML = '<p class="muted">Choose two different metrics to cross-tabulate.</p>'
+    return
+  }
+
+  target.innerHTML = '<p class="muted">Counting students…</p>'
+
+  try {
+    const response = await postJson<{ crossTab: CrossTabView }>('/api/analysis/crosstab', {
+      project,
+      rowMetricKey: selectedCrossTabRow,
+      columnMetricKey: selectedCrossTabColumn,
+    })
+    target.innerHTML = renderCrossTab(response.crossTab)
+  } catch (error) {
+    target.innerHTML = `<p class="status">${escapeHtml(
+      error instanceof Error ? error.message : 'Could not build cross-tabulation.',
+    )}</p>`
+  }
+}
+
+function levelHeading(level: ComparisonLevel): string {
+  const label = escapeHtml(level.label)
+  return level.state === 'recorded' ? label : `<em>${label}</em>`
+}
+
+function heatCell(count: number, max: number): string {
+  const share = max > 0 ? count / max : 0
+  const alpha = count === 0 ? 0 : 0.12 + share * 0.58
+  const strong = share > 0.6 ? ' heat-strong' : ''
+  return `<td class="heat-cell${strong}" style="--heat: ${alpha.toFixed(2)}">${count}</td>`
+}
+
+function renderCrossTab(view: CrossTabView): string {
+  const max = Math.max(0, ...view.counts.flat())
+  const header = view.columns
+    .map((column) => `<th scope="col">${levelHeading(column)}</th>`)
+    .join('')
+  const body = view.rows
+    .map(
+      (row, r) => `
+        <tr>
+          <th scope="row">${levelHeading(row)}</th>
+          ${view.columns.map((_, c) => heatCell(view.counts[r]?.[c] ?? 0, max)).join('')}
+          <td class="total-cell">${view.rowTotals[r] ?? 0}</td>
+        </tr>
+      `,
+    )
+    .join('')
+
+  return `
+    <div class="data-table-wrap">
+      <table class="source-table comparison-table crosstab-table">
+        <caption>
+          Students by ${escapeHtml(view.rowLabel)} (rows) and ${escapeHtml(view.columnLabel)} (columns)
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">${escapeHtml(view.rowLabel)}</th>
+            ${header}
+            <th scope="col">Total</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">Total</th>
+            ${view.columnTotals.map((total) => `<td class="total-cell">${total}</td>`).join('')}
+            <td class="total-cell">${view.studentCount}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="analysis-footnote">
+      ${view.bothRecordedCount} of ${view.studentCount} students have both values recorded.
+      <em>Missing</em> and <em>Not recorded</em> are kept as their own rows and columns rather than
+      guessed. Shading only repeats the counts; it is not a score.
+    </p>
+  `
+}
+
+async function loadGroupSummary(): Promise<void> {
+  if (!project || !selectedGroupSummaryMetric) return
+  const target = document.querySelector<HTMLElement>('#group-summary-result')
+  if (!target) return
+
+  target.innerHTML = '<p class="muted">Summarising…</p>'
+
+  try {
+    const response = await postJson<{ groupSummary: GroupSummaryView }>(
+      '/api/analysis/group-summary',
+      { project, metricKey: selectedGroupSummaryMetric, basis: selectedGroupSummaryBasis },
+    )
+    target.innerHTML = renderGroupSummary(response.groupSummary)
+  } catch (error) {
+    target.innerHTML = `<p class="status">${escapeHtml(
+      error instanceof Error ? error.message : 'Could not build summary.',
+    )}</p>`
+  }
+}
+
+function segmentHeading(segment: ComparisonSegment): string {
+  const label = escapeHtml(segment.label)
+  return `${segment.remainder ? `<em>${label}</em>` : label} <small>(${segment.studentCount})</small>`
+}
+
+function renderGroupSummary(view: GroupSummaryView): string {
+  const basisLabel = view.basis === 'tag' ? 'student tags' : 'planning groups'
+  if (view.segments.every((item) => item.segment.remainder)) {
+    return `
+      <div class="empty-analysis">
+        <p>No ${basisLabel} exist yet.</p>
+        <p class="muted">
+          ${view.basis === 'tag' ? 'Add tags to students in the Students view.' : 'Create or accept groups in the Grouping view.'}
+        </p>
+      </div>
+    `
+  }
+
+  let table: string
+  if (view.metricKind === 'number') {
+    const rows = view.segments
+      .map(
+        (item) => `
+          <tr>
+            <th scope="row">${segmentHeading(item.segment)}</th>
+            <td>${item.recordedCount}</td>
+            <td>${item.missingCount}</td>
+            <td>${item.notRecordedCount}</td>
+            <td>${numberLabel(item.min)}</td>
+            <td>${numberLabel(item.median)}</td>
+            <td>${numberLabel(item.mean)}</td>
+            <td>${numberLabel(item.max)}</td>
+          </tr>
+        `,
+      )
+      .join('')
+    table = `
+      <table class="source-table comparison-table">
+        <caption>${escapeHtml(view.metricLabel)} by ${basisLabel}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Segment (students)</th>
+            <th scope="col">Recorded</th>
+            <th scope="col">Missing</th>
+            <th scope="col">Not recorded</th>
+            <th scope="col">Min</th>
+            <th scope="col">Median</th>
+            <th scope="col">Mean</th>
+            <th scope="col">Max</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `
+  } else {
+    const max = Math.max(0, ...view.segments.flatMap((item) => item.counts))
+    const rows = view.segments
+      .map(
+        (item) => `
+          <tr>
+            <th scope="row">${segmentHeading(item.segment)}</th>
+            ${view.levels.map((_, index) => heatCell(item.counts[index] ?? 0, max)).join('')}
+          </tr>
+        `,
+      )
+      .join('')
+    table = `
+      <table class="source-table comparison-table crosstab-table">
+        <caption>${escapeHtml(view.metricLabel)} by ${basisLabel}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Segment (students)</th>
+            ${view.levels.map((level) => `<th scope="col">${levelHeading(level)}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `
+  }
+
+  return `
+    <div class="data-table-wrap">${table}</div>
+    <p class="analysis-footnote">
+      ${view.overlapping ? 'Some students have more than one tag, so they are counted in each matching segment. ' : ''}
+      Segments describe the recorded data only; differences between them are not explanations.
+    </p>
   `
 }
 
