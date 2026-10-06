@@ -87,7 +87,7 @@ describe('Phase 3 portable exports', () => {
     expect(first).toBe(second)
     const parsed = JSON.parse(first) as AnalysisExportV1
     expect(parsed.format).toBe('classgraph-analysis')
-    expect(parsed.version).toBe('1.0')
+    expect(parsed.version).toBe('1.1')
     expect(parsed.analysis.studentCount).toBe(2)
     expect(parsed.syntheticPaths).toEqual(['/students/0/metrics/score'])
   })

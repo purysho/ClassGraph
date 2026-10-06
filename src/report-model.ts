@@ -5,6 +5,7 @@ import type {
   RoomDefinition,
   StudentRecord,
 } from './model.js'
+import { buildReportComparisonResults, type ReportComparisonResult } from './report-comparisons.js'
 import { classGraphProjectSchema } from './schema.js'
 
 export interface ProvenanceSummary {
@@ -34,6 +35,8 @@ export interface ReportSnapshot {
   }
   roster: ReportStudentRef[]
   analysis: ProjectAnalysisView
+  /** Teacher-selected comparisons, recomputed from the current project. */
+  comparisons: ReportComparisonResult[]
   room?: RoomDefinition
   planning?: PlanningConfiguration
   provenanceSummary: ProvenanceSummary
@@ -142,6 +145,7 @@ export function buildReportSnapshot(project: ClassGraphProject): ReportSnapshot 
     },
     roster: reportRoster(validated.students),
     analysis,
+    comparisons: buildReportComparisonResults(validated),
     ...(validated.room ? { room: structuredClone(validated.room) } : {}),
     ...(validated.planning ? { planning: structuredClone(validated.planning) } : {}),
     provenanceSummary: summarizeProvenance(validated),
