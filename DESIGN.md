@@ -1,7 +1,7 @@
 # ClassGraph — DESIGN.md
 
-**Status:** Phase 9 released (v0.9.0); Phase 10 implemented  
-**Design revision:** 0.10  
+**Status:** Phase 9 released (v0.9.0); Phases 10–15 implemented  
+**Design revision:** 0.15  
 **Target implementation:** TypeScript  
 **Primary relationship:** Standalone companion to EduBoard  
 **Primary data contract:** ClassGraph Exchange JSON v1
@@ -485,7 +485,7 @@ Requirements:
 - future AI/network features are opt-in and explicitly show what data would leave the device;
 - names optional throughout the product.
 
-Encryption/password protection must be considered before a production release that persistently stores identifiable student data.
+Encryption/password protection must be considered before a production release that persistently stores identifiable student data. Phase 13 provides optional per-class encryption.
 
 ClassGraph error codes use:
 
@@ -583,7 +583,7 @@ Also:
 - import round-trip tests;
 - schema-version tests;
 - no-network core tests;
-- E2E smoke tests once UI exists;
+- E2E smoke tests once UI exists (Phase 14: Playwright suite in the Tests workflow);
 - size/bloat budget once desktop packaging exists;
 - release notes/changelog once public releases begin.
 
@@ -831,6 +831,69 @@ See `docs/PHASE_10.md`.
 
 ---
 
+### Phase 11 — Chinese text in PDFs
+
+Implemented scope:
+
+- bundled Noto Sans SC subset (OFL 1.1) covering Latin, CJK punctuation, kana and the full CJK
+  Unified Ideographs block, rebuilt reproducibly from a pinned upstream commit;
+- per-document font choice: Helvetica when the text fits WinAnsi, otherwise the CJK font,
+  subset per document;
+- characters neither font covers fail with `CG-5004` naming them; nothing is dropped;
+- the native self-test exports a Chinese-titled PDF from the packaged app.
+
+New runtime dependency: `@pdf-lib/fontkit` (MIT), required by pdf-lib for custom fonts.
+See `docs/PHASE_11.md`.
+
+---
+
+### Phase 12 — Spreadsheet import
+
+Implements input Mode A for spreadsheets alongside JSON:
+
+- CSV/TSV (UTF-8 or GB18030) and .xlsx, read without a spreadsheet library;
+- teacher-confirmed column mapping (ID, name, tags, metrics with kind and scale);
+- preview with per-row problems and every value that would change; nothing saved before it;
+- `imported` provenance naming the file; blank cells stay explicitly missing; a blank never
+  erases a recorded value when updating.
+
+See `docs/PHASE_12.md`.
+
+---
+
+### Phase 13 — Password protection
+
+Answers §11's encryption requirement:
+
+- optional per-class protection; the encrypted envelope exposes only the random project ID;
+- AES-256-GCM with a scrypt-derived key; no recovery mechanism, stated before it is enabled;
+- keys only in main-process memory; a locked class is never rewritten as plain JSON;
+- automatic safety copies and default backups stay encrypted; plain copies are an explicit,
+  confirmed choice.
+
+See `docs/PHASE_13.md`.
+
+---
+
+### Phase 14 — Browser end-to-end tests
+
+A Playwright suite (`e2e/`, `npm run test:e2e`) drives the real UI against the development
+server and a temporary data folder, and runs as the `e2e` job of the Tests workflow. It covers
+spreadsheet import (.xlsx and GBK CSV), comparisons and include-in-report, PDF/DOCX/Analysis JSON
+exports with Chinese names, password protection including the locked-at-startup path, and JSON
+backup/restore. See `docs/PHASE_14.md`.
+
+---
+
+### Phase 15 — In-app updates
+
+Teacher-initiated (or opted-in) update checks against GitHub releases; in-app install for the
+Windows installer and Linux AppImage via electron-updater; download-page link for macOS and the
+portable build. No class data is sent and nothing installs without a click. See
+`docs/PHASE_15.md`.
+
+---
+
 ## 15. Go/no-go gates
 
 ### Gate 1 — foundation
@@ -938,6 +1001,37 @@ Proceed only when:
 - removing a metric cannot leave a dangling selection;
 - every exported comparison keeps the Phase 9 missing-data, withholding and caveat rules;
 - the analysis export version changes with the new field, and the EduBoard hand-back does not.
+
+### Gate 11 — Chinese text in PDFs
+
+Proceed only when:
+
+- Chinese titles, names, tags and labels render in both PDF reports;
+- English-only PDFs are unchanged and still use the built-in fonts;
+- unsupported characters stop export with `CG-5004` and are named;
+- embedded fonts are subset per document;
+- packaged builds on every platform export a Chinese PDF in the native self-test;
+- the font licence ships with the font.
+
+### Gate 12 — spreadsheet import
+
+Proceed only when:
+
+- every column's use is confirmed by the teacher before anything is saved;
+- blank cells import as missing and never overwrite recorded values;
+- invalid cells block the import and are reported by row and column;
+- imported values carry `imported` provenance naming the source file;
+- GBK-encoded Chinese CSVs and .xlsx date cells read correctly.
+
+### Gate 13 — password protection
+
+Proceed only when:
+
+- no readable student data remains in the Projects or Backups folders for a protected class;
+- a locked class cannot be saved, and a wrong password cannot open it;
+- the forgotten-password consequence is acknowledged before protection is turned on;
+- backups of protected classes stay encrypted unless a plain copy is explicitly confirmed;
+- unprotected classes behave exactly as before.
 
 ---
 

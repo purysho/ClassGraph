@@ -65,10 +65,10 @@ export function recordApprovedSeatingHistory(
   },
   now: string,
 ): ClassGraphProject {
-  if (!project.room) throw new Error('CG-4020 seating history requires a saved room')
+  if (!project.room) throw new Error('CG-4024 seating history requires a saved room')
   const assignments = project.planning?.assignments ?? []
   if (assignments.length === 0) {
-    throw new Error('CG-4021 seating history requires persisted seat assignments')
+    throw new Error('CG-4025 seating history requires persisted seat assignments')
   }
 
   const label = options.label?.trim()
@@ -89,7 +89,7 @@ export function recordApprovedSeatingHistory(
   const planning = ensurePlanning(next)
   planning.history ??= []
   if (planning.history.some((item) => item.id === entry.id)) {
-    throw new Error(`CG-4022 duplicate seating history snapshot: ${entry.id}`)
+    throw new Error(`CG-4026 duplicate seating history snapshot: ${entry.id}`)
   }
   planning.history.push(entry)
   next.provenance[`/planning/history/${planning.history.length - 1}`] = teacherEntered(

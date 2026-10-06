@@ -55,12 +55,22 @@ describe('local app server', () => {
   })
 
   it('serves every runtime module the browser client imports in development mode', async () => {
-    const source = await readFile('src/app-client.ts', 'utf8')
-    const runtimeImports = [
-      ...source.matchAll(/^import\s+(?!type\b)[^;]*?from\s+'\.\/([\w-]+\.js)'/gm),
-    ]
-      .map((match) => match[1])
-      .filter((name): name is string => name !== undefined)
+    // Follows imports from app-client.ts through every module it loads.
+    const runtimeImports: string[] = []
+    const pending = ['app-client.js']
+    while (pending.length > 0) {
+      const source = await readFile(`src/${pending.pop()!.replace(/\.js$/, '.ts')}`, 'utf8')
+      for (const match of source.matchAll(
+        /^import\s+(?!type\b)[^;]*?from\s+'\.\/([\w-]+\.js)'/gm,
+      )) {
+        const name = match[1]!
+        if (!runtimeImports.includes(name)) {
+          runtimeImports.push(name)
+          pending.push(name)
+        }
+      }
+    }
+    expect(runtimeImports).toContain('i18n-zh.js')
     expect(runtimeImports).toContain('api-client-transport.js')
 
     const buildDirectory = await mkdtemp(join(tmpdir(), 'classgraph-build-'))
@@ -535,7 +545,7 @@ describe('local app server', () => {
     const base = await startServer()
     const project = createEmptyProject({
       projectId: 'unicode-export',
-      title: 'Grade 5 英语',
+      title: 'Grade 5 英语 😀',
       now: '2026-10-01T10:00:00.000Z',
     })
 
@@ -550,7 +560,7 @@ describe('local app server', () => {
     expect(pdfResponse.status).toBe(400)
     const body = (await pdfResponse.json()) as { error: { code: string; message: string } }
     expect(body.error.code).toBe('CG-5004')
-    expect(body.error.message).toContain('Unicode')
+    expect(body.error.message).toContain('😀')
   })
   it('reports offline assistance availability without enabling a network provider', async () => {
     const base = await startServer()

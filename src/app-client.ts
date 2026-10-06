@@ -1,4 +1,16 @@
 import { classGraphApiFetch } from './api-client-transport.js'
+import {
+  languageFromLocale,
+  localizeError,
+  setUiLanguage,
+  tr,
+  trServer,
+  uiLocale,
+  type UiLanguage,
+} from './i18n.js'
+
+// The interface language is chosen before anything renders, so all interface text agrees.
+applyLanguage(readLanguagePreference())
 
 interface ProvenanceEntry {
   kind: string
@@ -321,6 +333,63 @@ type ReportComparison =
   | { kind: 'association'; xMetricKey: string; yMetricKey: string }
   | { kind: 'group-summary'; metricKey: string; basis: 'tag' | 'planning-group' }
 
+type TableCell = string | number | boolean | null
+
+interface ReadTableView {
+  format: 'csv' | 'xlsx'
+  encoding?: 'utf-8' | 'gb18030'
+  sheets: Array<{ name: string; rows: TableCell[][] }>
+}
+
+type ImportColumnMapping =
+  | { role: 'ignore' }
+  | { role: 'student-id' }
+  | { role: 'display-name' }
+  | { role: 'tags' }
+  | {
+      role: 'metric'
+      metricKey: string
+      label: string
+      kind: MetricKind
+      categories?: string[]
+      ordinalScale?: string[]
+      existing?: boolean
+    }
+
+interface ImportSuggestionView {
+  headerRow: boolean
+  headers: string[]
+  columns: ImportColumnMapping[]
+}
+
+interface ImportPlanView {
+  mode: 'new-project' | 'merge'
+  studentCount: number
+  studentsAdded: number
+  studentsUpdated: number
+  studentsNotInFile: number
+  newMetrics: Array<{ key: string; label: string; kind: string }>
+  valueCount: number
+  missingCount: number
+  blanksKeptExisting: number
+  generatedIds: boolean
+  changes: Array<{ studentId: string; field: string; from: string; to: string }>
+  errors: Array<{ row?: number; column?: string; message: string }>
+}
+
+interface SpreadsheetImportState {
+  mode: 'new' | 'merge'
+  fileName: string
+  table: ReadTableView
+  sheetIndex: number
+  headerRow: boolean
+  headers: string[]
+  columns: ImportColumnMapping[]
+  title: string
+  plan: ImportPlanView | null
+  planError: string | null
+}
+
 interface ProjectResponse {
   project: ClassGraphProject
 }
@@ -329,8 +398,10 @@ interface ProjectSummaryView {
   projectId: string
   title: string
   updatedAt: string
-  studentCount: number
+  studentCount: number | null
   fileName: string
+  protected?: boolean
+  locked?: boolean
   subject?: string
   gradeOrLevel?: string
 }
@@ -592,7 +663,42 @@ interface AssistanceRunResponseView {
 }
 
 type WorkspaceView =
-  'overview' | 'students' | 'graphs' | 'relationships' | 'seating' | 'assistance' | 'reports'
+  | 'overview'
+  | 'students'
+  | 'graphs'
+  | 'relationships'
+  | 'seating'
+  | 'assistance'
+  | 'reports'
+  | 'terms'
+  | 'protection'
+
+interface ProtectionStatusView {
+  protected: boolean
+  unlocked: boolean
+}
+
+interface UpdateStatusView {
+  currentVersion: string
+  channel: 'install' | 'notify' | 'unavailable'
+  checking: boolean
+  checkedAt: string | null
+  latestVersion: string | null
+  available: boolean
+  downloading: boolean
+  progress: number | null
+  downloaded: boolean
+  releaseUrl: string
+  error: string | null
+}
+
+interface UpdateSettingsView {
+  checkOnStart: boolean
+}
+
+type UnlockTarget =
+  | { kind: 'library'; projectId: string; label: string }
+  | { kind: 'import'; fileText: string; fileName: string }
 type MetricState = 'recorded' | 'missing' | 'unrecorded'
 type SyntheticDraftMetric =
   | {
@@ -636,6 +742,95 @@ function findAppRoot(): HTMLElement {
 
 const root = findAppRoot()
 
+type ThemePreference = 'system' | 'light' | 'dark'
+const THEME_STORAGE_KEY = 'classgraph.theme'
+
+function readThemePreference(): ThemePreference {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
+    return stored === 'light' || stored === 'dark' ? stored : 'system'
+  } catch {
+    return 'system'
+  }
+}
+
+function applyTheme(preference: ThemePreference): void {
+  if (preference === 'system') delete document.documentElement.dataset.theme
+  else document.documentElement.dataset.theme = preference
+}
+
+function saveThemePreference(preference: ThemePreference): void {
+  applyTheme(preference)
+  try {
+    if (preference === 'system') window.localStorage.removeItem(THEME_STORAGE_KEY)
+    else window.localStorage.setItem(THEME_STORAGE_KEY, preference)
+  } catch {
+    // The choice still applies until ClassGraph closes.
+  }
+}
+
+function appearanceControl(): string {
+  const current = readThemePreference()
+  const option = (value: ThemePreference, label: string) =>
+    `<option value="${value}" ${current === value ? 'selected' : ''}>${label}</option>`
+  return `
+    <label class="appearance-control">
+      <span>${tr('Appearance')}</span>
+      <select data-theme-select>
+        ${option('system', tr('Match system'))}${option('light', tr('Light'))}${option('dark', tr('Dark'))}
+      </select>
+    </label>
+  `
+}
+
+function readLanguagePreference(): UiLanguage {
+  try {
+    const stored = window.localStorage.getItem('classgraph.language')
+    if (stored === 'en' || stored === 'zh') return stored
+  } catch {
+    // Fall back to the system language.
+  }
+  return languageFromLocale(navigator.language)
+}
+
+function applyLanguage(language: UiLanguage): void {
+  setUiLanguage(language)
+  document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en'
+}
+
+function languageControl(): string {
+  const current = readLanguagePreference()
+  // Each language is named in itself, so it can be found whichever language is showing.
+  return `
+    <label class="appearance-control">
+      <span>${tr('Language')}</span>
+      <select data-language-select>
+        <option value="en" lang="en" ${current === 'en' ? 'selected' : ''}>English</option>
+        <option value="zh" lang="zh-CN" ${current === 'zh' ? 'selected' : ''}>中文（简体）</option>
+      </select>
+    </label>
+  `
+}
+
+applyTheme(readThemePreference())
+document.addEventListener('change', (event) => {
+  const target = event.target
+  if (target instanceof HTMLSelectElement && target.matches('[data-theme-select]')) {
+    const value = target.value
+    saveThemePreference(value === 'light' || value === 'dark' ? value : 'system')
+  }
+  if (target instanceof HTMLSelectElement && target.matches('[data-language-select]')) {
+    try {
+      window.localStorage.setItem('classgraph.language', target.value === 'zh' ? 'zh' : 'en')
+    } catch {
+      applyLanguage(target.value === 'zh' ? 'zh' : 'en')
+      return
+    }
+    // Classes save as they change, so reloading redraws everything in the new language safely.
+    window.location.reload()
+  }
+})
+
 let project: ClassGraphProject | null = null
 let projectLibraryView: ProjectLibraryView | null = null
 let desktopMode = false
@@ -643,6 +838,13 @@ let activeView: WorkspaceView = 'overview'
 let selectedProvenanceStudentId: string | null = null
 let selectedGraphMetricKey: string | null = null
 let selectedScatterX: string | null = null
+let spreadsheetImport: SpreadsheetImportState | null = null
+let protectionStatus: ProtectionStatusView | null = null
+let updateStatus: UpdateStatusView | null = null
+let updateSettings: UpdateSettingsView | null = null
+let startupUpdateCheckDone = false
+let updateProgressTimer: ReturnType<typeof setInterval> | null = null
+let spreadsheetPreviewTimer: ReturnType<typeof setTimeout> | null = null
 let selectedScatterY: string | null = null
 let selectedCrossTabRow: string | null = null
 let selectedCrossTabColumn: string | null = null
@@ -660,7 +862,7 @@ let assistanceProposalView: AssistanceProposalView | null = null
 let assistanceSelectedTask: AssistanceTaskView = 'analysis-explanation'
 let assistancePrompt = ''
 let syntheticDraftProjectId = ''
-let syntheticDraftTitle = 'Synthetic Class'
+let syntheticDraftTitle = tr('Synthetic Class')
 let syntheticDraftStudentCount = 36
 let syntheticDraftSeed = 'classgraph-demo'
 const syntheticDraftMetrics: SyntheticDraftMetric[] = [
@@ -720,10 +922,12 @@ async function responseError(response: Response): Promise<Error> {
     const body = (await response.json()) as ErrorResponse
     const prefix = body.error?.code ? `${body.error.code}: ` : ''
     return new Error(
-      `${prefix}${body.error?.message ?? 'ClassGraph could not complete that action.'}`,
+      `${prefix}${body.error?.message ?? tr('ClassGraph could not complete that action.')}`,
     )
   } catch {
-    return new Error(`ClassGraph request failed with status ${response.status}.`)
+    return new Error(
+      tr('ClassGraph request failed with status {status}.', { status: response.status }),
+    )
   }
 }
 
@@ -763,7 +967,9 @@ async function mutateProject(command: Record<string, unknown>): Promise<void> {
     groupingGeneration = null
     renderWorkspace()
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not update the project.')
+    showStatus(
+      error instanceof Error ? localizeError(error.message) : tr('Could not update the project.'),
+    )
   }
 }
 
@@ -787,26 +993,25 @@ function renderSetup(): void {
         <div class="brand-mark" aria-hidden="true">
           <span></span><span></span><span></span>
         </div>
-        <p class="eyebrow">Local-first classroom planning</p>
+        <p class="eyebrow">${tr('Local-first classroom planning')}</p>
         <h1>ClassGraph</h1>
         <p class="lede">
-          Turn explicit class information into useful views without sending student data to a cloud service.
+          ${tr('Turn explicit class information into useful views without sending student data to a cloud service.')}
         </p>
-        <div class="privacy-pill">Runs on this device · Exchange v1</div>
+        <div class="privacy-pill">${tr('Runs on this device · Exchange v1')}</div>
       </section>
 
       <section class="setup-panel">
         <div class="setup-heading">
           <div>
-            <p class="eyebrow">Your ClassGraph projects</p>
-            <h2>Continue, create, or restore a class</h2>
+            <p class="eyebrow">${tr('Your ClassGraph projects')}</p>
+            <h2>${tr('Continue, create, or restore a class')}</h2>
           </div>
           <div class="setup-note-group">
             <p class="setup-note">
-              Your work is saved automatically as readable ClassGraph files in your Documents
-              folder. Make a backup copy only when you want one elsewhere.
+              ${tr('Your work is saved automatically as readable ClassGraph files in your Documents folder. Make a backup copy only when you want one elsewhere.')}
             </p>
-            ${desktopMode ? '<button id="quit-app" class="ghost compact" type="button">Quit ClassGraph</button>' : ''}
+            ${desktopMode ? `<button id="quit-app" class="ghost compact" type="button">${tr('Quit ClassGraph')}</button>` : ''}
           </div>
         </div>
 
@@ -815,10 +1020,10 @@ function renderSetup(): void {
         <section id="saved-projects" class="saved-projects panel" hidden>
           <div class="saved-projects-heading">
             <div>
-              <p class="eyebrow">Saved locally</p>
-              <h3>Recent classes</h3>
+              <p class="eyebrow">${tr('Saved locally')}</p>
+              <h3>${tr('Recent classes')}</h3>
             </div>
-            <span class="schema-badge">Autosave on</span>
+            <span class="schema-badge">${tr('Autosave on')}</span>
           </div>
           <div id="saved-project-list" class="saved-project-list"></div>
           <p id="saved-project-location" class="storage-note"></p>
@@ -827,37 +1032,36 @@ function renderSetup(): void {
         <div class="setup-grid">
           <article class="setup-card">
             <div class="card-number">01</div>
-            <h3>Manual class</h3>
-            <p>Start with an empty roster and add only the information you choose to record.</p>
+            <h3>${tr('Manual class')}</h3>
+            <p>${tr('Start with an empty roster and add only the information you choose to record.')}</p>
             <form id="manual-form" class="stack-form">
               <label>
-                Class name
-                <input name="title" required placeholder="Grade 5A English" />
+                ${tr('Class name')}
+                <input name="title" required placeholder="${tr('Grade 5A English')}" />
               </label>
               <div class="two-col">
                 <label>
-                  Subject
-                  <input name="subject" placeholder="English" />
+                  ${tr('Subject')}
+                  <input name="subject" placeholder="${tr('English')}" />
                 </label>
                 <label>
-                  Grade / level
-                  <input name="gradeOrLevel" placeholder="Grade 5" />
+                  ${tr('Grade / level')}
+                  <input name="gradeOrLevel" placeholder="${tr('Grade 5')}" />
                 </label>
               </div>
-              <button class="primary" type="submit">Create class</button>
+              <button class="primary" type="submit">${tr('Create class')}</button>
             </form>
           </article>
 
           <article class="setup-card">
             <div class="card-number">02</div>
-            <h3>Import / restore backup</h3>
+            <h3>${tr('Import / restore backup')}</h3>
             <p>
-              Bring back a ClassGraph JSON backup after reinstalling the app, or move a class from
-              another computer.
+              ${tr('Bring back a ClassGraph JSON backup after reinstalling the app, or move a class from another computer.')}
             </p>
             <form id="import-form" class="stack-form">
               <label class="file-input">
-                Choose .classgraph.json or .json
+                ${tr('Choose .classgraph.json or .json')}
                 <input
                   id="json-file"
                   name="file"
@@ -866,29 +1070,52 @@ function renderSetup(): void {
                   required
                 />
               </label>
-              <button class="secondary" type="submit">Restore backup</button>
+              <button class="secondary" type="submit">${tr('Restore backup')}</button>
             </form>
           </article>
 
           <article class="setup-card">
             <div class="card-number">03</div>
-            <h3>Generate a class</h3>
+            <h3>${tr('Import a class list')}</h3>
             <p>
-              Build a reviewed synthetic specification with explicit distributions, value weights,
-              missing rates, and a reproducible seed.
+              ${tr('Start from a spreadsheet you already have. Choose which columns hold IDs, names, tags and marks, and preview everything before it is saved.')}
+            </p>
+            <form id="spreadsheet-form" class="stack-form">
+              <label class="file-input">
+                ${tr('Choose .xlsx or .csv')}
+                <input
+                  id="spreadsheet-file"
+                  name="file"
+                  type="file"
+                  accept=".xlsx,.csv,.tsv,.txt,text/csv"
+                  required
+                />
+              </label>
+              <button class="secondary" type="submit">${tr('Review columns')}</button>
+            </form>
+          </article>
+
+          <article class="setup-card">
+            <div class="card-number">04</div>
+            <h3>${tr('Generate a class')}</h3>
+            <p>
+              ${tr('Build a reviewed synthetic specification with explicit distributions, value weights, missing rates, and a reproducible seed.')}
             </p>
             <div class="stack-form">
               <div class="generator-summary">
-                <span><b>Seeded</b> reproducibility</span>
-                <span><b>Explicit</b> metric rules</span>
-                <span><b>Synthetic</b> provenance</span>
+                <span>${tr('<b>Seeded</b> reproducibility')}</span>
+                <span>${tr('<b>Explicit</b> metric rules')}</span>
+                <span>${tr('<b>Synthetic</b> provenance')}</span>
               </div>
               <button id="configure-synthetic" class="secondary" type="button">
-                Configure generator
+                ${tr('Configure generator')}
               </button>
             </div>
           </article>
         </div>
+
+        <section id="updates-panel" class="panel updates-panel" hidden></section>
+        <div class="setup-appearance">${languageControl()}${appearanceControl()}</div>
       </section>
     </main>
   `
@@ -904,6 +1131,15 @@ function renderSetup(): void {
     void importProject()
   })
 
+  document
+    .querySelector<HTMLFormElement>('#spreadsheet-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const file = document.querySelector<HTMLInputElement>('#spreadsheet-file')?.files?.[0]
+      if (file) void startSpreadsheetImport(file, 'new')
+      else showStatus(tr('Choose a spreadsheet first.'))
+    })
+
   document.querySelector<HTMLButtonElement>('#quit-app')?.addEventListener('click', () => {
     void quitDesktopApp()
   })
@@ -917,15 +1153,153 @@ function renderSetup(): void {
 
   if (projectLibraryView) renderSavedProjects(projectLibraryView)
   void refreshProjectLibrary()
+  void refreshUpdatesPanel()
+}
+
+async function desktopUpdates<T>(action: string, payload?: unknown): Promise<T | null> {
+  const bridge = window.classGraphDesktop
+  if (!bridge?.updates) return null
+  return (await bridge.updates(
+    action as Parameters<NonNullable<typeof bridge.updates>>[0],
+    payload,
+  )) as T
+}
+
+async function refreshUpdatesPanel(): Promise<void> {
+  if (!window.classGraphDesktop?.updates) return
+  try {
+    updateSettings = await desktopUpdates<UpdateSettingsView>('get-settings')
+    updateStatus = await desktopUpdates<UpdateStatusView>('status')
+    renderUpdatesPanel()
+    if (updateSettings?.checkOnStart && !startupUpdateCheckDone) {
+      startupUpdateCheckDone = true
+      await runUpdateAction('check')
+    }
+  } catch {
+    // Updates are optional; the start screen works without them.
+  }
+}
+
+async function runUpdateAction(
+  action: 'check' | 'download' | 'install' | 'open-releases',
+): Promise<void> {
+  if (action === 'check' && updateStatus) {
+    updateStatus = { ...updateStatus, checking: true, error: null }
+    renderUpdatesPanel()
+  }
+  updateStatus = await desktopUpdates<UpdateStatusView>(action)
+  renderUpdatesPanel()
+  if (action === 'download') watchUpdateDownload()
+}
+
+function watchUpdateDownload(): void {
+  if (updateProgressTimer) clearInterval(updateProgressTimer)
+  updateProgressTimer = setInterval(() => {
+    void desktopUpdates<UpdateStatusView>('status').then((status) => {
+      updateStatus = status
+      renderUpdatesPanel()
+      if (!status?.downloading && updateProgressTimer) {
+        clearInterval(updateProgressTimer)
+        updateProgressTimer = null
+      }
+    })
+  }, 1000)
+}
+
+function renderUpdatesPanel(): void {
+  const panel = document.querySelector<HTMLElement>('#updates-panel')
+  const status = updateStatus
+  if (!panel || !status || status.channel === 'unavailable') return
+  panel.hidden = false
+
+  let message: string
+  let actions = ''
+  if (status.checking) {
+    message = tr('Checking for updates…')
+  } else if (status.downloaded) {
+    message = tr(
+      'ClassGraph {version} is ready to install. Your classes are saved; ClassGraph will restart.',
+      {
+        version: escapeHtml(status.latestVersion ?? ''),
+      },
+    )
+    actions = `<button class="primary compact" type="button" data-update-action="install">${tr('Restart and update')}</button>`
+  } else if (status.downloading) {
+    message = tr('Downloading ClassGraph {version}… {progress}%', {
+      version: escapeHtml(status.latestVersion ?? ''),
+      progress: status.progress ?? 0,
+    })
+  } else if (status.available) {
+    message = tr('ClassGraph {version} is available (you have {current}).', {
+      version: escapeHtml(status.latestVersion ?? ''),
+      current: escapeHtml(status.currentVersion),
+    })
+    actions =
+      status.channel === 'install' && !status.error
+        ? `<button class="primary compact" type="button" data-update-action="download">${tr('Download and install')}</button>`
+        : `<button class="primary compact" type="button" data-update-action="open-releases">${tr('Open download page')}</button>`
+  } else if (status.error) {
+    message = tr('ClassGraph {current}. The last update check did not finish.', {
+      current: escapeHtml(status.currentVersion),
+    })
+  } else if (status.checkedAt) {
+    message = tr('You have the latest version ({current}).', {
+      current: escapeHtml(status.currentVersion),
+    })
+  } else {
+    message = `ClassGraph ${escapeHtml(status.currentVersion)}`
+  }
+
+  panel.innerHTML = `
+    <div class="updates-row">
+      <div>
+        <p class="eyebrow">${tr('Updates')}</p>
+        <p class="updates-message" role="status" aria-live="polite">${message}</p>
+        ${status.error ? `<p class="updates-error">${escapeHtml(localizeError(status.error))}</p>` : ''}
+      </div>
+      <div class="updates-actions">
+        ${actions}
+        <button class="ghost compact" type="button" data-update-action="check" ${status.checking || status.downloading ? 'disabled' : ''}>${tr('Check for updates')}</button>
+      </div>
+    </div>
+    <label class="checkbox-label updates-auto">
+      <input id="update-check-on-start" type="checkbox" ${updateSettings?.checkOnStart ? 'checked' : ''} />
+      ${tr('Check automatically when ClassGraph starts')}
+    </label>
+    <p class="muted updates-note">
+      ${tr('A check asks GitHub for the newest version number. No class data, names or file names are sent.')} ${status.channel === 'notify' ? tr('This build updates by downloading the new version from the release page.') : tr('Installing always waits for you to choose it.')}
+    </p>
+  `
+
+  for (const button of panel.querySelectorAll<HTMLButtonElement>('[data-update-action]')) {
+    button.addEventListener('click', () => {
+      const action = button.dataset.updateAction as
+        'check' | 'download' | 'install' | 'open-releases'
+      void runUpdateAction(action)
+    })
+  }
+  panel
+    .querySelector<HTMLInputElement>('#update-check-on-start')
+    ?.addEventListener('change', (event) => {
+      const checkOnStart = (event.currentTarget as HTMLInputElement).checked
+      void desktopUpdates<UpdateSettingsView>('set-settings', { checkOnStart }).then((settings) => {
+        updateSettings = settings
+      })
+    })
 }
 
 function savedProjectMeta(summary: ProjectSummaryView): string {
   const parts = [
     summary.fileName,
+    summary.locked
+      ? tr('Password protected')
+      : summary.protected
+        ? tr('Password protected, unlocked')
+        : null,
     summary.subject,
     summary.gradeOrLevel,
-    `${summary.studentCount} students`,
-    new Date(summary.updatedAt).toLocaleString(),
+    summary.studentCount === null ? null : tr('{n} students', { n: summary.studentCount }),
+    new Date(summary.updatedAt).toLocaleString(uiLocale()),
   ].filter((item): item is string => Boolean(item))
   return parts.map(escapeHtml).join(' · ')
 }
@@ -949,25 +1323,35 @@ function renderSavedProjects(library: ProjectLibraryView): void {
           class="saved-project-row"
           type="button"
           data-open-project="${escapeHtml(summary.projectId)}"
+          data-locked="${summary.locked ? 'true' : 'false'}"
+          data-label="${escapeHtml(summary.title)}"
         >
           <span>
-            <strong>${escapeHtml(summary.title)}</strong>
+            <strong>${summary.protected ? '🔒 ' : ''}${escapeHtml(summary.title)}</strong>
             <small>${savedProjectMeta(summary)}</small>
           </span>
-          <b>Open</b>
+          <b>${summary.locked ? tr('Unlock') : tr('Open')}</b>
         </button>
       `,
     )
     .join('')
 
   location.innerHTML = library.projectsDirectory
-    ? `Your project files are in <code>${escapeHtml(library.projectsDirectory)}</code>. You can copy or rename a valid <code>.classgraph.json</code> file and ClassGraph will still find it.`
-    : 'Your projects are saved automatically as ordinary ClassGraph JSON files.'
+    ? tr(
+        'Your project files are in <code>{path}</code>. You can copy or rename a valid <code>.classgraph.json</code> file and ClassGraph will still find it.',
+        { path: escapeHtml(library.projectsDirectory) },
+      )
+    : tr('Your projects are saved automatically as ordinary ClassGraph JSON files.')
 
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-open-project]')) {
     button.addEventListener('click', () => {
       const projectId = button.dataset.openProject
-      if (projectId) void openSavedProject(projectId)
+      if (!projectId) return
+      if (button.dataset.locked === 'true') {
+        renderUnlockScreen({ kind: 'library', projectId, label: button.dataset.label ?? '' })
+      } else {
+        void openSavedProject(projectId)
+      }
     })
   }
 }
@@ -989,7 +1373,80 @@ async function openSavedProject(projectId: string): Promise<void> {
     const response = await postJson<ProjectResponse>('/api/projects/open', { projectId })
     openProject(response.project)
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not open the saved class.')
+    const message = error instanceof Error ? error.message : tr('Could not open the saved class.')
+    if (message.includes('CG-2016')) {
+      const summary = projectLibraryView?.projects.find((item) => item.projectId === projectId)
+      renderUnlockScreen({ kind: 'library', projectId, label: summary?.title ?? '' })
+      return
+    }
+    showStatus(localizeError(message))
+  }
+}
+
+function renderUnlockScreen(target: UnlockTarget): void {
+  const name = target.kind === 'library' ? target.label : target.fileName
+  root.innerHTML = `
+    <main class="closing-shell unlock-shell">
+      <form id="unlock-form" class="panel unlock-panel">
+        <p class="eyebrow">${target.kind === 'library' ? tr('Password protected class') : tr('Password protected backup')}</p>
+        <h1><span aria-hidden="true">🔒</span> ${escapeHtml(name)}</h1>
+        <p>${tr('Enter the password chosen for this class. ClassGraph cannot recover a forgotten password.')}</p>
+        <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+        <label>
+          ${tr('Password')}
+          <input id="unlock-password" type="password" autocomplete="current-password" required autofocus />
+        </label>
+        <div class="unlock-actions">
+          <button class="primary" type="submit">${tr('Unlock')}</button>
+          <button id="unlock-back" class="ghost" type="button">${tr('Back')}</button>
+        </div>
+      </form>
+    </main>
+  `
+  document.querySelector('#unlock-back')?.addEventListener('click', () => renderSetup())
+  document.querySelector<HTMLFormElement>('#unlock-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const input = document.querySelector<HTMLInputElement>('#unlock-password')
+    const password = input?.value ?? ''
+    void unlock(target, password)
+  })
+}
+
+async function unlock(target: UnlockTarget, password: string): Promise<void> {
+  clearStatus()
+  const button = document.querySelector<HTMLButtonElement>('#unlock-form button[type=submit]')
+  if (button) {
+    button.disabled = true
+    button.textContent = tr('Unlocking…')
+  }
+  try {
+    const response =
+      target.kind === 'library'
+        ? await postJson<ProjectResponse>('/api/projects/unlock', {
+            projectId: target.projectId,
+            password,
+          })
+        : await postJson<ProjectResponse>('/api/protection/import', {
+            fileText: target.fileText,
+            password,
+          })
+    openProject(response.project)
+  } catch (error) {
+    if (button) {
+      button.disabled = false
+      button.textContent = tr('Unlock')
+    }
+    const message = error instanceof Error ? error.message : tr('Could not unlock the class.')
+    showStatus(
+      message.includes('CG-2017')
+        ? tr('That password does not unlock this class. Try again.')
+        : localizeError(message),
+    )
+    const input = document.querySelector<HTMLInputElement>('#unlock-password')
+    if (input) {
+      input.value = ''
+      input.focus()
+    }
   }
 }
 
@@ -1006,7 +1463,9 @@ async function createManualClass(formData: FormData): Promise<void> {
     })
     openProject(response.project)
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not create the class.')
+    showStatus(
+      error instanceof Error ? localizeError(error.message) : tr('Could not create the class.'),
+    )
   }
 }
 
@@ -1015,15 +1474,719 @@ async function importProject(): Promise<void> {
   const input = document.querySelector<HTMLInputElement>('#json-file')
   const file = input?.files?.[0]
   if (!file) {
-    showStatus('Choose a ClassGraph JSON file first.')
+    showStatus(tr('Choose a ClassGraph JSON file first.'))
     return
   }
 
+  const fileText = await file.text()
   try {
-    const response = await postText<ProjectResponse>('/api/import', await file.text())
+    const response = await postText<ProjectResponse>('/api/import', fileText)
     openProject(response.project)
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not import the project.')
+    const message = error instanceof Error ? error.message : tr('Could not import the project.')
+    if (message.includes('CG-2015')) {
+      renderUnlockScreen({ kind: 'import', fileText, fileName: file.name })
+      return
+    }
+    showStatus(localizeError(message))
+  }
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ''
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
+  }
+  return btoa(binary)
+}
+
+async function startSpreadsheetImport(file: File, mode: 'new' | 'merge'): Promise<void> {
+  clearStatus()
+  try {
+    const response = await postJson<{
+      table: ReadTableView
+      suggestions: ImportSuggestionView[]
+    }>('/api/import/table/read', {
+      fileName: file.name,
+      dataBase64: await fileToBase64(file),
+      ...(mode === 'merge' && project ? { project } : {}),
+    })
+    const firstUsable = Math.max(
+      0,
+      response.table.sheets.findIndex((sheet) => sheet.rows.length > 0),
+    )
+    const suggestion = response.suggestions[firstUsable]
+    spreadsheetImport = {
+      mode,
+      fileName: file.name,
+      table: response.table,
+      sheetIndex: firstUsable,
+      headerRow: suggestion?.headerRow ?? true,
+      headers: suggestion?.headers ?? [],
+      columns: suggestion?.columns ?? [],
+      title:
+        mode === 'merge' && project
+          ? project.title
+          : file.name.replace(/\.[^.]+$/, '') || tr('New class'),
+      plan: null,
+      planError: null,
+    }
+    renderSpreadsheetImport()
+    void refreshSpreadsheetPreview()
+  } catch (error) {
+    showStatus(
+      error instanceof Error ? localizeError(error.message) : tr('Could not read the spreadsheet.'),
+    )
+  }
+}
+
+function spreadsheetRequest(state: SpreadsheetImportState): Record<string, unknown> {
+  return {
+    sourceName: state.fileName,
+    rows: state.table.sheets[state.sheetIndex]?.rows ?? [],
+    headerRow: state.headerRow,
+    columns: state.columns,
+  }
+}
+
+async function resuggestSpreadsheetColumns(): Promise<void> {
+  const state = spreadsheetImport
+  if (!state) return
+  try {
+    const response = await postJson<{ suggestion: ImportSuggestionView }>(
+      '/api/import/table/suggest',
+      {
+        request: spreadsheetRequest(state),
+        ...(state.mode === 'merge' && project ? { project } : {}),
+      },
+    )
+    state.headers = response.suggestion.headers
+    state.columns = response.suggestion.columns
+    renderSpreadsheetImport()
+    void refreshSpreadsheetPreview()
+  } catch (error) {
+    showStatus(
+      error instanceof Error ? localizeError(error.message) : tr('Could not read those columns.'),
+    )
+  }
+}
+
+function scheduleSpreadsheetPreview(): void {
+  if (spreadsheetPreviewTimer) clearTimeout(spreadsheetPreviewTimer)
+  spreadsheetPreviewTimer = setTimeout(() => void refreshSpreadsheetPreview(), 250)
+}
+
+async function refreshSpreadsheetPreview(): Promise<void> {
+  const state = spreadsheetImport
+  if (!state) return
+  try {
+    const response = await postJson<{ plan: ImportPlanView }>('/api/import/table/preview', {
+      request: spreadsheetRequest(state),
+      ...(state.mode === 'merge' && project ? { project } : {}),
+    })
+    state.plan = response.plan
+    state.planError = null
+  } catch (error) {
+    state.plan = null
+    state.planError =
+      error instanceof Error ? localizeError(error.message) : tr('Could not preview the import.')
+  }
+  const target = document.querySelector<HTMLElement>('#spreadsheet-preview')
+  if (target) target.innerHTML = renderSpreadsheetPreview(state)
+  const apply = document.querySelector<HTMLButtonElement>('#apply-spreadsheet')
+  if (apply) apply.disabled = !state.plan || state.plan.errors.length > 0
+}
+
+function distinctColumnValues(state: SpreadsheetImportState, index: number): string[] {
+  const rows = (state.table.sheets[state.sheetIndex]?.rows ?? []).slice(state.headerRow ? 1 : 0)
+  const values = rows
+    .map((row) => row[index])
+    .filter((cell): cell is string | number | boolean => cell !== null && cell !== undefined)
+    .map((cell) => String(cell).trim())
+    .filter(Boolean)
+  return [...new Set(values)]
+}
+
+function sampleValues(state: SpreadsheetImportState, index: number): string {
+  const samples = distinctColumnValues(state, index).slice(0, 3)
+  return samples.length
+    ? samples.map(escapeHtml).join(', ')
+    : `<span class="muted">${tr('empty')}</span>`
+}
+
+function metricKeyForHeader(header: string, index: number): string {
+  const used = new Set([
+    ...(spreadsheetImport?.mode === 'merge' ? (project?.metricDefinitions ?? []) : []).map(
+      (metric) => metric.key,
+    ),
+    ...(spreadsheetImport?.columns ?? []).flatMap((column) =>
+      column.role === 'metric' ? [column.metricKey] : [],
+    ),
+  ])
+  const base =
+    header
+      .normalize('NFKD')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || `column-${index + 1}`
+  let key = base
+  for (let suffix = 2; used.has(key); suffix += 1) key = `${base}-${suffix}`
+  return key
+}
+
+function roleValue(column: ImportColumnMapping): string {
+  if (column.role !== 'metric') return column.role
+  return column.existing ? `existing:${column.metricKey}` : 'new-metric'
+}
+
+function renderColumnMappingRow(
+  state: SpreadsheetImportState,
+  column: ImportColumnMapping,
+  index: number,
+): string {
+  const existingOptions =
+    state.mode === 'merge'
+      ? (project?.metricDefinitions ?? [])
+          .map((metric) =>
+            optionHtml(
+              `existing:${metric.key}`,
+              tr('Existing: {label}', { label: metric.label }),
+              roleValue(column) === `existing:${metric.key}`,
+            ),
+          )
+          .join('')
+      : ''
+  const role = roleValue(column)
+  const kindOptionLabels: Record<MetricKind, string> = {
+    number: tr('number'),
+    category: tr('category'),
+    ordinal: tr('ordinal'),
+    boolean: tr('yes/no'),
+    text: tr('text'),
+  }
+  const metricDetails =
+    column.role === 'metric' && !column.existing
+      ? `
+        <div class="mapping-metric">
+          <label>
+            ${tr('Label')}
+            <input data-mapping-label="${index}" value="${escapeHtml(column.label)}" />
+          </label>
+          <label>
+            ${tr('Kind')}
+            <select data-mapping-kind="${index}">
+              ${(['number', 'category', 'ordinal', 'boolean', 'text'] as const)
+                .map((kind) => optionHtml(kind, kindOptionLabels[kind], column.kind === kind))
+                .join('')}
+            </select>
+          </label>
+          ${
+            column.kind === 'category' || column.kind === 'ordinal'
+              ? `<label class="mapping-levels">
+                  ${column.kind === 'ordinal' ? tr('Scale, lowest first (comma-separated)') : tr('Categories (comma-separated)')}
+                  <input data-mapping-levels="${index}" value="${escapeHtml(
+                    (column.kind === 'ordinal' ? column.ordinalScale : column.categories)?.join(
+                      ', ',
+                    ) ?? '',
+                  )}" />
+                </label>`
+              : ''
+          }
+        </div>
+      `
+      : column.role === 'metric'
+        ? `<div class="mapping-metric"><small>${tr('{kind} metric already in this class', { kind: escapeHtml(column.kind === 'boolean' ? tr('boolean') : kindOptionLabels[column.kind]) })}</small></div>`
+        : ''
+
+  return `
+    <tr>
+      <th scope="row">${escapeHtml(state.headers[index] ?? tr('Column {n}', { n: index + 1 }))}</th>
+      <td class="mapping-samples">${sampleValues(state, index)}</td>
+      <td>
+        <select data-mapping-role="${index}" aria-label="${tr('Use column {name} as', { name: escapeHtml(state.headers[index] ?? String(index + 1)) })}">
+          ${optionHtml('ignore', tr('Ignore'), role === 'ignore')}
+          ${optionHtml('student-id', tr('Student ID'), role === 'student-id')}
+          ${optionHtml('display-name', tr('Name'), role === 'display-name')}
+          ${optionHtml('tags', tr('Tags'), role === 'tags')}
+          ${optionHtml('new-metric', tr('New metric'), role === 'new-metric')}
+          ${existingOptions}
+        </select>
+        ${metricDetails}
+      </td>
+    </tr>
+  `
+}
+
+function renderSpreadsheetPreview(state: SpreadsheetImportState): string {
+  if (state.planError) return `<p class="status">${escapeHtml(state.planError)}</p>`
+  const plan = state.plan
+  if (!plan) return `<p class="muted">${tr('Checking the spreadsheet…')}</p>`
+
+  const errors = plan.errors.length
+    ? `
+      <div class="import-errors" role="alert">
+        <h3>${tr('Fix {n} problem(s) before importing', { n: plan.errors.length })}</h3>
+        <ul>
+          ${plan.errors
+            .slice(0, 25)
+            .map(
+              (issue) =>
+                `<li>${issue.row ? `${tr('<b>Row {row}</b>', { row: issue.row })} ` : ''}${issue.column ? `(${escapeHtml(issue.column)}) ` : ''}${escapeHtml(trServer(issue.message))}</li>`,
+            )
+            .join('')}
+        </ul>
+        ${plan.errors.length > 25 ? `<p class="muted">${tr('…and {n} more.', { n: plan.errors.length - 25 })}</p>` : ''}
+        <p class="muted">${tr('Fix the cells in your spreadsheet and choose the file again, or change how the column is used.')}</p>
+      </div>
+    `
+    : ''
+
+  const changes =
+    plan.mode === 'merge' && plan.changes.length
+      ? `
+        <h3>${tr('Values that will change ({n})', { n: plan.changes.length })}</h3>
+        <div class="data-table-wrap">
+          <table class="source-table">
+            <thead><tr><th>${tr('Student')}</th><th>${tr('Field')}</th><th>${tr('Now')}</th><th>${tr('After import')}</th></tr></thead>
+            <tbody>
+              ${plan.changes
+                .slice(0, 50)
+                .map(
+                  (change) =>
+                    `<tr><td>${escapeHtml(change.studentId)}</td><td>${escapeHtml(change.field)}</td><td>${escapeHtml(change.from)}</td><td>${escapeHtml(change.to)}</td></tr>`,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      `
+      : ''
+
+  const facts = [
+    plan.mode === 'merge'
+      ? tr('{updated} existing student(s) updated, {added} added', {
+          updated: plan.studentsUpdated,
+          added: plan.studentsAdded,
+        })
+      : tr('{n} student(s)', { n: plan.studentCount }),
+    tr('{n} value(s) recorded', { n: plan.valueCount }),
+    tr('{n} blank cell(s) saved as Missing', { n: plan.missingCount }),
+    plan.newMetrics.length ? tr('{n} new metric(s)', { n: plan.newMetrics.length }) : null,
+    plan.blanksKeptExisting
+      ? tr('{n} blank cell(s) left existing values unchanged', { n: plan.blanksKeptExisting })
+      : null,
+    plan.studentsNotInFile
+      ? tr('{n} student(s) not in the file stay as they are', { n: plan.studentsNotInFile })
+      : null,
+    plan.generatedIds ? tr('No ID column: IDs s001, s002… are created in row order') : null,
+  ].filter((fact): fact is string => Boolean(fact))
+
+  return `
+    ${errors}
+    <ul class="import-facts">${facts.map((fact) => `<li>${escapeHtml(fact)}</li>`).join('')}</ul>
+    <p class="muted">${tr('Every imported value is marked <b>imported</b> from {file}. Blank cells are never turned into zero or "no".', { file: escapeHtml(state.fileName) })}</p>
+    ${changes}
+  `
+}
+
+function renderSpreadsheetImport(): void {
+  const state = spreadsheetImport
+  if (!state) return
+  const sheets = state.table.sheets
+  root.innerHTML = `
+    <main class="generator-shell">
+      <header class="generator-header">
+        <div>
+          <p class="eyebrow">${state.mode === 'merge' ? tr('Update class from spreadsheet') : tr('Import a class list')}</p>
+          <h1>${escapeHtml(state.fileName)}</h1>
+          <p>
+            ${tr(
+              'Tell ClassGraph what each column holds. Nothing is saved until you choose {action}.',
+              {
+                action:
+                  state.mode === 'merge'
+                    ? `<b>${tr('Update class')}</b>`
+                    : `<b>${tr('Create class')}</b>`,
+              },
+            )}
+            ${state.table.encoding === 'gb18030' ? tr('This CSV was read as GBK/GB18030 Chinese text.') : ''}
+          </p>
+        </div>
+        <button id="cancel-spreadsheet" class="ghost compact" type="button">${tr('Cancel')}</button>
+      </header>
+
+      <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+
+      <section class="generator-grid">
+        <article class="panel generator-config">
+          <div class="spreadsheet-options">
+            ${
+              sheets.length > 1
+                ? `<label class="compact-label">${tr('Sheet')}
+                    <select id="spreadsheet-sheet">
+                      ${sheets.map((sheet, index) => optionHtml(String(index), tr('{name} ({n} rows)', { name: sheet.name, n: Math.max(0, sheet.rows.length - 1) }), index === state.sheetIndex)).join('')}
+                    </select>
+                  </label>`
+                : ''
+            }
+            ${
+              state.mode === 'new'
+                ? `<label class="compact-label">${tr('Class name')}
+                    <input id="spreadsheet-title" value="${escapeHtml(state.title)}" />
+                  </label>`
+                : ''
+            }
+            <label class="checkbox-label">
+              <input id="spreadsheet-header-row" type="checkbox" ${state.headerRow ? 'checked' : ''} />
+              ${tr('First row is column headings')}
+            </label>
+          </div>
+          <div class="data-table-wrap">
+            <table class="source-table mapping-table">
+              <thead><tr><th>${tr('Column')}</th><th>${tr('Examples')}</th><th>${tr('Use as')}</th></tr></thead>
+              <tbody>
+                ${state.columns.map((column, index) => renderColumnMappingRow(state, column, index)).join('')}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">${tr('Preview')}</p>
+              <h2>${tr('What will happen')}</h2>
+            </div>
+          </div>
+          <div id="spreadsheet-preview">${renderSpreadsheetPreview(state)}</div>
+          <button id="apply-spreadsheet" class="primary" type="button" ${state.plan && state.plan.errors.length === 0 ? '' : 'disabled'}>
+            ${state.mode === 'merge' ? tr('Update class') : tr('Create class')}
+          </button>
+        </article>
+      </section>
+    </main>
+  `
+
+  document.querySelector('#cancel-spreadsheet')?.addEventListener('click', () => {
+    spreadsheetImport = null
+    if (project) renderWorkspace()
+    else renderSetup()
+  })
+  document
+    .querySelector<HTMLSelectElement>('#spreadsheet-sheet')
+    ?.addEventListener('change', (event) => {
+      state.sheetIndex = Number((event.currentTarget as HTMLSelectElement).value)
+      state.headerRow = true
+      void resuggestSpreadsheetColumns()
+    })
+  document
+    .querySelector<HTMLInputElement>('#spreadsheet-title')
+    ?.addEventListener('input', (event) => {
+      state.title = (event.currentTarget as HTMLInputElement).value
+    })
+  document
+    .querySelector<HTMLInputElement>('#spreadsheet-header-row')
+    ?.addEventListener('change', (event) => {
+      state.headerRow = (event.currentTarget as HTMLInputElement).checked
+      void resuggestSpreadsheetColumns()
+    })
+
+  for (const select of document.querySelectorAll<HTMLSelectElement>('[data-mapping-role]')) {
+    select.addEventListener('change', () => {
+      const index = Number(select.dataset.mappingRole)
+      const value = select.value
+      const header = state.headers[index] ?? `Column ${index + 1}`
+      if (value.startsWith('existing:')) {
+        const metric = project?.metricDefinitions.find((item) => `existing:${item.key}` === value)
+        if (metric) {
+          state.columns[index] = {
+            role: 'metric',
+            metricKey: metric.key,
+            label: metric.label,
+            kind: metric.kind,
+            existing: true,
+          }
+        }
+      } else if (value === 'new-metric') {
+        state.columns[index] = {
+          role: 'metric',
+          metricKey: metricKeyForHeader(header, index),
+          label: header,
+          kind: 'text',
+        }
+      } else {
+        state.columns[index] = { role: value as 'ignore' | 'student-id' | 'display-name' | 'tags' }
+      }
+      renderSpreadsheetImport()
+      void refreshSpreadsheetPreview()
+    })
+  }
+  for (const input of document.querySelectorAll<HTMLInputElement>('[data-mapping-label]')) {
+    input.addEventListener('input', () => {
+      const column = state.columns[Number(input.dataset.mappingLabel)]
+      if (column?.role === 'metric') column.label = input.value
+      scheduleSpreadsheetPreview()
+    })
+  }
+  for (const select of document.querySelectorAll<HTMLSelectElement>('[data-mapping-kind]')) {
+    select.addEventListener('change', () => {
+      const index = Number(select.dataset.mappingKind)
+      const column = state.columns[index]
+      if (column?.role !== 'metric') return
+      column.kind = select.value as MetricKind
+      const levels = distinctColumnValues(state, index)
+      delete column.categories
+      delete column.ordinalScale
+      if (column.kind === 'category') column.categories = levels
+      if (column.kind === 'ordinal')
+        column.ordinalScale = [...levels].sort((a, b) => a.localeCompare(b))
+      renderSpreadsheetImport()
+      void refreshSpreadsheetPreview()
+    })
+  }
+  for (const input of document.querySelectorAll<HTMLInputElement>('[data-mapping-levels]')) {
+    input.addEventListener('input', () => {
+      const column = state.columns[Number(input.dataset.mappingLevels)]
+      if (column?.role !== 'metric') return
+      const levels = input.value
+        .split(/[,，]/)
+        .map((level) => level.trim())
+        .filter(Boolean)
+      if (column.kind === 'ordinal') column.ordinalScale = levels
+      else column.categories = levels
+      scheduleSpreadsheetPreview()
+    })
+  }
+  document.querySelector('#apply-spreadsheet')?.addEventListener('click', () => {
+    void applySpreadsheetImport()
+  })
+}
+
+async function applySpreadsheetImport(): Promise<void> {
+  const state = spreadsheetImport
+  if (!state) return
+  clearStatus()
+  try {
+    const response = await postJson<ProjectResponse>('/api/import/table/apply', {
+      request: spreadsheetRequest(state),
+      ...(state.mode === 'merge' && project
+        ? { project }
+        : { projectId: projectId(), title: state.title.trim() || tr('Imported class') }),
+    })
+    spreadsheetImport = null
+    if (state.mode === 'merge') {
+      project = response.project
+      activeView = 'students'
+      renderWorkspace()
+      showStatus(tr('Class updated from the spreadsheet.'), 'success')
+    } else {
+      openProject(response.project)
+      activeView = 'students'
+      renderWorkspace()
+    }
+  } catch (error) {
+    showStatus(
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not import the spreadsheet.'),
+    )
+  }
+}
+
+async function refreshProtectionStatus(): Promise<void> {
+  if (!project || !projectLibraryView?.enabled) return
+  const projectIdForRequest = project.projectId
+  try {
+    const response = await postJson<{ protection: ProtectionStatusView }>(
+      '/api/protection/status',
+      { projectId: projectIdForRequest },
+    )
+    if (project?.projectId !== projectIdForRequest) return
+    const changed = protectionStatus?.protected !== response.protection.protected
+    protectionStatus = response.protection
+    if (changed) renderWorkspace()
+  } catch {
+    // Protection status is informational; the class still works without it.
+  }
+}
+
+const FORGOTTEN_PASSWORD_WARNING = () =>
+  tr(
+    'If you forget this password, nobody can open this class again, not even ClassGraph. There is no reset or recovery.',
+  )
+
+function renderProtection(content: HTMLElement): void {
+  if (!project) return
+  const status = protectionStatus
+  const passwordField = (id: string, label: string, autocomplete: string) => `
+    <label>
+      ${label}
+      <input id="${id}" type="password" autocomplete="${autocomplete}" minlength="8" required />
+    </label>
+  `
+
+  const enable = `
+    <article class="panel protection-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">${tr('Not protected')}</p>
+          <h2>${tr('Protect this class with a password')}</h2>
+        </div>
+      </div>
+      <p>
+        ${tr('The class file in your Documents folder is currently readable by anyone who can open it, including through OneDrive, iCloud Drive or a USB copy. With a password, the file and its automatic safety copies are encrypted (AES-256). You will be asked for the password each time you open ClassGraph.')}
+      </p>
+      <form id="enable-protection" class="stack-form protection-form">
+        ${passwordField('protect-password', tr('Password (at least 8 characters)'), 'new-password')}
+        ${passwordField('protect-confirm', tr('Type it again'), 'new-password')}
+        <p class="protection-warning" role="note"><b>${tr('Important.')}</b> ${FORGOTTEN_PASSWORD_WARNING()}</p>
+        <label class="checkbox-label">
+          <input id="protect-ack" type="checkbox" required />
+          ${tr('I understand that a forgotten password cannot be recovered.')}
+        </label>
+        <button class="primary" type="submit">${tr('Turn on password protection')}</button>
+      </form>
+      <p class="muted">
+        ${tr('Turning this on deletes the unprotected automatic safety copies of this class. Copies you saved yourself earlier, and DOCX/PDF/JSON reports you export, are not encrypted.')}
+      </p>
+    </article>
+  `
+
+  const manage = `
+    <article class="panel protection-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">${tr('Protected')}</p>
+          <h2><span aria-hidden="true">🔒</span> ${tr('This class is password protected')}</h2>
+        </div>
+        <button id="lock-now" class="secondary compact" type="button">${tr('Lock now')}</button>
+      </div>
+      <p>
+        ${tr('The class file and its automatic safety copies are encrypted. <b>Backup JSON</b> saves an encrypted copy that needs the same password to restore.')} ${FORGOTTEN_PASSWORD_WARNING()}
+      </p>
+    </article>
+    <div class="report-card-grid">
+      <article class="panel">
+        <h2>${tr('Change password')}</h2>
+        <form id="change-protection" class="stack-form protection-form">
+          ${passwordField('change-current', tr('Current password'), 'current-password')}
+          ${passwordField('change-new', tr('New password (at least 8 characters)'), 'new-password')}
+          ${passwordField('change-confirm', tr('Type the new password again'), 'new-password')}
+          <button class="secondary" type="submit">${tr('Change password')}</button>
+        </form>
+      </article>
+      <article class="panel">
+        <h2>${tr('Remove password')}</h2>
+        <p class="muted">${tr('The class file becomes readable JSON again.')}</p>
+        <form id="disable-protection" class="stack-form protection-form">
+          ${passwordField('disable-current', tr('Current password'), 'current-password')}
+          <button class="secondary" type="submit">${tr('Remove password protection')}</button>
+        </form>
+        <hr />
+        <h3>${tr('Unprotected copy')}</h3>
+        <p class="muted">${tr('Saves readable JSON somewhere you choose. Anyone with that file can read the class.')}</p>
+        <button id="plain-backup" class="ghost" type="button">${tr('Save an unprotected copy…')}</button>
+      </article>
+    </div>
+  `
+
+  content.innerHTML =
+    status === null
+      ? `<p class="muted">${tr('Checking protection…')}</p>`
+      : status.protected
+        ? manage
+        : enable
+
+  const read = (id: string) => document.querySelector<HTMLInputElement>(`#${id}`)?.value ?? ''
+  const submit = (selector: string, handler: () => Promise<void>) => {
+    document.querySelector<HTMLFormElement>(selector)?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      void handler()
+    })
+  }
+  const run = async (path: string, body: Record<string, unknown>, done: string) => {
+    clearStatus()
+    try {
+      const response = await postJson<{ protection: ProtectionStatusView }>(path, body)
+      protectionStatus = response.protection
+      renderWorkspace()
+      showStatus(done, 'success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : tr('Could not change protection.')
+      showStatus(
+        message.includes('CG-2017')
+          ? tr('The current password is not correct.')
+          : localizeError(message),
+      )
+    }
+  }
+
+  submit('#enable-protection', async () => {
+    if (!project) return
+    if (read('protect-password') !== read('protect-confirm')) {
+      showStatus(tr('The two passwords do not match.'))
+      return
+    }
+    await run(
+      '/api/protection/enable',
+      { project, password: read('protect-password') },
+      tr('Password protection is on. Keep the password somewhere safe.'),
+    )
+  })
+  submit('#change-protection', async () => {
+    if (!project) return
+    if (read('change-new') !== read('change-confirm')) {
+      showStatus(tr('The two new passwords do not match.'))
+      return
+    }
+    await run(
+      '/api/protection/change',
+      {
+        projectId: project.projectId,
+        currentPassword: read('change-current'),
+        newPassword: read('change-new'),
+      },
+      tr('Password changed. Automatic safety copies now use the new password.'),
+    )
+  })
+  submit('#disable-protection', async () => {
+    if (!project) return
+    await run(
+      '/api/protection/disable',
+      { projectId: project.projectId, currentPassword: read('disable-current') },
+      tr('Password protection removed. The class file is readable JSON again.'),
+    )
+  })
+  document.querySelector('#lock-now')?.addEventListener('click', () => {
+    void lockCurrentProject()
+  })
+  document.querySelector('#plain-backup')?.addEventListener('click', () => {
+    if (
+      window.confirm(
+        tr(
+          'Save an unprotected copy? Anyone who can open that file will be able to read this class.',
+        ),
+      )
+    ) {
+      void exportProject(true)
+    }
+  })
+}
+
+async function lockCurrentProject(): Promise<void> {
+  if (!project) return
+  try {
+    await postJson('/api/protection/lock', { projectId: project.projectId })
+    project = null
+    protectionStatus = null
+    renderSetup()
+    showStatus(tr('Class locked. Enter its password to open it again.'), 'success')
+  } catch (error) {
+    showStatus(
+      error instanceof Error ? localizeError(error.message) : tr('Could not lock the class.'),
+    )
   }
 }
 
@@ -1032,14 +2195,13 @@ function renderSyntheticBuilder(): void {
     <main class="generator-shell">
       <header class="generator-header">
         <div>
-          <p class="eyebrow">Structured synthetic generation</p>
-          <h1>Build the class specification</h1>
+          <p class="eyebrow">${tr('Structured synthetic generation')}</p>
+          <h1>${tr('Build the class specification')}</h1>
           <p>
-            Nothing here describes real students. Review the full deterministic specification
-            before ClassGraph creates fictional records.
+            ${tr('Nothing here describes real students. Review the full deterministic specification before ClassGraph creates fictional records.')}
           </p>
         </div>
-        <button id="back-to-setup" class="ghost compact" type="button">Back</button>
+        <button id="back-to-setup" class="ghost compact" type="button">${tr('Back')}</button>
       </header>
 
       <div id="status" class="status" role="status" aria-live="polite" hidden></div>
@@ -1048,19 +2210,19 @@ function renderSyntheticBuilder(): void {
         <article class="panel generator-config">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Class</p>
-              <h2>Generation settings</h2>
+              <p class="eyebrow">${tr('Class')}</p>
+              <h2>${tr('Generation settings')}</h2>
             </div>
-            <span class="schema-badge">Synthetic only</span>
+            <span class="schema-badge">${tr('Synthetic only')}</span>
           </div>
 
           <div class="generator-base-grid">
             <label>
-              Class name
+              ${tr('Class name')}
               <input id="synthetic-title" value="${escapeHtml(syntheticDraftTitle)}" />
             </label>
             <label>
-              Students
+              ${tr('Students')}
               <input
                 id="synthetic-count"
                 type="number"
@@ -1070,7 +2232,7 @@ function renderSyntheticBuilder(): void {
               />
             </label>
             <label>
-              Seed
+              ${tr('Seed')}
               <input id="synthetic-seed" value="${escapeHtml(syntheticDraftSeed)}" />
             </label>
           </div>
@@ -1082,102 +2244,101 @@ function renderSyntheticBuilder(): void {
           <form id="add-synthetic-metric" class="synthetic-metric-form">
             <div class="form-heading">
               <div>
-                <p class="eyebrow">Add synthetic metric</p>
-                <h3>Define how fictional values are generated</h3>
+                <p class="eyebrow">${tr('Add synthetic metric')}</p>
+                <h3>${tr('Define how fictional values are generated')}</h3>
               </div>
             </div>
 
             <div class="metric-form-grid synthetic-common-grid">
               <label>
-                Key
+                ${tr('Key')}
                 <input name="key" required placeholder="engagement" />
               </label>
               <label>
-                Label
-                <input name="label" required placeholder="Engagement" />
+                ${tr('Label')}
+                <input name="label" required placeholder="${tr('Engagement')}" />
               </label>
               <label>
-                Type
+                ${tr('Type')}
                 <select id="synthetic-kind" name="kind">
-                  <option value="number">Number</option>
-                  <option value="category">Category</option>
-                  <option value="ordinal">Ordinal</option>
-                  <option value="boolean">Yes / No</option>
-                  <option value="text">Text</option>
+                  <option value="number">${tr('Number')}</option>
+                  <option value="category">${tr('Category')}</option>
+                  <option value="ordinal">${tr('Ordinal')}</option>
+                  <option value="boolean">${tr('Yes / No')}</option>
+                  <option value="text">${tr('Text')}</option>
                 </select>
               </label>
               <label>
-                Missing rate
+                ${tr('Missing rate')}
                 <input name="missingRate" type="number" min="0" max="1" step="0.01" value="0" />
               </label>
             </div>
 
             <div id="synthetic-number-fields" class="synthetic-kind-fields">
               <label>
-                Distribution
+                ${tr('Distribution')}
                 <select name="distribution">
-                  <option value="normal">Normal</option>
-                  <option value="uniform">Uniform</option>
+                  <option value="normal">${tr('Normal')}</option>
+                  <option value="uniform">${tr('Uniform')}</option>
                 </select>
               </label>
               <label>
-                Minimum
+                ${tr('Minimum')}
                 <input name="min" type="number" step="any" value="0" />
               </label>
               <label>
-                Maximum
+                ${tr('Maximum')}
                 <input name="max" type="number" step="any" value="100" />
               </label>
               <label>
-                Mean
+                ${tr('Mean')}
                 <input name="mean" type="number" step="any" value="70" />
               </label>
               <label>
-                Standard deviation
+                ${tr('Standard deviation')}
                 <input name="standardDeviation" type="number" min="0.000001" step="any" value="12" />
               </label>
             </div>
 
             <div id="synthetic-values-fields" class="synthetic-kind-fields" hidden>
               <label class="wide-label">
-                Values and weights
-                <input name="values" placeholder="low:1, medium:3, high:1" />
-                <small>Use value:weight pairs. Weight must be greater than zero.</small>
+                ${tr('Values and weights')}
+                <input name="values" placeholder="${tr('low:1, medium:3, high:1')}" />
+                <small>${tr('Use value:weight pairs. Weight must be greater than zero.')}</small>
               </label>
             </div>
 
             <div id="synthetic-boolean-fields" class="synthetic-kind-fields" hidden>
               <label>
-                True rate
+                ${tr('True rate')}
                 <input name="trueRate" type="number" min="0" max="1" step="0.01" value="0.5" />
               </label>
             </div>
 
             <div id="synthetic-text-fields" class="synthetic-kind-fields" hidden>
               <label class="wide-label">
-                Generated text
-                <input name="textValue" placeholder="Optional fixed synthetic text" />
+                ${tr('Generated text')}
+                <input name="textValue" placeholder="${tr('Optional fixed synthetic text')}" />
               </label>
             </div>
 
-            <button class="secondary compact" type="submit">Add metric to specification</button>
+            <button class="secondary compact" type="submit">${tr('Add metric to specification')}</button>
           </form>
         </article>
 
         <aside class="panel generator-preview">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Review before generation</p>
-              <h2>Exact specification</h2>
+              <p class="eyebrow">${tr('Review before generation')}</p>
+              <h2>${tr('Exact specification')}</h2>
             </div>
           </div>
           <p>
-            This is the machine-readable input ClassGraph will use. The same seed and specification
-            reproduce the same student values.
+            ${tr('This is the machine-readable input ClassGraph will use. The same seed and specification reproduce the same student values.')}
           </p>
-          <pre id="synthetic-preview"></pre>
+          <pre id="synthetic-preview" tabindex="0" aria-label="${tr('Preview of the class definition')}"></pre>
           <button id="generate-structured-class" class="primary" type="button">
-            Generate synthetic class
+            ${tr('Generate synthetic class')}
           </button>
         </aside>
       </section>
@@ -1195,18 +2356,25 @@ function renderSyntheticDraftMetric(metric: SyntheticDraftMetric, index: number)
     case 'number':
       description =
         metric.distribution === 'normal'
-          ? `normal · mean ${metric.mean} · SD ${metric.standardDeviation} · ${metric.min}–${metric.max}`
-          : `uniform · ${metric.min}–${metric.max}`
+          ? tr('normal · mean {mean} · SD {sd} · {min}–{max}', {
+              mean: metric.mean,
+              sd: metric.standardDeviation,
+              min: metric.min,
+              max: metric.max,
+            })
+          : tr('uniform · {min}–{max}', { min: metric.min, max: metric.max })
       break
     case 'category':
     case 'ordinal':
       description = metric.values.map((item) => `${item.value}×${item.weight}`).join(', ')
       break
     case 'boolean':
-      description = `true rate ${metric.trueRate}`
+      description = tr('true rate {rate}', { rate: metric.trueRate })
       break
     case 'text':
-      description = metric.value ? `fixed text: ${metric.value}` : 'empty text'
+      description = metric.value
+        ? tr('fixed text: {text}', { text: metric.value })
+        : tr('empty text')
       break
   }
 
@@ -1215,13 +2383,13 @@ function renderSyntheticDraftMetric(metric: SyntheticDraftMetric, index: number)
       <div>
         <b>${escapeHtml(metric.label)}</b>
         <span>${escapeHtml(metric.key)} · ${escapeHtml(metric.kind)}</span>
-        <small>${escapeHtml(description)} · missing rate ${metric.missingRate}</small>
+        <small>${escapeHtml(description)} · ${tr('missing rate {rate}', { rate: metric.missingRate })}</small>
       </div>
       <button
         type="button"
         class="icon-button danger-text"
         data-remove-synthetic-metric="${index}"
-        title="Remove synthetic metric"
+        title="${tr('Remove synthetic metric')}"
       >×</button>
     </div>
   `
@@ -1237,7 +2405,7 @@ function bindSyntheticBuilder(): void {
   const seed = document.querySelector<HTMLInputElement>('#synthetic-seed')
 
   const syncBase = () => {
-    syntheticDraftTitle = title?.value.trim() || 'Synthetic Class'
+    syntheticDraftTitle = title?.value.trim() || tr('Synthetic Class')
     syntheticDraftStudentCount = Number(count?.value ?? 36)
     syntheticDraftSeed = seed?.value.trim() || 'classgraph-demo'
     refreshSyntheticPreview()
@@ -1261,12 +2429,16 @@ function bindSyntheticBuilder(): void {
       try {
         const metric = syntheticDraftMetricFromForm(new FormData(form))
         if (syntheticDraftMetrics.some((item) => item.key === metric.key)) {
-          throw new Error(`Metric key already exists: ${metric.key}`)
+          throw new Error(tr('Metric key already exists: {key}', { key: metric.key }))
         }
         syntheticDraftMetrics.push(metric)
         renderSyntheticBuilder()
       } catch (error) {
-        showStatus(error instanceof Error ? error.message : 'Could not add synthetic metric.')
+        showStatus(
+          error instanceof Error
+            ? localizeError(error.message)
+            : tr('Could not add synthetic metric.'),
+        )
       }
     })
 
@@ -1307,11 +2479,11 @@ function syntheticDraftMetricFromForm(data: FormData): SyntheticDraftMetric {
   const missingRate = Number(asString(data, 'missingRate') || '0')
 
   if (!key || !/^[a-z0-9][a-z0-9._-]*$/i.test(key)) {
-    throw new Error('Metric key must use letters, numbers, dots, underscores, or hyphens.')
+    throw new Error(tr('Metric key must use letters, numbers, dots, underscores, or hyphens.'))
   }
-  if (!label) throw new Error('Metric label is required.')
+  if (!label) throw new Error(tr('Metric label is required.'))
   if (!Number.isFinite(missingRate) || missingRate < 0 || missingRate > 1) {
-    throw new Error('Missing rate must be between 0 and 1.')
+    throw new Error(tr('Missing rate must be between 0 and 1.'))
   }
 
   if (kind === 'number') {
@@ -1322,11 +2494,11 @@ function syntheticDraftMetricFromForm(data: FormData): SyntheticDraftMetric {
     const standardDeviation = Number(asString(data, 'standardDeviation'))
 
     if (![min, max, mean, standardDeviation].every(Number.isFinite)) {
-      throw new Error('Numeric generator settings must be valid numbers.')
+      throw new Error(tr('Numeric generator settings must be valid numbers.'))
     }
-    if (min > max) throw new Error('Minimum cannot be greater than maximum.')
+    if (min > max) throw new Error(tr('Minimum cannot be greater than maximum.'))
     if (distribution === 'normal' && standardDeviation <= 0) {
-      throw new Error('Standard deviation must be greater than zero.')
+      throw new Error(tr('Standard deviation must be greater than zero.'))
     }
 
     return {
@@ -1350,7 +2522,7 @@ function syntheticDraftMetricFromForm(data: FormData): SyntheticDraftMetric {
   if (kind === 'boolean') {
     const trueRate = Number(asString(data, 'trueRate'))
     if (!Number.isFinite(trueRate) || trueRate < 0 || trueRate > 1) {
-      throw new Error('True rate must be between 0 and 1.')
+      throw new Error(tr('True rate must be between 0 and 1.'))
     }
     return { key, label, kind, missingRate, trueRate }
   }
@@ -1375,13 +2547,13 @@ function parseWeightedValues(input: string): Array<{ value: string; weight: numb
       const weightText = separator >= 0 ? part.slice(separator + 1).trim() : '1'
       const weight = Number(weightText)
       if (!value || !Number.isFinite(weight) || weight <= 0) {
-        throw new Error('Values must use value:weight pairs with positive weights.')
+        throw new Error(tr('Values must use value:weight pairs with positive weights.'))
       }
       return { value, weight }
     })
 
   if (values.length === 0) {
-    throw new Error('Category and ordinal metrics require at least one value.')
+    throw new Error(tr('Category and ordinal metrics require at least one value.'))
   }
 
   return values
@@ -1394,10 +2566,10 @@ function buildSyntheticSpecification(): Record<string, unknown> {
     syntheticDraftStudentCount < 1 ||
     syntheticDraftStudentCount > 500
   ) {
-    throw new Error('Student count must be an integer from 1 to 500.')
+    throw new Error(tr('Student count must be an integer from 1 to 500.'))
   }
-  if (!syntheticDraftTitle.trim()) throw new Error('Class name is required.')
-  if (!syntheticDraftSeed.trim()) throw new Error('Seed is required.')
+  if (!syntheticDraftTitle.trim()) throw new Error(tr('Class name is required.'))
+  if (!syntheticDraftSeed.trim()) throw new Error(tr('Seed is required.'))
 
   const metricDefinitions = syntheticDraftMetrics.map((metric) => {
     if (metric.kind === 'number') {
@@ -1493,7 +2665,8 @@ function refreshSyntheticPreview(): void {
   try {
     preview.textContent = JSON.stringify(buildSyntheticSpecification(), null, 2)
   } catch (error) {
-    preview.textContent = error instanceof Error ? error.message : 'Specification is incomplete.'
+    preview.textContent =
+      error instanceof Error ? localizeError(error.message) : tr('Specification is incomplete.')
   }
 }
 
@@ -1505,12 +2678,18 @@ async function generateStructuredClass(): Promise<void> {
     const response = await postJson<ProjectResponse>('/api/synthetic/generate', specification)
     openProject(response.project)
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not generate the synthetic class.')
+    showStatus(
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not generate the synthetic class.'),
+    )
   }
 }
 
 function openProject(nextProject: ClassGraphProject): void {
   project = nextProject
+  protectionStatus = null
+  void refreshProtectionStatus()
   activeView = 'overview'
   selectedProvenanceStudentId = null
   assistanceRequestView = null
@@ -1526,6 +2705,7 @@ function renderWorkspace(): void {
   }
 
   root.innerHTML = `
+    <a class="skip-link" href="#workspace-content">${tr('Skip to workspace content')}</a>
     <div class="workspace-shell">
       <aside class="sidebar">
         <div class="sidebar-brand">
@@ -1535,44 +2715,53 @@ function renderWorkspace(): void {
           <strong>ClassGraph</strong>
         </div>
 
-        <nav class="workspace-nav" aria-label="Workspace">
-          <button data-view="overview">Overview</button>
-          <button data-view="students">Students</button>
-          <button data-view="graphs">Graphs</button>
-          <button data-view="relationships">Relationships</button>
-          <button data-view="seating">Seating</button>
-          <button data-view="assistance">Assistance</button>
-          <button data-view="reports">Reports</button>
+        <nav class="workspace-nav" aria-label="${tr('Workspace')}">
+          <button data-view="overview">${tr('Overview')}</button>
+          <button data-view="students">${tr('Students')}</button>
+          <button data-view="graphs">${tr('Graphs')}</button>
+          <button data-view="relationships">${tr('Relationships')}</button>
+          <button data-view="seating">${tr('Seating')}</button>
+          <button data-view="assistance">${tr('Assistance')}</button>
+          <button data-view="reports">${tr('Reports')}</button>
+          <button data-view="terms">${tr('Terms')}</button>
         </nav>
 
         <div class="sidebar-footer">
           <span class="local-dot"></span>
-          Saved automatically
+          ${tr('Saved automatically')}
+          ${updateStatus?.available ? `<button id="sidebar-update" class="sidebar-update" type="button">${tr('Update {version} available', { version: escapeHtml(updateStatus.latestVersion ?? '') })}</button>` : ''}
         </div>
+        <div class="sidebar-appearance">${languageControl()}${appearanceControl()}</div>
       </aside>
 
       <main class="workspace-main">
         <header class="workspace-header">
           <div>
-            <p class="eyebrow">Class workspace</p>
+            <p class="eyebrow">${tr('Class workspace')}</p>
             <h1>${escapeHtml(project.title)}</h1>
             <p class="workspace-meta">${workspaceMeta(project)}</p>
           </div>
           <div class="header-actions">
-            <button id="export-json" class="secondary compact">Backup JSON</button>
-            <button id="new-project" class="ghost compact">Projects</button>
-            ${desktopMode ? '<button id="quit-app" class="ghost compact">Quit</button>' : ''}
+            <button id="export-json" class="secondary compact">${tr('Backup JSON')}</button>
+            ${
+              projectLibraryView?.enabled
+                ? `<button id="protection-button" class="ghost compact">${protectionStatus?.protected ? `🔒 ${tr('Password')}` : tr('Password…')}</button>`
+                : ''
+            }
+            <button id="new-project" class="ghost compact">${tr('Projects')}</button>
+            ${desktopMode ? `<button id="quit-app" class="ghost compact">${tr('Quit')}</button>` : ''}
           </div>
         </header>
 
         <div id="status" class="status" role="status" aria-live="polite" hidden></div>
-        <section id="workspace-content"></section>
+        <section id="workspace-content" tabindex="-1"></section>
       </main>
     </div>
   `
 
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-view]')) {
     button.classList.toggle('active', button.dataset.view === activeView)
+    if (button.dataset.view === activeView) button.setAttribute('aria-current', 'page')
     button.addEventListener('click', () => {
       const nextView = button.dataset.view
       if (
@@ -1582,16 +2771,31 @@ function renderWorkspace(): void {
         nextView === 'relationships' ||
         nextView === 'seating' ||
         nextView === 'assistance' ||
-        nextView === 'reports'
+        nextView === 'reports' ||
+        nextView === 'terms'
       ) {
         activeView = nextView
         renderWorkspace()
+        // The sidebar is redrawn, so keep keyboard focus on the chosen item.
+        document.querySelector<HTMLButtonElement>(`[data-view="${nextView}"]`)?.focus()
       }
     })
   }
 
+  document.querySelector<HTMLAnchorElement>('.skip-link')?.addEventListener('click', (event) => {
+    event.preventDefault()
+    document.querySelector<HTMLElement>('#workspace-content')?.focus()
+  })
   document.querySelector<HTMLButtonElement>('#export-json')?.addEventListener('click', () => {
     void exportProject()
+  })
+  document.querySelector<HTMLButtonElement>('#protection-button')?.addEventListener('click', () => {
+    activeView = 'protection'
+    renderWorkspace()
+  })
+  document.querySelector<HTMLButtonElement>('#sidebar-update')?.addEventListener('click', () => {
+    project = null
+    renderSetup()
   })
   document.querySelector<HTMLButtonElement>('#new-project')?.addEventListener('click', () => {
     project = null
@@ -1609,7 +2813,7 @@ function workspaceMeta(current: ClassGraphProject): string {
   const parts = [
     current.classInfo.subject,
     current.classInfo.gradeOrLevel,
-    `${current.students.length} students`,
+    tr('{n} students', { n: current.students.length }),
   ].filter((item): item is string => Boolean(item))
   return parts.map(escapeHtml).join(' · ')
 }
@@ -1648,12 +2852,22 @@ function renderWorkspaceContent(): void {
     return
   }
 
+  if (activeView === 'protection') {
+    renderProtection(content)
+    return
+  }
+
+  if (activeView === 'terms') {
+    renderTerms(content)
+    return
+  }
+
   renderGraphs(content)
 }
 
 function formatNumber(value: number | null): string {
   if (value === null) return '—'
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value)
+  return new Intl.NumberFormat(uiLocale(), { maximumFractionDigits: 2 }).format(value)
 }
 
 function completenessPercent(completeness: ProjectAnalysis['completeness']): string {
@@ -1662,7 +2876,7 @@ function completenessPercent(completeness: ProjectAnalysis['completeness']): str
 }
 
 async function loadOverviewAnalysis(): Promise<ProjectAnalysis> {
-  if (!project) throw new Error('No ClassGraph project is open.')
+  if (!project) throw new Error(tr('No ClassGraph project is open.'))
   const response = await postJson<{ analysis: ProjectAnalysis }>('/api/analysis/project', {
     project,
   })
@@ -1674,8 +2888,8 @@ async function renderOverview(content: HTMLElement): Promise<void> {
   const sourceProject = project
   content.innerHTML = `
     <article class="panel analysis-loading">
-      <p class="eyebrow">Overview</p>
-      <h2>Calculating descriptive summaries…</h2>
+      <p class="eyebrow">${tr('Overview')}</p>
+      <h2>${tr('Calculating descriptive summaries…')}</h2>
     </article>
   `
 
@@ -1696,8 +2910,13 @@ async function renderOverview(content: HTMLElement): Promise<void> {
         const summary = metric.summary
         const detail =
           metric.kind === 'number'
-            ? `median ${formatNumber(metric.summary.median)} · mean ${formatNumber(metric.summary.mean)}`
-            : `${Object.keys(metric.summary.counts).length} recorded categories/values`
+            ? tr('median {median} · mean {mean}', {
+                median: formatNumber(metric.summary.median),
+                mean: formatNumber(metric.summary.mean),
+              })
+            : tr('{count} recorded categories/values', {
+                count: Object.keys(metric.summary.counts).length,
+              })
         return `
           <tr>
             <td><strong>${escapeHtml(metric.label)}</strong><small>${escapeHtml(metric.key)}</small></td>
@@ -1712,24 +2931,24 @@ async function renderOverview(content: HTMLElement): Promise<void> {
     content.innerHTML = `
       <div class="metric-cards overview-cards">
         <article class="metric-card">
-          <span>Students</span>
+          <span>${tr('Students')}</span>
           <strong>${analysis.studentCount}</strong>
-          <small>Current roster size</small>
+          <small>${tr('Current roster size')}</small>
         </article>
         <article class="metric-card">
-          <span>Recorded cells</span>
+          <span>${tr('Recorded cells')}</span>
           <strong>${analysis.completeness.recordedCount}</strong>
-          <small>${completenessPercent(analysis.completeness)} of defined metric cells</small>
+          <small>${tr('{percent} of defined metric cells', { percent: completenessPercent(analysis.completeness) })}</small>
         </article>
         <article class="metric-card">
-          <span>Explicit missing</span>
+          <span>${tr('Explicit missing')}</span>
           <strong>${analysis.completeness.explicitMissingCount}</strong>
-          <small>Deliberately stored as missing</small>
+          <small>${tr('Deliberately stored as missing')}</small>
         </article>
         <article class="metric-card">
-          <span>Unrecorded</span>
+          <span>${tr('Unrecorded')}</span>
           <strong>${analysis.completeness.unrecordedCount}</strong>
-          <small>No value stored</small>
+          <small>${tr('No value stored')}</small>
         </article>
       </div>
 
@@ -1737,33 +2956,31 @@ async function renderOverview(content: HTMLElement): Promise<void> {
         <article class="panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Metric overview</p>
-              <h2>Descriptive only</h2>
+              <p class="eyebrow">${tr('Metric overview')}</p>
+              <h2>${tr('Descriptive only')}</h2>
             </div>
-            <span class="schema-badge">Exchange ${escapeHtml(project.schemaVersion)}</span>
+            <span class="schema-badge">${tr('Exchange {version}', { version: escapeHtml(project.schemaVersion) })}</span>
           </div>
           <p>
-            These summaries describe recorded project data. Missing values are not replaced with
-            zero, averages, or inferred values.
+            ${tr('These summaries describe recorded project data. Missing values are not replaced with zero, averages, or inferred values.')}
           </p>
           <div class="data-table-wrap">
             <table class="source-table metric-summary-table">
               <thead>
-                <tr><th>Metric</th><th>Recorded</th><th>Missing / unrecorded</th><th>Summary</th></tr>
+                <tr><th>${tr('Metric')}</th><th>${tr('Recorded')}</th><th>${tr('Missing / unrecorded')}</th><th>${tr('Summary')}</th></tr>
               </thead>
               <tbody>
-                ${metricRows || '<tr><td colspan="4" class="empty-cell">Add a metric to begin descriptive analysis.</td></tr>'}
+                ${metricRows || `<tr><td colspan="4" class="empty-cell">${tr('Add a metric to begin descriptive analysis.')}</td></tr>`}
               </tbody>
             </table>
           </div>
         </article>
 
         <article class="panel quiet">
-          <p class="eyebrow">Provenance</p>
-          <h2>Source remains visible</h2>
+          <p class="eyebrow">${tr('Provenance')}</p>
+          <h2>${tr('Source remains visible')}</h2>
           <p>
-            Manual edits, imported fields, derived values and synthetic data remain distinguishable.
-            Open Students → Sources to inspect field-level provenance.
+            ${tr('Manual edits, imported fields, derived values and synthetic data remain distinguishable. Open Students → Sources to inspect field-level provenance.')}
           </p>
           <div class="provenance-row">
             ${Object.entries(provenanceKinds)
@@ -1780,9 +2997,9 @@ async function renderOverview(content: HTMLElement): Promise<void> {
     if (project !== sourceProject || activeView !== 'overview') return
     content.innerHTML = `
       <article class="panel empty-state">
-        <p class="eyebrow">Overview unavailable</p>
-        <h2>ClassGraph could not build the descriptive summary</h2>
-        <p>${escapeHtml(error instanceof Error ? error.message : 'Unknown analysis error.')}</p>
+        <p class="eyebrow">${tr('Overview unavailable')}</p>
+        <h2>${tr('ClassGraph could not build the descriptive summary')}</h2>
+        <p>${escapeHtml(error instanceof Error ? localizeError(error.message) : tr('Unknown analysis error.'))}</p>
       </article>
     `
   }
@@ -1793,44 +3010,44 @@ function metricDefinitionForm(): string {
     <form id="add-metric-form" class="metric-form">
       <div class="form-heading">
         <div>
-          <p class="eyebrow">Metric definition</p>
-          <h3>Add a field</h3>
+          <p class="eyebrow">${tr('Metric definition')}</p>
+          <h3>${tr('Add a field')}</h3>
         </div>
-        <small>Meaning comes from your definition, not ClassGraph.</small>
+        <small>${tr('Meaning comes from your definition, not ClassGraph.')}</small>
       </div>
       <div class="metric-form-grid">
         <label>
-          Key
-          <input name="key" required placeholder="assessment" pattern="[A-Za-z0-9][A-Za-z0-9._-]*" />
+          ${tr('Key')}
+          <input name="key" required placeholder="${tr('assessment')}" pattern="[A-Za-z0-9][A-Za-z0-9._-]*" />
         </label>
         <label>
-          Label
-          <input name="label" required placeholder="Assessment" />
+          ${tr('Label')}
+          <input name="label" required placeholder="${tr('Assessment')}" />
         </label>
         <label>
-          Type
+          ${tr('Type')}
           <select name="kind">
-            <option value="number">Number</option>
-            <option value="category">Category</option>
-            <option value="ordinal">Ordinal</option>
-            <option value="boolean">Yes / No</option>
-            <option value="text">Text</option>
+            <option value="number">${tr('Number')}</option>
+            <option value="category">${tr('Category')}</option>
+            <option value="ordinal">${tr('Ordinal')}</option>
+            <option value="boolean">${tr('Yes / No')}</option>
+            <option value="text">${tr('Text')}</option>
           </select>
         </label>
         <label>
-          Values / scale
-          <input name="values" placeholder="low, medium, high" />
+          ${tr('Values / scale')}
+          <input name="values" placeholder="${tr('low, medium, high')}" />
         </label>
         <label>
-          Minimum
+          ${tr('Minimum')}
           <input name="min" type="number" step="any" placeholder="0" />
         </label>
         <label>
-          Maximum
+          ${tr('Maximum')}
           <input name="max" type="number" step="any" placeholder="100" />
         </label>
       </div>
-      <button class="secondary compact" type="submit">Add metric</button>
+      <button class="secondary compact" type="submit">${tr('Add metric')}</button>
     </form>
   `
 }
@@ -1860,35 +3077,43 @@ function renderStudents(content: HTMLElement): void {
                 class="icon-button danger-text"
                 type="button"
                 data-remove-metric="${escapeHtml(definition.key)}"
-                title="Remove metric and its values"
+                title="${tr('Remove metric and its values')}"
               >×</button>
             </span>
           `,
         )
         .join('')
-    : '<span class="muted">No custom metrics yet.</span>'
+    : `<span class="muted">${tr('No custom metrics yet.')}</span>`
 
   content.innerHTML = `
     <div class="roster-layout">
       <article class="panel roster-tools">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Roster</p>
-            <h2>Students</h2>
+            <p class="eyebrow">${tr('Roster')}</p>
+            <h2>${tr('Students')}</h2>
           </div>
-          <span class="schema-badge">${project.students.length} records</span>
+          <span class="schema-badge">${tr('{count} records', { count: project.students.length })}</span>
+        </div>
+
+        <div class="spreadsheet-update">
+          <label class="file-input compact-file">
+            ${tr('Update from spreadsheet (.xlsx or .csv)')}
+            <input id="spreadsheet-update-file" type="file" accept=".xlsx,.csv,.tsv,.txt,text/csv" />
+          </label>
+          <small>${tr('Matches students by ID. You review every change before it is saved.')}</small>
         </div>
 
         <form id="add-student-form" class="inline-form">
           <label>
-            Student ID
+            ${tr('Student ID')}
             <input name="id" required placeholder="s-001" />
           </label>
           <label>
-            Display name
-            <input name="displayName" placeholder="Optional" />
+            ${tr('Display name')}
+            <input name="displayName" placeholder="${tr('Optional')}" />
           </label>
-          <button class="primary compact" type="submit">Add student</button>
+          <button class="primary compact" type="submit">${tr('Add student')}</button>
         </form>
 
         ${metricDefinitionForm()}
@@ -1900,17 +3125,17 @@ function renderStudents(content: HTMLElement): void {
 
       <article class="panel roster-table-panel">
         <div class="table-note">
-          <span><b>Not recorded</b> = no value stored.</span>
-          <span><b>Missing</b> = explicitly recorded as unavailable.</span>
+          <span>${tr('<b>Not recorded</b> = no value stored.')}</span>
+          <span>${tr('<b>Missing</b> = explicitly recorded as unavailable.')}</span>
         </div>
         <div class="data-table-wrap">
           <table class="data-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Name</th>
+                <th>${tr('ID')}</th>
+                <th>${tr('Name')}</th>
                 ${metricHeaders}
-                <th>Sources</th>
+                <th>${tr('Sources')}</th>
                 <th></th>
               </tr>
             </thead>
@@ -1932,7 +3157,7 @@ function renderEmptyRosterRow(metricCount: number): string {
   return `
     <tr>
       <td colspan="${metricCount + 4}" class="empty-cell">
-        No students yet. Add a student above or import a project.
+        ${tr('No students yet. Add a student above or import a project.')}
       </td>
     </tr>
   `
@@ -1954,13 +3179,13 @@ function renderStudentRow(student: StudentRecord, index: number): string {
             class="cell-input"
             data-student-name="${escapeHtml(student.id)}"
             value="${escapeHtml(student.displayName ?? '')}"
-            placeholder="Optional name"
+            placeholder="${tr('Optional name')}"
           />
           <button
             class="icon-button"
             type="button"
             data-save-student="${escapeHtml(student.id)}"
-            title="Save name"
+            title="${tr('Save name')}"
           >✓</button>
         </div>
       </td>
@@ -1970,14 +3195,14 @@ function renderStudentRow(student: StudentRecord, index: number): string {
           class="ghost compact"
           type="button"
           data-sources="${escapeHtml(student.id)}"
-        >Sources</button>
+        >${tr('Sources')}</button>
       </td>
       <td>
         <button
           class="icon-button danger-text"
           type="button"
           data-remove-student="${escapeHtml(student.id)}"
-          title="Remove student"
+          title="${tr('Remove student')}"
         >×</button>
       </td>
     </tr>
@@ -2018,11 +3243,13 @@ function renderMetricCell(
       ? ` max="${definition.numberScale.max}"`
       : ''
 
+  const cellName = escapeHtml(`${student.displayName ?? student.id}, ${definition.label}`)
   return `
     <td>
       <div class="metric-editor" data-metric-editor="${index}:${escapeHtml(definition.key)}">
         <select
           class="state-select"
+          aria-label="${tr('{cell}: whether a value is recorded', { cell: cellName })}"
           data-metric-state="${escapeHtml(student.id)}:${escapeHtml(definition.key)}"
         >
           ${stateOptions(state)}
@@ -2030,6 +3257,7 @@ function renderMetricCell(
         <input
           class="cell-input metric-value-input"
           type="${inputType}"${step}${min}${max}
+          aria-label="${cellName}"
           data-metric-value="${escapeHtml(student.id)}:${escapeHtml(definition.key)}"
           value="${escapeHtml(displayedValue)}"
           ${state === 'recorded' ? '' : 'disabled'}
@@ -2038,7 +3266,8 @@ function renderMetricCell(
           class="icon-button"
           type="button"
           data-save-metric="${escapeHtml(student.id)}:${escapeHtml(definition.key)}"
-          title="Save metric"
+          title="${tr('Save metric')}"
+          aria-label="${tr('Save {cell}', { cell: cellName })}"
         >✓</button>
       </div>
     </td>
@@ -2062,8 +3291,8 @@ function renderSelectMetricCell(
   }
 
   const specialOptions = [
-    optionHtml('__unrecorded__', 'Not recorded', state === 'unrecorded'),
-    optionHtml('__missing__', 'Missing', state === 'missing'),
+    optionHtml('__unrecorded__', tr('Not recorded'), state === 'unrecorded'),
+    optionHtml('__missing__', tr('Missing'), state === 'missing'),
   ]
 
   const valueOptions = options.map((option) =>
@@ -2074,6 +3303,7 @@ function renderSelectMetricCell(
     <td>
       <select
         class="cell-select"
+        aria-label="${escapeHtml(`${student.displayName ?? student.id}, ${definition.label}`)}"
         data-select-metric="${escapeHtml(student.id)}:${escapeHtml(definition.key)}"
       >
         ${[...specialOptions, ...valueOptions].join('')}
@@ -2084,9 +3314,9 @@ function renderSelectMetricCell(
 
 function stateOptions(selected: MetricState): string {
   return [
-    optionHtml('recorded', 'Recorded', selected === 'recorded'),
-    optionHtml('missing', 'Missing', selected === 'missing'),
-    optionHtml('unrecorded', 'Not recorded', selected === 'unrecorded'),
+    optionHtml('recorded', tr('Recorded'), selected === 'recorded'),
+    optionHtml('missing', tr('Missing'), selected === 'missing'),
+    optionHtml('unrecorded', tr('Not recorded'), selected === 'unrecorded'),
   ].join('')
 }
 
@@ -2113,9 +3343,11 @@ function renderProvenanceInspector(): string {
         .map(([path, entry]) => {
           const field = path.slice(prefix.length)
           const details = [
-            entry.source ? `source: ${entry.source}` : '',
+            entry.source ? tr('source: {source}', { source: entry.source }) : '',
             entry.note ?? '',
-            entry.derivedFrom?.length ? `derived from: ${entry.derivedFrom.join(', ')}` : '',
+            entry.derivedFrom?.length
+              ? tr('derived from: {fields}', { fields: entry.derivedFrom.join(', ') })
+              : '',
           ]
             .filter(Boolean)
             .map(escapeHtml)
@@ -2125,30 +3357,29 @@ function renderProvenanceInspector(): string {
             <tr>
               <td><code>${escapeHtml(field)}</code></td>
               <td><span class="source-kind">${escapeHtml(entry.kind)}</span></td>
-              <td>${details || '<span class="muted">No extra source note</span>'}</td>
+              <td>${details || `<span class="muted">${tr('No extra source note')}</span>`}</td>
             </tr>
           `
         })
         .join('')
-    : '<tr><td colspan="3" class="empty-cell">No field-level provenance is recorded for this student.</td></tr>'
+    : `<tr><td colspan="3" class="empty-cell">${tr('No field-level provenance is recorded for this student.')}</td></tr>`
 
   return `
     <article class="panel provenance-inspector">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">Field provenance</p>
+          <p class="eyebrow">${tr('Field provenance')}</p>
           <h2>${escapeHtml(student.displayName ?? student.id)}</h2>
         </div>
-        <button id="close-provenance" class="ghost compact" type="button">Close</button>
+        <button id="close-provenance" class="ghost compact" type="button">${tr('Close')}</button>
       </div>
       <p>
-        These are recorded sources, not ClassGraph guesses. A missing entry means no field-level
-        source record exists for that path.
+        ${tr('These are recorded sources, not ClassGraph guesses. A missing entry means no field-level source record exists for that path.')}
       </p>
       <div class="data-table-wrap">
         <table class="source-table">
           <thead>
-            <tr><th>Field</th><th>Kind</th><th>Source detail</th></tr>
+            <tr><th>${tr('Field')}</th><th>${tr('Kind')}</th><th>${tr('Source detail')}</th></tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
@@ -2158,6 +3389,12 @@ function renderProvenanceInspector(): string {
 }
 
 function bindStudentViewEvents(): void {
+  document
+    .querySelector<HTMLInputElement>('#spreadsheet-update-file')
+    ?.addEventListener('change', (event) => {
+      const file = (event.currentTarget as HTMLInputElement).files?.[0]
+      if (file) void startSpreadsheetImport(file, 'merge')
+    })
   document
     .querySelector<HTMLFormElement>('#add-student-form')
     ?.addEventListener('submit', (event) => {
@@ -2204,7 +3441,11 @@ function bindStudentViewEvents(): void {
     button.addEventListener('click', () => {
       const studentId = button.dataset.removeStudent
       if (!studentId) return
-      if (!window.confirm(`Remove student ${studentId}? This also removes their relationships.`)) {
+      if (
+        !window.confirm(
+          tr('Remove student {id}? This also removes their relationships.', { id: studentId }),
+        )
+      ) {
         return
       }
       if (selectedProvenanceStudentId === studentId) selectedProvenanceStudentId = null
@@ -2216,7 +3457,11 @@ function bindStudentViewEvents(): void {
     button.addEventListener('click', () => {
       const metricKey = button.dataset.removeMetric
       if (!metricKey) return
-      if (!window.confirm(`Remove metric "${metricKey}" and all of its recorded values?`)) {
+      if (
+        !window.confirm(
+          tr('Remove metric "{key}" and all of its recorded values?', { key: metricKey }),
+        )
+      ) {
         return
       }
       void mutateProject({ type: 'remove-metric-definition', metricKey })
@@ -2377,12 +3622,12 @@ async function saveInputMetric(studentId: string, definition: MetricDefinition):
 
   if (definition.kind === 'number') {
     if (!raw.trim()) {
-      showStatus('Enter a number, or choose Missing / Not recorded.')
+      showStatus(tr('Enter a number, or choose Missing / Not recorded.'))
       return
     }
     const parsed = Number(raw)
     if (!Number.isFinite(parsed)) {
-      showStatus('Enter a valid number.')
+      showStatus(tr('Enter a valid number.'))
       return
     }
     value = parsed
@@ -2426,41 +3671,42 @@ function renderSeating(content: HTMLElement): void {
       <article class="panel room-editor-panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Room</p>
-            <h2>Classroom grid</h2>
+            <p class="eyebrow">${tr('Room')}</p>
+            <h2>${tr('Classroom grid')}</h2>
           </div>
-          <span class="schema-badge">${capacity} enabled seats</span>
+          <span class="schema-badge">${tr('{count} enabled seats', { count: capacity })}</span>
         </div>
 
         <form id="room-form" class="phase2-form-grid">
           <label>
-            Rows
+            ${tr('Rows')}
             <input name="rows" type="number" min="1" max="1000" value="${room?.rows ?? 5}" required />
           </label>
           <label>
-            Columns
+            ${tr('Columns')}
             <input name="columns" type="number" min="1" max="1000" value="${room?.columns ?? 8}" required />
           </label>
           <label>
-            Front of room
+            ${tr('Front of room')}
             <select name="front">
-              ${['top', 'bottom', 'left', 'right']
-                .map((value) =>
-                  optionHtml(
-                    value,
-                    value[0]!.toUpperCase() + value.slice(1),
-                    (room?.front ?? 'top') === value,
-                  ),
-                )
+              ${(
+                [
+                  ['top', tr('Top')],
+                  ['bottom', tr('Bottom')],
+                  ['left', tr('Left')],
+                  ['right', tr('Right')],
+                ] as const
+              )
+                .map(([value, label]) => optionHtml(value, label, (room?.front ?? 'top') === value))
                 .join('')}
             </select>
           </label>
-          <button class="primary compact" type="submit">${room ? 'Update room' : 'Create room'}</button>
+          <button class="primary compact" type="submit">${room ? tr('Update room') : tr('Create room')}</button>
         </form>
 
-        ${shortfall > 0 ? `<p class="capacity-warning">Enabled capacity is ${capacity} for ${current.students.length} students. Add/enable at least ${shortfall} more seat(s) before generating a complete seating plan.</p>` : ''}
+        ${shortfall > 0 ? `<p class="capacity-warning">${tr('Enabled capacity is {capacity} for {students} students. Add/enable at least {shortfall} more seat(s) before generating a complete seating plan.', { capacity, students: current.students.length, shortfall })}</p>` : ''}
 
-        ${room ? renderRoomGrid(room) : '<div class="empty-analysis"><p>Create a room grid to begin seating.</p></div>'}
+        ${room ? renderRoomGrid(room) : `<div class="empty-analysis"><p>${tr('Create a room grid to begin seating.')}</p></div>`}
       </article>
 
       ${room ? renderSeatTable(room) : ''}
@@ -2476,13 +3722,13 @@ function renderSeating(content: HTMLElement): void {
 
 function renderRoomGrid(room: RoomRecord): string {
   if (room.layout !== 'grid' || !room.columns) {
-    return '<div class="empty-analysis"><p>Custom room editing is not part of Phase 2 yet.</p></div>'
+    return `<div class="empty-analysis"><p>${tr('Custom room editing is not part of Phase 2 yet.')}</p></div>`
   }
 
   const seatCards = room.seats
     .map((seat) => {
       const assignment = assignmentForSeat(seat.id)
-      const label = assignment ? studentLabel(assignment.studentId) : 'Empty'
+      const label = assignment ? studentLabel(assignment.studentId) : tr('Empty')
       return `
         <button
           class="seat-card ${seat.enabled ? '' : 'disabled'} ${assignment ? 'occupied' : ''}"
@@ -2490,11 +3736,24 @@ function renderRoomGrid(room: RoomRecord): string {
           data-toggle-seat="${escapeHtml(seat.id)}"
           data-seat-drop="${escapeHtml(seat.id)}"
           ${assignment ? `draggable="true" data-drag-student="${escapeHtml(assignment.studentId)}"` : ''}
-          title="${seat.enabled ? 'Disable seat' : 'Enable seat'}"
+          title="${seat.enabled ? tr('Disable seat') : tr('Enable seat')}"
+          aria-label="${escapeHtml(
+            seat.enabled
+              ? tr('Row {row}, column {column}: {label}, enabled. Press to disable this seat.', {
+                  row: (seat.row ?? 0) + 1,
+                  column: (seat.column ?? 0) + 1,
+                  label,
+                })
+              : tr('Row {row}, column {column}: {label}, disabled. Press to enable this seat.', {
+                  row: (seat.row ?? 0) + 1,
+                  column: (seat.column ?? 0) + 1,
+                  label,
+                }),
+          )}"
         >
           <b>${escapeHtml(label)}</b>
-          <span>R${(seat.row ?? 0) + 1} · C${(seat.column ?? 0) + 1}</span>
-          <small>${seat.tags?.length ? escapeHtml(seat.tags.join(', ')) : seat.enabled ? 'Enabled' : 'Disabled'}</small>
+          <span>${tr('R{row} · C{column}', { row: (seat.row ?? 0) + 1, column: (seat.column ?? 0) + 1 })}</span>
+          <small>${seat.tags?.length ? escapeHtml(seat.tags.join(', ')) : seat.enabled ? tr('Enabled') : tr('Disabled')}</small>
         </button>
       `
     })
@@ -2502,7 +3761,7 @@ function renderRoomGrid(room: RoomRecord): string {
 
   return `
     <div class="room-stage front-${escapeHtml(room.front ?? 'top')}">
-      <div class="front-marker">Front of room</div>
+      <div class="front-marker">${tr('Front of room')}</div>
       <div class="seat-grid" style="grid-template-columns: repeat(${room.columns}, minmax(72px, 1fr))">
         ${seatCards}
       </div>
@@ -2516,17 +3775,17 @@ function renderSeatTable(room: RoomRecord): string {
       (seat) => `
         <tr>
           <td><code>${escapeHtml(seat.id)}</code></td>
-          <td>R${(seat.row ?? 0) + 1} / C${(seat.column ?? 0) + 1}</td>
-          <td>${seat.enabled ? 'Enabled' : 'Disabled'}</td>
+          <td>${tr('R{row} / C{column}', { row: (seat.row ?? 0) + 1, column: (seat.column ?? 0) + 1 })}</td>
+          <td>${seat.enabled ? tr('Enabled') : tr('Disabled')}</td>
           <td>
             <div class="inline-editor">
-              <input data-seat-tags="${escapeHtml(seat.id)}" value="${escapeHtml((seat.tags ?? []).join(', '))}" placeholder="front, aisle" />
-              <button class="ghost compact" type="button" data-save-seat-tags="${escapeHtml(seat.id)}">Save</button>
+              <input data-seat-tags="${escapeHtml(seat.id)}" value="${escapeHtml((seat.tags ?? []).join(', '))}" placeholder="${tr('front, aisle')}" />
+              <button class="ghost compact" type="button" data-save-seat-tags="${escapeHtml(seat.id)}">${tr('Save')}</button>
             </div>
           </td>
           <td>
             <button class="secondary compact" type="button" data-seat-enabled="${escapeHtml(seat.id)}" data-next-enabled="${seat.enabled ? 'false' : 'true'}">
-              ${seat.enabled ? 'Disable' : 'Enable'}
+              ${seat.enabled ? tr('Disable') : tr('Enable')}
             </button>
           </td>
         </tr>
@@ -2537,11 +3796,11 @@ function renderSeatTable(room: RoomRecord): string {
   return `
     <article class="panel">
       <div class="panel-heading">
-        <div><p class="eyebrow">Table equivalent</p><h2>Seat geometry</h2></div>
+        <div><p class="eyebrow">${tr('Table equivalent')}</p><h2>${tr('Seat geometry')}</h2></div>
       </div>
       <div class="data-table-wrap">
         <table class="source-table">
-          <thead><tr><th>Seat</th><th>Position</th><th>Status</th><th>Tags</th><th></th></tr></thead>
+          <thead><tr><th>${tr('Seat')}</th><th>${tr('Position')}</th><th>${tr('Status')}</th><th>${tr('Tags')}</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -2561,13 +3820,13 @@ function renderManualAssignments(): string {
           .map((item) => item.seatId),
       )
       const options = [
-        '<option value="">Unassigned</option>',
+        `<option value="">${tr('Unassigned')}</option>`,
         ...enabledSeats
           .filter((seat) => !occupiedByOthers.has(seat.id))
           .map((seat) =>
             optionHtml(
               seat.id,
-              `R${(seat.row ?? 0) + 1} C${(seat.column ?? 0) + 1}${seat.tags?.length ? ` · ${seat.tags.join('/')}` : ''}`,
+              `${tr('R{row} C{column}', { row: (seat.row ?? 0) + 1, column: (seat.column ?? 0) + 1 })}${seat.tags?.length ? ` · ${seat.tags.join('/')}` : ''}`,
               assignment?.seatId === seat.id,
             ),
           ),
@@ -2576,11 +3835,11 @@ function renderManualAssignments(): string {
       return `
         <tr>
           <td>${escapeHtml(student.displayName ?? student.id)}</td>
-          <td><select data-assignment-seat="${escapeHtml(student.id)}">${options}</select></td>
+          <td><select aria-label="${escapeHtml(tr('Seat for {student}', { student: student.displayName ?? student.id }))}" data-assignment-seat="${escapeHtml(student.id)}">${options}</select></td>
           <td>
             <label class="lock-toggle">
               <input type="checkbox" data-assignment-lock="${escapeHtml(student.id)}" ${assignment?.locked ? 'checked' : ''} ${assignment ? '' : 'disabled'} />
-              Locked
+              ${tr('Locked')}
             </label>
           </td>
         </tr>
@@ -2598,20 +3857,20 @@ function renderManualAssignments(): string {
             `<span class="student-drag-chip" draggable="true" data-drag-student="${escapeHtml(student.id)}">${escapeHtml(student.displayName ?? student.id)}</span>`,
         )
         .join('')}</div>`
-    : '<p class="muted">All students are assigned.</p>'
+    : `<p class="muted">${tr('All students are assigned.')}</p>`
 
   return `
     <article class="panel">
       <div class="panel-heading">
-        <div><p class="eyebrow">Manual seating</p><h2>Assignments and locks</h2></div>
-        <span class="schema-badge">${assigned}/${project.students.length} assigned</span>
+        <div><p class="eyebrow">${tr('Manual seating')}</p><h2>${tr('Assignments and locks')}</h2></div>
+        <span class="schema-badge">${tr('{assigned}/{total} assigned', { assigned, total: project.students.length })}</span>
       </div>
-      <p>Manual assignments are teacher decisions. Drag a student onto an enabled seat or use the table. Lock any assignment that candidate generation must preserve.</p>
+      <p>${tr('Manual assignments are teacher decisions. Drag a student onto an enabled seat or use the table. Lock any assignment that candidate generation must preserve.')}</p>
       ${unassignedHtml}
       <div class="data-table-wrap">
         <table class="source-table">
-          <thead><tr><th>Student</th><th>Seat</th><th>Lock</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="3" class="empty-cell">No students in the roster.</td></tr>'}</tbody>
+          <thead><tr><th>${tr('Student')}</th><th>${tr('Seat')}</th><th>${tr('Lock')}</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="3" class="empty-cell">${tr('No students in the roster.')}</td></tr>`}</tbody>
         </table>
       </div>
     </article>
@@ -2621,19 +3880,42 @@ function renderManualAssignments(): string {
 function ruleDescription(rule: PlanningRule): string {
   switch (rule.kind) {
     case 'fixed-seat':
-      return `${studentLabel(rule.studentId)} fixed to ${rule.seatId}`
+      return tr('{student} fixed to {seat}', {
+        student: studentLabel(rule.studentId),
+        seat: rule.seatId,
+      })
     case 'keep-apart':
-      return `${studentLabel(rule.studentAId)} apart from ${studentLabel(rule.studentBId)} (${rule.neighbourMode ?? 'orthogonal'})`
+      return rule.neighbourMode === 'king'
+        ? tr('{studentA} apart from {studentB} (king)', {
+            studentA: studentLabel(rule.studentAId),
+            studentB: studentLabel(rule.studentBId),
+          })
+        : tr('{studentA} apart from {studentB} (orthogonal)', {
+            studentA: studentLabel(rule.studentAId),
+            studentB: studentLabel(rule.studentBId),
+          })
     case 'seat-tag-required':
-      return `${studentLabel(rule.studentId)} requires tag "${rule.tag}"`
+      return tr('{student} requires tag "{tag}"', {
+        student: studentLabel(rule.studentId),
+        tag: rule.tag,
+      })
     case 'prefer-together':
-      return `Prefer ${studentLabel(rule.studentAId)} near ${studentLabel(rule.studentBId)}`
+      return tr('Prefer {studentA} near {studentB}', {
+        studentA: studentLabel(rule.studentAId),
+        studentB: studentLabel(rule.studentBId),
+      })
     case 'prefer-apart':
-      return `Prefer ${studentLabel(rule.studentAId)} away from ${studentLabel(rule.studentBId)}`
+      return tr('Prefer {studentA} away from {studentB}', {
+        studentA: studentLabel(rule.studentAId),
+        studentB: studentLabel(rule.studentBId),
+      })
     case 'prefer-seat-tag':
-      return `Prefer ${studentLabel(rule.studentId)} in tag "${rule.tag}"`
+      return tr('Prefer {student} in tag "{tag}"', {
+        student: studentLabel(rule.studentId),
+        tag: rule.tag,
+      })
     case 'balance-metric-by-row':
-      return `Balance ${rule.metricKey} across rows`
+      return tr('Balance {metric} across rows', { metric: rule.metricKey })
   }
 }
 
@@ -2661,7 +3943,7 @@ function renderRuleEditor(): string {
     .map(
       (rule) => `
         <tr>
-          <td><span class="rule-strength ${rule.strength}">${rule.strength}</span></td>
+          <td><span class="rule-strength ${rule.strength}">${rule.strength === 'hard' ? tr('hard') : tr('soft')}</span></td>
           <td><code>${escapeHtml(rule.kind)}</code></td>
           <td>${escapeHtml(ruleDescription(rule))}</td>
           <td>${rule.strength === 'soft' ? String(rule.weight ?? 1) : '—'}</td>
@@ -2674,36 +3956,36 @@ function renderRuleEditor(): string {
   return `
     <article class="panel">
       <div class="panel-heading">
-        <div><p class="eyebrow">Planning rules</p><h2>Hard constraints and soft objectives</h2></div>
-        <span class="schema-badge">${rules.length} rules</span>
+        <div><p class="eyebrow">${tr('Planning rules')}</p><h2>${tr('Hard constraints and soft objectives')}</h2></div>
+        <span class="schema-badge">${tr('{count} rules', { count: rules.length })}</span>
       </div>
-      <p>Hard constraints determine feasibility. Soft objectives may trade off; their penalties remain visible.</p>
+      <p>${tr('Hard constraints determine feasibility. Soft objectives may trade off; their penalties remain visible.')}</p>
       <form id="planning-rule-form" class="rule-form">
         <label>
-          Rule
+          ${tr('Rule')}
           <select name="kind">
-            <option value="fixed-seat">Hard · fixed seat</option>
-            <option value="keep-apart">Hard · keep apart</option>
-            <option value="seat-tag-required">Hard · seat tag required</option>
-            <option value="prefer-together">Soft · prefer together</option>
-            <option value="prefer-apart">Soft · prefer apart</option>
-            <option value="prefer-seat-tag">Soft · prefer seat tag</option>
-            <option value="balance-metric-by-row">Soft · balance metric by row</option>
+            <option value="fixed-seat">${tr('Hard · fixed seat')}</option>
+            <option value="keep-apart">${tr('Hard · keep apart')}</option>
+            <option value="seat-tag-required">${tr('Hard · seat tag required')}</option>
+            <option value="prefer-together">${tr('Soft · prefer together')}</option>
+            <option value="prefer-apart">${tr('Soft · prefer apart')}</option>
+            <option value="prefer-seat-tag">${tr('Soft · prefer seat tag')}</option>
+            <option value="balance-metric-by-row">${tr('Soft · balance metric by row')}</option>
           </select>
         </label>
-        <label>Student A<select name="studentAId">${studentOptions}</select></label>
-        <label>Student B<select name="studentBId">${studentOptions}</select></label>
-        <label>Seat<select name="seatId">${seatOptions}</select></label>
-        <label>Tag<input name="tag" placeholder="front" /></label>
-        <label>Metric<select name="metricKey"><option value="">—</option>${metricOptions}</select></label>
-        <label>Weight<input name="weight" type="number" min="0.01" step="0.25" value="1" /></label>
-        <label>Neighbour<select name="neighbourMode"><option value="orthogonal">Orthogonal</option><option value="king">Including diagonal</option></select></label>
-        <button class="secondary compact" type="submit">Add rule</button>
+        <label>${tr('Student A')}<select name="studentAId">${studentOptions}</select></label>
+        <label>${tr('Student B')}<select name="studentBId">${studentOptions}</select></label>
+        <label>${tr('Seat')}<select name="seatId">${seatOptions}</select></label>
+        <label>${tr('Tag')}<input name="tag" placeholder="${tr('front')}" /></label>
+        <label>${tr('Metric')}<select name="metricKey"><option value="">—</option>${metricOptions}</select></label>
+        <label>${tr('Weight')}<input name="weight" type="number" min="0.01" step="0.25" value="1" /></label>
+        <label>${tr('Neighbour')}<select name="neighbourMode"><option value="orthogonal">${tr('Orthogonal')}</option><option value="king">${tr('Including diagonal')}</option></select></label>
+        <button class="secondary compact" type="submit">${tr('Add rule')}</button>
       </form>
       <div class="data-table-wrap">
         <table class="source-table">
-          <thead><tr><th>Strength</th><th>Rule</th><th>Meaning</th><th>Weight</th><th></th></tr></thead>
-          <tbody>${ruleRows || '<tr><td colspan="5" class="empty-cell">No planning rules yet.</td></tr>'}</tbody>
+          <thead><tr><th>${tr('Strength')}</th><th>${tr('Rule')}</th><th>${tr('Meaning')}</th><th>${tr('Weight')}</th><th></th></tr></thead>
+          <tbody>${ruleRows || `<tr><td colspan="5" class="empty-cell">${tr('No planning rules yet.')}</td></tr>`}</tbody>
         </table>
       </div>
     </article>
@@ -2715,13 +3997,13 @@ function renderSeatingGenerator(seed: string): string {
   return `
     <article class="panel">
       <div class="panel-heading">
-        <div><p class="eyebrow">Candidate seating</p><h2>Generate and compare three plans</h2></div>
+        <div><p class="eyebrow">${tr('Candidate seating')}</p><h2>${tr('Generate and compare three plans')}</h2></div>
       </div>
       <form id="seating-generator-form" class="candidate-controls">
-        <label>Seed<input name="seed" value="${escapeHtml(seed)}" required /></label>
-        <button class="primary compact" type="submit">Generate candidates</button>
+        <label>${tr('Seed')}<input name="seed" value="${escapeHtml(seed)}" required /></label>
+        <button class="primary compact" type="submit">${tr('Generate candidates')}</button>
       </form>
-      ${result ? renderSeatingGeneration(result) : '<p class="muted">Generate candidates to compare hard-constraint status and objective-by-objective penalties.</p>'}
+      ${result ? renderSeatingGeneration(result) : `<p class="muted">${tr('Generate candidates to compare hard-constraint status and objective-by-objective penalties.')}</p>`}
     </article>
   `
 }
@@ -2730,9 +4012,9 @@ function renderSeatingGeneration(result: SeatingGenerationView): string {
   if (!result.candidates.length) {
     return `
       <div class="infeasible-panel">
-        <h3>No feasible candidate produced</h3>
-        <ul>${result.infeasibleReasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join('')}</ul>
-        <p>ClassGraph does not silently violate hard constraints. Change the room, locks, or hard rules and rerun.</p>
+        <h3>${tr('No feasible candidate produced')}</h3>
+        <ul>${result.infeasibleReasons.map((reason) => `<li>${escapeHtml(trServer(reason))}</li>`).join('')}</ul>
+        <p>${tr('ClassGraph does not silently violate hard constraints. Change the room, locks, or hard rules and rerun.')}</p>
       </div>
     `
   }
@@ -2748,21 +4030,21 @@ function renderSeatingCandidate(candidate: SeatingCandidateView): string {
   const hardResults = candidate.hardConstraintResults
     .map(
       (item) => `
-        <tr><td>${escapeHtml(item.kind)}</td><td>${item.satisfied ? 'Satisfied' : 'Violated'}</td><td>${escapeHtml(item.message)}</td></tr>
+        <tr><td>${escapeHtml(item.kind)}</td><td>${item.satisfied ? tr('Satisfied') : tr('Violated')}</td><td>${escapeHtml(trServer(item.message))}</td></tr>
       `,
     )
     .join('')
   const objectives = candidate.objectiveResults
     .map(
       (item) => `
-        <tr><td>${escapeHtml(item.kind)}</td><td>${numberLabel(item.penalty)}</td><td>${escapeHtml(item.details)}</td></tr>
+        <tr><td>${escapeHtml(item.kind)}</td><td>${numberLabel(item.penalty)}</td><td>${escapeHtml(trServer(item.details))}</td></tr>
       `,
     )
     .join('')
   const assignments = candidate.assignments
     .map(
       (item) => `
-        <tr><td>${escapeHtml(studentLabel(item.studentId))}</td><td>${escapeHtml(item.seatId)}</td><td>${item.locked ? 'Locked' : ''}</td></tr>
+        <tr><td>${escapeHtml(studentLabel(item.studentId))}</td><td>${escapeHtml(item.seatId)}</td><td>${item.locked ? tr('Locked') : ''}</td></tr>
       `,
     )
     .join('')
@@ -2770,23 +4052,23 @@ function renderSeatingCandidate(candidate: SeatingCandidateView): string {
   return `
     <section class="candidate-card">
       <div class="candidate-heading">
-        <div><b>${escapeHtml(candidate.id)}</b><small>Seed ${escapeHtml(candidate.seed)}</small></div>
-        <span class="candidate-penalty">Penalty ${numberLabel(candidate.totalPenalty)}</span>
+        <div><b>${escapeHtml(candidate.id)}</b><small>${tr('Seed {seed}', { seed: escapeHtml(candidate.seed) })}</small></div>
+        <span class="candidate-penalty">${tr('Penalty {penalty}', { penalty: numberLabel(candidate.totalPenalty) })}</span>
       </div>
-      <ul class="candidate-explanation">${candidate.explanation.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>
+      <ul class="candidate-explanation">${candidate.explanation.map((line) => `<li>${escapeHtml(trServer(line))}</li>`).join('')}</ul>
       <details>
-        <summary>Hard constraints</summary>
-        <table class="mini-table"><thead><tr><th>Rule</th><th>Status</th><th>Detail</th></tr></thead><tbody>${hardResults || '<tr><td colspan="3">No hard constraints.</td></tr>'}</tbody></table>
+        <summary>${tr('Hard constraints')}</summary>
+        <table class="mini-table"><thead><tr><th>${tr('Rule')}</th><th>${tr('Status')}</th><th>${tr('Detail')}</th></tr></thead><tbody>${hardResults || `<tr><td colspan="3">${tr('No hard constraints.')}</td></tr>`}</tbody></table>
       </details>
       <details>
-        <summary>Objective components</summary>
-        <table class="mini-table"><thead><tr><th>Objective</th><th>Penalty</th><th>Detail</th></tr></thead><tbody>${objectives || '<tr><td colspan="3">No soft objectives.</td></tr>'}</tbody></table>
+        <summary>${tr('Objective components')}</summary>
+        <table class="mini-table"><thead><tr><th>${tr('Objective')}</th><th>${tr('Penalty')}</th><th>${tr('Detail')}</th></tr></thead><tbody>${objectives || `<tr><td colspan="3">${tr('No soft objectives.')}</td></tr>`}</tbody></table>
       </details>
       <details>
-        <summary>Assignments</summary>
-        <table class="mini-table"><thead><tr><th>Student</th><th>Seat</th><th></th></tr></thead><tbody>${assignments}</tbody></table>
+        <summary>${tr('Assignments')}</summary>
+        <table class="mini-table"><thead><tr><th>${tr('Student')}</th><th>${tr('Seat')}</th><th></th></tr></thead><tbody>${assignments}</tbody></table>
       </details>
-      <button class="secondary compact" type="button" data-apply-seat-candidate="${escapeHtml(candidate.id)}">Apply candidate</button>
+      <button class="secondary compact" type="button" data-apply-seat-candidate="${escapeHtml(candidate.id)}">${tr('Apply candidate')}</button>
     </section>
   `
 }
@@ -2803,14 +4085,14 @@ function renderGroupingGenerator(seed: string): string {
   return `
     <article class="panel">
       <div class="panel-heading">
-        <div><p class="eyebrow">Grouping</p><h2>Deterministic group candidates</h2></div>
+        <div><p class="eyebrow">${tr('Grouping')}</p><h2>${tr('Deterministic group candidates')}</h2></div>
       </div>
-      <p>Optional metric balancing uses only the selected recorded field; missing values are ignored and reported.</p>
+      <p>${tr('Optional metric balancing uses only the selected recorded field; missing values are ignored and reported.')}</p>
       <form id="grouping-generator-form" class="candidate-controls">
-        <label>Groups<input name="groupCount" type="number" min="2" max="${Math.max(2, project.students.length)}" value="${Math.min(4, Math.max(2, project.students.length))}" /></label>
-        <label>Balance metric<select name="metricKey"><option value="">None</option>${numericOptions}</select></label>
-        <label>Seed<input name="seed" value="${escapeHtml(seed)}" required /></label>
-        <button class="primary compact" type="submit">Generate groups</button>
+        <label>${tr('Groups')}<input name="groupCount" type="number" min="2" max="${Math.max(2, project.students.length)}" value="${Math.min(4, Math.max(2, project.students.length))}" /></label>
+        <label>${tr('Balance metric')}<select name="metricKey"><option value="">${tr('None')}</option>${numericOptions}</select></label>
+        <label>${tr('Seed')}<input name="seed" value="${escapeHtml(seed)}" required /></label>
+        <button class="primary compact" type="submit">${tr('Generate groups')}</button>
       </form>
       ${groupingGeneration ? renderGroupingGeneration(groupingGeneration) : renderCurrentGroups()}
     </article>
@@ -2819,19 +4101,19 @@ function renderGroupingGenerator(seed: string): string {
 
 function renderCurrentGroups(): string {
   const groups = project?.planning?.groups ?? []
-  if (!groups.length) return '<p class="muted">No saved groups yet.</p>'
+  if (!groups.length) return `<p class="muted">${tr('No saved groups yet.')}</p>`
   return `<div class="candidate-grid">${groups.map((group) => renderSavedGroup(group)).join('')}</div>`
 }
 
 function renderSavedGroup(group: PlanningGroup): string {
   return `
     <section class="candidate-card">
-      <div class="candidate-heading"><b>${escapeHtml(group.label ?? group.id)}</b><span>${group.studentIds.length} students</span></div>
+      <div class="candidate-heading"><b>${escapeHtml(group.label ?? group.id)}</b><span>${tr('{n} students', { n: group.studentIds.length })}</span></div>
       <ul class="group-member-list">
         ${group.studentIds
           .map((studentId) => {
             const locked = group.lockedStudentIds?.includes(studentId) ?? false
-            return `<li><span>${escapeHtml(studentLabel(studentId))}</span><label><input type="checkbox" data-group-lock="${escapeHtml(group.id)}:${escapeHtml(studentId)}" ${locked ? 'checked' : ''}/> lock</label></li>`
+            return `<li><span>${escapeHtml(studentLabel(studentId))}</span><label><input type="checkbox" data-group-lock="${escapeHtml(group.id)}:${escapeHtml(studentId)}" ${locked ? 'checked' : ''}/> ${tr('lock')}</label></li>`
           })
           .join('')}
       </ul>
@@ -2846,35 +4128,35 @@ function renderGroupingGeneration(result: GroupingGenerationView): string {
         .map(
           (candidate) => `
             <section class="candidate-card">
-              <div class="candidate-heading"><div><b>${escapeHtml(candidate.id)}</b><small>Penalty ${numberLabel(candidate.totalPenalty)}</small></div></div>
-              <ul class="candidate-explanation">${candidate.explanation.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>
+              <div class="candidate-heading"><div><b>${escapeHtml(candidate.id)}</b><small>${tr('Penalty {value}', { value: numberLabel(candidate.totalPenalty) })}</small></div></div>
+              <ul class="candidate-explanation">${candidate.explanation.map((line) => `<li>${escapeHtml(trServer(line))}</li>`).join('')}</ul>
               <div class="group-columns">
                 ${candidate.groups
                   .map(
                     (group) => `
                       <div class="group-column">
                         <b>${escapeHtml(group.label ?? group.id)}</b>
-                        <ul>${group.studentIds.map((id) => `<li>${escapeHtml(studentLabel(id))}${group.lockedStudentIds?.includes(id) ? ' · locked' : ''}</li>`).join('')}</ul>
+                        <ul>${group.studentIds.map((id) => `<li>${escapeHtml(studentLabel(id))}${group.lockedStudentIds?.includes(id) ? ` · ${tr('locked')}` : ''}</li>`).join('')}</ul>
                       </div>
                     `,
                   )
                   .join('')}
               </div>
               <details>
-                <summary>Group assignment table</summary>
+                <summary>${tr('Group assignment table')}</summary>
                 <table class="mini-table">
-                  <thead><tr><th>Group</th><th>Student</th><th>Lock</th></tr></thead>
+                  <thead><tr><th>${tr('Group')}</th><th>${tr('Student')}</th><th>${tr('Lock')}</th></tr></thead>
                   <tbody>${candidate.groups
                     .flatMap((group) =>
                       group.studentIds.map(
                         (id) =>
-                          `<tr><td>${escapeHtml(group.label ?? group.id)}</td><td>${escapeHtml(studentLabel(id))}</td><td>${group.lockedStudentIds?.includes(id) ? 'Locked' : ''}</td></tr>`,
+                          `<tr><td>${escapeHtml(group.label ?? group.id)}</td><td>${escapeHtml(studentLabel(id))}</td><td>${group.lockedStudentIds?.includes(id) ? tr('Locked') : ''}</td></tr>`,
                       ),
                     )
                     .join('')}</tbody>
                 </table>
               </details>
-              <button class="secondary compact" type="button" data-apply-group-candidate="${escapeHtml(candidate.id)}">Apply groups</button>
+              <button class="secondary compact" type="button" data-apply-group-candidate="${escapeHtml(candidate.id)}">${tr('Apply groups')}</button>
             </section>
           `,
         )
@@ -2911,7 +4193,7 @@ function planningRuleFromForm(data: FormData): PlanningRule | null {
   }
   if (kind === 'seat-tag-required') {
     if (!tag) {
-      showStatus('Enter a seat tag for this hard rule.')
+      showStatus(tr('Enter a seat tag for this hard rule.'))
       return null
     }
     return { id, strength: 'hard', kind, studentId: studentAId, tag }
@@ -2921,14 +4203,14 @@ function planningRuleFromForm(data: FormData): PlanningRule | null {
   }
   if (kind === 'prefer-seat-tag') {
     if (!tag) {
-      showStatus('Enter a seat tag for this objective.')
+      showStatus(tr('Enter a seat tag for this objective.'))
       return null
     }
     return { id, strength: 'soft', kind, studentId: studentAId, tag, weight }
   }
   if (kind === 'balance-metric-by-row') {
     if (!metricKey) {
-      showStatus('Choose a numeric or ordinal metric to balance.')
+      showStatus(tr('Choose a numeric or ordinal metric to balance.'))
       return null
     }
     return { id, strength: 'soft', kind, metricKey, weight }
@@ -2957,7 +4239,7 @@ function bindSeatingEvents(): void {
       if (!seatId || !studentId) return
       const occupant = assignmentForSeat(seatId)
       if (occupant && occupant.studentId !== studentId) {
-        showStatus('That seat is already occupied.')
+        showStatus(tr('That seat is already occupied.'))
         return
       }
       const locked = assignmentForStudent(studentId)?.locked ?? false
@@ -2982,7 +4264,7 @@ function bindSeatingEvents(): void {
       const seat = project?.room?.seats.find((item) => item.id === seatId)
       if (!seatId || !seat) return
       if (seat.enabled && assignmentForSeat(seatId)) {
-        showStatus('Unassign the student before disabling this seat.')
+        showStatus(tr('Unassign the student before disabling this seat.'))
         return
       }
       void mutateProject({ type: 'set-seat-enabled', seatId, enabled: !seat.enabled })
@@ -2995,7 +4277,7 @@ function bindSeatingEvents(): void {
       if (!seatId) return
       const enabled = button.dataset.nextEnabled === 'true'
       if (!enabled && assignmentForSeat(seatId)) {
-        showStatus('Unassign the student before disabling this seat.')
+        showStatus(tr('Unassign the student before disabling this seat.'))
         return
       }
       void mutateProject({ type: 'set-seat-enabled', seatId, enabled })
@@ -3130,7 +4412,11 @@ async function generateSeating(data: FormData): Promise<void> {
     groupingGeneration = null
     renderWorkspace()
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not generate seating candidates.')
+    showStatus(
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not generate seating candidates.'),
+    )
   }
 }
 
@@ -3151,7 +4437,11 @@ async function generateGrouping(data: FormData): Promise<void> {
     seatingGeneration = null
     renderWorkspace()
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not generate grouping candidates.')
+    showStatus(
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not generate grouping candidates.'),
+    )
   }
 }
 
@@ -3191,9 +4481,11 @@ async function downloadReportExport(path: string, fallback: string): Promise<voi
     anchor.click()
     anchor.remove()
     URL.revokeObjectURL(url)
-    showStatus('Export created locally.', 'success')
+    showStatus(tr('Export created locally.'), 'success')
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not create the export.')
+    showStatus(
+      error instanceof Error ? localizeError(error.message) : tr('Could not create the export.'),
+    )
   }
 }
 
@@ -3215,52 +4507,49 @@ function renderReports(content: HTMLElement): void {
       <article class="panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Portable exports</p>
-            <h2>Reports and hand-back files</h2>
+            <p class="eyebrow">${tr('Portable exports')}</p>
+            <h2>${tr('Reports and hand-back files')}</h2>
           </div>
-          <span class="schema-badge">Phase 3 · local only</span>
+          <span class="schema-badge">${tr('Phase 3 · local only')}</span>
         </div>
         <p>
-          Exports are generated on this device from the currently validated project. ClassGraph
-          does not upload the class or keep a server-side copy of these files.
+          ${tr('Exports are generated on this device from the currently validated project. ClassGraph does not upload the class or keep a server-side copy of these files.')}
         </p>
         <div class="report-summary-grid">
-          <div><b>${project.students.length}</b><span>students</span></div>
-          <div><b>${assignmentCount}</b><span>approved seats</span></div>
-          <div><b>${groupCount}</b><span>saved groups</span></div>
-          <div><b>${ruleCount}</b><span>planning rules</span></div>
-          <div><b>${syntheticCount}</b><span>synthetic paths</span></div>
-          <div><b>${derivedCount}</b><span>derived paths</span></div>
+          <div><b>${project.students.length}</b><span>${tr('students')}</span></div>
+          <div><b>${assignmentCount}</b><span>${tr('approved seats')}</span></div>
+          <div><b>${groupCount}</b><span>${tr('saved groups')}</span></div>
+          <div><b>${ruleCount}</b><span>${tr('planning rules')}</span></div>
+          <div><b>${syntheticCount}</b><span>${tr('synthetic paths')}</span></div>
+          <div><b>${derivedCount}</b><span>${tr('derived paths')}</span></div>
         </div>
       </article>
 
       <div class="report-card-grid">
         <article class="panel report-card">
-          <p class="eyebrow">Machine-readable</p>
-          <h2>Portable JSON</h2>
-          <p>Versioned files for backup, analysis interchange, seating hand-off, and EduBoard mapping.</p>
+          <p class="eyebrow">${tr('Machine-readable')}</p>
+          <h2>${tr('Portable JSON')}</h2>
+          <p>${tr('Versioned files for backup, analysis interchange, seating hand-off, and EduBoard mapping.')}</p>
           <div class="report-actions">
-            <button class="secondary" type="button" data-report-export="/api/export/project-json" data-fallback="classgraph-project.json">Project JSON</button>
-            <button class="secondary" type="button" data-report-export="/api/export/analysis-json" data-fallback="classgraph-analysis.json">Analysis JSON</button>
-            <button class="secondary" type="button" data-report-export="/api/export/seating-json" data-fallback="classgraph-seating-plan.json" ${hasSeatingPlan ? '' : 'disabled'}>Seating Plan JSON</button>
-            <button class="secondary" type="button" data-report-export="/api/export/eduboard-json" data-fallback="classgraph-eduboard-handback.json">EduBoard Hand-back JSON</button>
+            <button class="secondary" type="button" data-report-export="/api/export/project-json" data-fallback="classgraph-project.json">${tr('Project JSON')}</button>
+            <button class="secondary" type="button" data-report-export="/api/export/analysis-json" data-fallback="classgraph-analysis.json">${tr('Analysis JSON')}</button>
+            <button class="secondary" type="button" data-report-export="/api/export/seating-json" data-fallback="classgraph-seating-plan.json" ${hasSeatingPlan ? '' : 'disabled'}>${tr('Seating Plan JSON')}</button>
+            <button class="secondary" type="button" data-report-export="/api/export/eduboard-json" data-fallback="classgraph-eduboard-handback.json">${tr('EduBoard Hand-back JSON')}</button>
           </div>
-          ${hasSeatingPlan ? '' : '<p class="report-note">Create a room and persist at least one seating assignment to enable seating-plan exports.</p>'}
+          ${hasSeatingPlan ? '' : `<p class="report-note">${tr('Create a room and persist at least one seating assignment to enable seating-plan exports.')}</p>`}
         </article>
 
         <article class="panel report-card">
-          <p class="eyebrow">Human-readable</p>
-          <h2>DOCX and PDF</h2>
-          <p>Descriptive reports include provenance, missing-data notes, current tables, approved planning, rules, and limitations.</p>
+          <p class="eyebrow">${tr('Human-readable')}</p>
+          <h2>${tr('DOCX and PDF')}</h2>
+          <p>${tr('Descriptive reports include provenance, missing-data notes, current tables, approved planning, rules, and limitations.')}</p>
           <div class="report-actions">
-            <button class="primary" type="button" data-report-export="/api/export/docx" data-fallback="classgraph-report.docx">DOCX Report</button>
-            <button class="secondary" type="button" data-report-export="/api/export/pdf" data-fallback="classgraph-report.pdf">PDF Report</button>
-            <button class="secondary" type="button" data-report-export="/api/export/seating-pdf" data-fallback="classgraph-seating-plan.pdf" ${hasSeatingPlan ? '' : 'disabled'}>Landscape Seating PDF</button>
+            <button class="primary" type="button" data-report-export="/api/export/docx" data-fallback="classgraph-report.docx">${tr('DOCX Report')}</button>
+            <button class="secondary" type="button" data-report-export="/api/export/pdf" data-fallback="classgraph-report.pdf">${tr('PDF Report')}</button>
+            <button class="secondary" type="button" data-report-export="/api/export/seating-pdf" data-fallback="classgraph-seating-plan.pdf" ${hasSeatingPlan ? '' : 'disabled'}>${tr('Landscape Seating PDF')}</button>
           </div>
           <p class="report-note">
-            DOCX supports Unicode names such as Chinese characters. The current lean PDF renderer
-            uses a built-in Latin font and refuses unsupported Unicode with CG-5004 rather than
-            replacing or corrupting text.
+            ${tr('DOCX and PDF both support Chinese names. PDFs embed only the characters they use. If a PDF would need a character ClassGraph cannot draw (for example an emoji), export stops with CG-5004 and names the character instead of dropping it; DOCX still works.')}
           </p>
         </article>
       </div>
@@ -3268,26 +4557,22 @@ function renderReports(content: HTMLElement): void {
       <article class="panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Report contents</p>
-            <h2>Selected comparisons</h2>
+            <p class="eyebrow">${tr('Report contents')}</p>
+            <h2>${tr('Selected comparisons')}</h2>
           </div>
-          <span class="schema-badge">${project.reporting?.comparisons?.length ?? 0} selected</span>
+          <span class="schema-badge">${tr('{n} selected', { n: project.reporting?.comparisons?.length ?? 0 })}</span>
         </div>
         <p>
-          These comparisons are recalculated from the current data each time you export DOCX, PDF
-          or Analysis JSON. They are saved with the project.
+          ${tr('These comparisons are recalculated from the current data each time you export DOCX, PDF or Analysis JSON. They are saved with the project.')}
         </p>
         ${renderReportComparisonList()}
       </article>
 
       <article class="panel quiet">
-        <p class="eyebrow">EduBoard hand-back</p>
-        <h2>Explicit mapping, never silent overwrite</h2>
+        <p class="eyebrow">${tr('EduBoard hand-back')}</p>
+        <h2>${tr('Explicit mapping, never silent overwrite')}</h2>
         <p>
-          The hand-back file keeps source-safe values, derived analysis, synthetic paths, and
-          teacher-approved planning in separate sections. EduBoard must still choose the target
-          class explicitly and match students by exact ID before applying zero-based row/column
-          seat coordinates.
+          ${tr('The hand-back file keeps source-safe values, derived analysis, synthetic paths, and teacher-approved planning in separate sections. EduBoard must still choose the target class explicitly and match students by exact ID before applying zero-based row/column seat coordinates.')}
         </p>
       </article>
     </div>
@@ -3315,13 +4600,13 @@ function renderReports(content: HTMLElement): void {
 function assistanceTaskLabel(task: AssistanceTaskView): string {
   switch (task) {
     case 'synthetic-spec-draft':
-      return 'Draft synthetic specification'
+      return tr('Draft synthetic specification')
     case 'analysis-explanation':
-      return 'Explain descriptive analysis'
+      return tr('Explain descriptive analysis')
     case 'report-wording-draft':
-      return 'Draft report wording'
+      return tr('Draft report wording')
     case 'planning-rule-suggestions':
-      return 'Suggest planning rules'
+      return tr('Suggest planning rules')
   }
 }
 
@@ -3343,10 +4628,12 @@ function assistanceWarningList(title: string, items: string[]): string {
 function renderAssistanceDisclosure(request: AssistanceRequestView): string {
   const disclosure = request.disclosure
   const flags = [
-    disclosure.containsStudentLevelData ? 'Student-level context' : 'No student-level context',
-    disclosure.containsStudentIds ? 'Student IDs included' : 'No student IDs',
-    disclosure.containsDisplayNames ? 'Display names included' : 'No display names',
-    disclosure.containsFreeText ? 'Free text included' : 'No free text',
+    disclosure.containsStudentLevelData
+      ? tr('Student-level context')
+      : tr('No student-level context'),
+    disclosure.containsStudentIds ? tr('Student IDs included') : tr('No student IDs'),
+    disclosure.containsDisplayNames ? tr('Display names included') : tr('No display names'),
+    disclosure.containsFreeText ? tr('Free text included') : tr('No free text'),
   ]
 
   const items = disclosure.items
@@ -3367,29 +4654,30 @@ function renderAssistanceDisclosure(request: AssistanceRequestView): string {
     <article class="panel assistance-disclosure">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">${disclosure.mode === 'network' ? 'Transmission preview' : 'Local context'}</p>
-          <h2>${disclosure.mode === 'network' ? 'Exactly what would leave this device' : 'Context used by the offline draft'}</h2>
+          <p class="eyebrow">${disclosure.mode === 'network' ? tr('Transmission preview') : tr('Local context')}</p>
+          <h2>${disclosure.mode === 'network' ? tr('Exactly what would leave this device') : tr('Context used by the offline draft')}</h2>
         </div>
         <span class="schema-badge">${escapeHtml(
           disclosure.mode === 'network'
-            ? (disclosure.providerLabel ?? 'Network provider')
-            : 'Offline · no send',
+            ? (disclosure.providerLabel ?? tr('Network provider'))
+            : tr('Offline · no send'),
         )}</span>
       </div>
       <div class="assistance-flags">
         ${flags.map((flag) => `<span>${escapeHtml(flag)}</span>`).join('')}
       </div>
-      <div class="assistance-context-list">${items || '<p>No project context is included.</p>'}</div>
+      <div class="assistance-context-list">${items || `<p>${tr('No project context is included.')}</p>`}</div>
       ${
         disclosure.mode === 'network'
           ? `
             <label class="confirmation-row">
               <input id="assistance-confirm-send" type="checkbox" />
-              I reviewed the context above and want to send it to
-              ${escapeHtml(disclosure.providerLabel ?? 'the configured provider')}.
+              ${tr('I reviewed the context above and want to send it to {provider}.', {
+                provider: escapeHtml(disclosure.providerLabel ?? tr('the configured provider')),
+              })}
             </label>
             <button id="assistance-send-network" class="primary" type="button" disabled>
-              Send to provider
+              ${tr('Send to provider')}
             </button>
           `
           : ''
@@ -3403,7 +4691,7 @@ function assistanceDraftText(proposal: AssistanceProposalView): string {
     return JSON.stringify(proposal.specification, null, 2)
   }
   if (proposal.task === 'analysis-explanation') {
-    return [proposal.text, '', 'Caveats:', ...proposal.caveats.map((item) => `- ${item}`)].join(
+    return [proposal.text, '', tr('Caveats:'), ...proposal.caveats.map((item) => `- ${item}`)].join(
       '\n',
     )
   }
@@ -3416,7 +4704,7 @@ function assistanceDraftText(proposal: AssistanceProposalView): string {
 function renderAssistanceProposal(proposal: AssistanceProposalView): string {
   const provider = proposal.providerLabel
     ? ` · ${escapeHtml(proposal.providerLabel)}`
-    : ' · offline'
+    : ` · ${tr('offline')}`
   let body = ''
 
   if (proposal.task === 'planning-rule-suggestions') {
@@ -3437,27 +4725,27 @@ function renderAssistanceProposal(proposal: AssistanceProposalView): string {
 
     body = `
       <div class="assistance-suggestions">
-        ${suggestions || '<p>No planning-rule suggestions were produced.</p>'}
+        ${suggestions || `<p>${tr('No planning-rule suggestions were produced.')}</p>`}
       </div>
       ${
         proposal.suggestions.length > 0
-          ? '<button id="assistance-apply-rules" class="primary" type="button">Apply selected rules</button>'
+          ? `<button id="assistance-apply-rules" class="primary" type="button">${tr('Apply selected rules')}</button>`
           : ''
       }
     `
   } else {
     body = `
       <label class="wide-label">
-        Editable draft
+        ${tr('Editable draft')}
         <textarea id="assistance-draft-editor" class="assistance-editor" rows="16">${escapeHtml(
           assistanceDraftText(proposal),
         )}</textarea>
       </label>
       <div class="assistance-actions">
-        <button id="assistance-copy-draft" class="secondary" type="button">Copy edited draft</button>
+        <button id="assistance-copy-draft" class="secondary" type="button">${tr('Copy edited draft')}</button>
         ${
           proposal.task === 'synthetic-spec-draft'
-            ? '<button id="assistance-validate-synthetic" class="secondary" type="button">Validate edited specification</button>'
+            ? `<button id="assistance-validate-synthetic" class="secondary" type="button">${tr('Validate edited specification')}</button>`
             : ''
         }
       </div>
@@ -3468,13 +4756,13 @@ function renderAssistanceProposal(proposal: AssistanceProposalView): string {
     <article class="panel assistance-proposal">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">Proposal only</p>
+          <p class="eyebrow">${tr('Proposal only')}</p>
           <h2>${escapeHtml(assistanceTaskLabel(proposal.task))}</h2>
         </div>
-        <span class="schema-badge">proposal${provider}</span>
+        <span class="schema-badge">${tr('proposal')}${provider}</span>
       </div>
-      ${assistanceWarningList('Warnings', proposal.warnings)}
-      ${assistanceWarningList('Assumptions', proposal.assumptions)}
+      ${assistanceWarningList(tr('Warnings'), proposal.warnings)}
+      ${assistanceWarningList(tr('Assumptions'), proposal.assumptions)}
       ${body}
     </article>
   `
@@ -3486,9 +4774,9 @@ async function copyAssistanceDraft(): Promise<void> {
   const text = editor?.value ?? assistanceDraftText(assistanceProposalView)
   try {
     await navigator.clipboard.writeText(text)
-    showStatus('Assistance draft copied. No project data was changed.', 'success')
+    showStatus(tr('Assistance draft copied. No project data was changed.'), 'success')
   } catch {
-    showStatus('Could not access the clipboard. Select the draft text and copy it manually.')
+    showStatus(tr('Could not access the clipboard. Select the draft text and copy it manually.'))
   }
 }
 
@@ -3505,12 +4793,16 @@ async function validateEditedSyntheticSpecification(): Promise<void> {
     })
     editor.value = JSON.stringify(result.specification, null, 2)
     showStatus(
-      'Edited synthetic specification is valid. It remains a draft and no students were generated.',
+      tr(
+        'Edited synthetic specification is valid. It remains a draft and no students were generated.',
+      ),
       'success',
     )
   } catch (error) {
     showStatus(
-      error instanceof Error ? error.message : 'The edited synthetic specification is not valid.',
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('The edited synthetic specification is not valid.'),
     )
   }
 }
@@ -3523,7 +4815,7 @@ async function applyAssistanceRuleSuggestions(): Promise<void> {
     .filter((index) => Number.isInteger(index))
 
   if (selected.length === 0) {
-    showStatus('Select at least one suggested rule before applying.')
+    showStatus(tr('Select at least one suggested rule before applying.'))
     return
   }
 
@@ -3551,12 +4843,14 @@ async function applyAssistanceRuleSuggestions(): Promise<void> {
     groupingGeneration = null
     renderWorkspace()
     showStatus(
-      `Applied ${acceptance.accepted.length} explicitly selected planning rule(s).`,
+      tr('Applied {n} explicitly selected planning rule(s).', { n: acceptance.accepted.length }),
       'success',
     )
   } catch (error) {
     showStatus(
-      error instanceof Error ? error.message : 'Could not apply the selected rule suggestions.',
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not apply the selected rule suggestions.'),
     )
   }
 }
@@ -3591,7 +4885,11 @@ async function runAssistanceFromWorkspace(
     assistanceProposalView = result.proposal
     await renderAssistance(document.querySelector<HTMLElement>('#workspace-content')!)
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not create the assistance draft.')
+    showStatus(
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not create the assistance draft.'),
+    )
   }
 }
 
@@ -3617,7 +4915,11 @@ async function previewNetworkAssistance(): Promise<void> {
     assistanceProposalView = null
     await renderAssistance(document.querySelector<HTMLElement>('#workspace-content')!)
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not build the network preview.')
+    showStatus(
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not build the network preview.'),
+    )
   }
 }
 
@@ -3628,8 +4930,8 @@ async function renderAssistance(content: HTMLElement): Promise<void> {
   if (!assistanceStatusView) {
     content.innerHTML = `
       <article class="panel analysis-loading">
-        <p class="eyebrow">Optional assistance</p>
-        <h2>Checking local assistance status…</h2>
+        <p class="eyebrow">${tr('Optional assistance')}</p>
+        <h2>${tr('Checking local assistance status…')}</h2>
       </article>
     `
     try {
@@ -3638,9 +4940,9 @@ async function renderAssistance(content: HTMLElement): Promise<void> {
       if (project !== sourceProject || activeView !== 'assistance') return
       content.innerHTML = `
         <article class="panel">
-          <p class="eyebrow">Optional assistance</p>
-          <h2>Assistance status unavailable</h2>
-          <p>${escapeHtml(error instanceof Error ? error.message : 'Could not read assistance status.')}</p>
+          <p class="eyebrow">${tr('Optional assistance')}</p>
+          <h2>${tr('Assistance status unavailable')}</h2>
+          <p>${escapeHtml(error instanceof Error ? localizeError(error.message) : tr('Could not read assistance status.'))}</p>
         </article>
       `
       return
@@ -3650,27 +4952,25 @@ async function renderAssistance(content: HTMLElement): Promise<void> {
   if (project !== sourceProject || activeView !== 'assistance') return
   const status = assistanceStatusView
   const networkLabel = status.network.enabled
-    ? `${status.network.label ?? 'Configured provider'}${status.network.endpointHost ? ` · ${status.network.endpointHost}` : ''}`
-    : 'Not configured'
+    ? `${status.network.label ?? tr('Configured provider')}${status.network.endpointHost ? ` · ${status.network.endpointHost}` : ''}`
+    : tr('Not configured')
 
   content.innerHTML = `
     <div class="assistance-stack">
       <article class="panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Phase 5 · optional assistance</p>
-            <h2>Draft and explain without silent changes</h2>
+            <p class="eyebrow">${tr('Phase 5 · optional assistance')}</p>
+            <h2>${tr('Draft and explain without silent changes')}</h2>
           </div>
-          <span class="schema-badge">Offline first</span>
+          <span class="schema-badge">${tr('Offline first')}</span>
         </div>
         <p>
-          Assistance creates proposals only. Core ClassGraph remains available without a provider,
-          and nothing is sent over the network until you preview the exact context and confirm a
-          second send action.
+          ${tr('Assistance creates proposals only. Core ClassGraph remains available without a provider, and nothing is sent over the network until you preview the exact context and confirm a second send action.')}
         </p>
         <div class="assistance-status-grid">
-          <div><b>Offline drafts</b><span>${status.offlineAvailable ? 'Available' : 'Unavailable'}</span></div>
-          <div><b>Network provider</b><span>${escapeHtml(networkLabel)}</span></div>
+          <div><b>${tr('Offline drafts')}</b><span>${status.offlineAvailable ? tr('Available') : tr('Unavailable')}</span></div>
+          <div><b>${tr('Network provider')}</b><span>${escapeHtml(networkLabel)}</span></div>
         </div>
       </article>
 
@@ -3678,7 +4978,7 @@ async function renderAssistance(content: HTMLElement): Promise<void> {
         <form id="assistance-form" class="stack-form">
           <div class="two-col">
             <label>
-              Assistance task
+              ${tr('Assistance task')}
               <select id="assistance-task" name="task">
                 ${(
                   [
@@ -3698,26 +4998,25 @@ async function renderAssistance(content: HTMLElement): Promise<void> {
               </select>
             </label>
             <label>
-              Execution
-              <input value="Offline local draft by default" disabled />
+              ${tr('Execution')}
+              <input value="${tr('Offline local draft by default')}" disabled />
             </label>
           </div>
           <label class="wide-label">
-            Teacher prompt
-            <textarea id="assistance-prompt" name="prompt" rows="5" placeholder="For synthetic drafting, use explicit clauses such as: 36 students; metric Assessment mean 70 sd 10 range 0-100 missing 5%">${escapeHtml(
+            ${tr('Teacher prompt')}
+            <textarea id="assistance-prompt" name="prompt" rows="5" placeholder="${tr('For synthetic drafting, use explicit clauses such as: 36 students; metric Assessment mean 70 sd 10 range 0-100 missing 5%')}">${escapeHtml(
               assistancePrompt,
             )}</textarea>
             <small>
-              Analysis, report, and planning tasks use validated project context. Synthetic drafting
-              treats this prompt only as editable draft intent.
+              ${tr('Analysis, report, and planning tasks use validated project context. Synthetic drafting treats this prompt only as editable draft intent.')}
             </small>
           </label>
           <div class="assistance-actions">
-            <button class="primary" type="submit">Run offline draft</button>
+            <button class="primary" type="submit">${tr('Run offline draft')}</button>
             <button id="assistance-preview-network" class="secondary" type="button" ${
               status.network.enabled ? '' : 'disabled'
             }>
-              Preview network context
+              ${tr('Preview network context')}
             </button>
           </div>
         </form>
@@ -3769,11 +5068,11 @@ async function renderAssistance(content: HTMLElement): Promise<void> {
 
 function relationshipTypeOptions(selected?: RelationshipType): string {
   const types: Array<{ value: RelationshipType; label: string }> = [
-    { value: 'works-well-with', label: 'Works well with' },
-    { value: 'avoid-pairing', label: 'Avoid pairing' },
-    { value: 'support-pair', label: 'Support pair' },
-    { value: 'friendship', label: 'Friendship' },
-    { value: 'custom', label: 'Custom' },
+    { value: 'works-well-with', label: tr('Works well with') },
+    { value: 'avoid-pairing', label: tr('Avoid pairing') },
+    { value: 'support-pair', label: tr('Support pair') },
+    { value: 'friendship', label: tr('Friendship') },
+    { value: 'custom', label: tr('Custom') },
   ]
 
   return types.map((item) => optionHtml(item.value, item.label, item.value === selected)).join('')
@@ -3803,7 +5102,7 @@ function relationshipProvenance(index: number): ProvenanceEntry | undefined {
 
 function renderRelationshipSource(index: number): string {
   const provenance = relationshipProvenance(index)
-  if (!provenance) return '<span class="muted">Not recorded</span>'
+  if (!provenance) return `<span class="muted">${tr('Not recorded')}</span>`
 
   const source = provenance.source ? ` · ${escapeHtml(provenance.source)}` : ''
   return `<span class="source-kind">${escapeHtml(provenance.kind)}</span><small>${source}</small>`
@@ -3826,8 +5125,8 @@ function renderRelationshipRows(): string {
         <td colspan="8" class="empty-cell">
           ${
             selectedRelationshipTypeFilter === 'all'
-              ? 'No explicit relationship records yet.'
-              : 'No relationship records match this type.'
+              ? tr('No explicit relationship records yet.')
+              : tr('No relationship records match this type.')
           }
         </td>
       </tr>
@@ -3872,7 +5171,7 @@ function renderRelationshipRows(): string {
               class="cell-input relationship-label-input"
               data-relationship-label="${escapeHtml(relationship.id)}"
               value="${escapeHtml(relationship.label ?? '')}"
-              placeholder="Optional label"
+              placeholder="${tr('Optional label')}"
             />
           </td>
           <td>
@@ -3882,7 +5181,7 @@ function renderRelationshipRows(): string {
                 data-relationship-directed="${escapeHtml(relationship.id)}"
                 ${relationship.directed ? 'checked' : ''}
               />
-              Directed
+              ${tr('Directed')}
             </label>
           </td>
           <td>
@@ -3902,13 +5201,13 @@ function renderRelationshipRows(): string {
                 class="icon-button"
                 type="button"
                 data-save-relationship="${escapeHtml(relationship.id)}"
-                title="Save relationship"
+                title="${tr('Save relationship')}"
               >✓</button>
               <button
                 class="icon-button danger-text"
                 type="button"
                 data-remove-relationship="${escapeHtml(relationship.id)}"
-                title="Remove relationship"
+                title="${tr('Remove relationship')}"
               >×</button>
             </div>
           </td>
@@ -3920,13 +5219,13 @@ function renderRelationshipRows(): string {
 
 function formatSavedDate(value: string): string {
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(uiLocale())
 }
 
 function renderHistoryRecords(): string {
   const history = project?.planning?.history ?? []
   if (history.length === 0) {
-    return '<p class="muted">No approved seating history has been recorded.</p>'
+    return `<p class="muted">${tr('No approved seating history has been recorded.')}</p>`
   }
 
   return history
@@ -3934,18 +5233,20 @@ function renderHistoryRecords(): string {
       (entry) => `
         <div class="snapshot-row">
           <div>
-            <b>${escapeHtml(entry.label ?? 'Approved seating')}</b>
+            <b>${escapeHtml(entry.label ?? tr('Approved seating'))}</b>
             <small>
-              ${escapeHtml(formatSavedDate(entry.approvedAt))} ·
-              ${escapeHtml(entry.neighbourMode)} neighbours ·
-              ${entry.assignments.length} assignments
+              ${tr('{date} · {mode} neighbours · {assignments} assignments', {
+                date: escapeHtml(formatSavedDate(entry.approvedAt)),
+                mode: escapeHtml(entry.neighbourMode),
+                assignments: entry.assignments.length,
+              })}
             </small>
           </div>
           <button
             class="icon-button danger-text"
             type="button"
             data-remove-history="${escapeHtml(entry.id)}"
-            title="Remove history record"
+            title="${tr('Remove history record')}"
           >×</button>
         </div>
       `,
@@ -3955,7 +5256,8 @@ function renderHistoryRecords(): string {
 
 function renderScenarioRecords(): string {
   const scenarios = project?.planning?.scenarios ?? []
-  if (scenarios.length === 0) return '<p class="muted">No saved planning scenarios yet.</p>'
+  if (scenarios.length === 0)
+    return `<p class="muted">${tr('No saved planning scenarios yet.')}</p>`
 
   return scenarios
     .map(
@@ -3964,17 +5266,19 @@ function renderScenarioRecords(): string {
           <div>
             <b>${escapeHtml(scenario.label)}</b>
             <small>
-              ${escapeHtml(formatSavedDate(scenario.savedAt))} ·
-              ${scenario.assignments.length} seats ·
-              ${scenario.groups.length} groups ·
-              ${scenario.rules.length} rules
+              ${tr('{date} · {seats} seats · {groups} groups · {rules} rules', {
+                date: escapeHtml(formatSavedDate(scenario.savedAt)),
+                seats: scenario.assignments.length,
+                groups: scenario.groups.length,
+                rules: scenario.rules.length,
+              })}
             </small>
           </div>
           <button
             class="icon-button danger-text"
             type="button"
             data-remove-scenario="${escapeHtml(scenario.id)}"
-            title="Remove planning scenario"
+            title="${tr('Remove planning scenario')}"
           >×</button>
         </div>
       `,
@@ -4015,62 +5319,59 @@ function renderRelationships(content: HTMLElement): void {
       <article class="panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Explicit relationship records</p>
-            <h2>Relationships</h2>
+            <p class="eyebrow">${tr('Explicit relationship records')}</p>
+            <h2>${tr('Relationships')}</h2>
           </div>
-          <span class="schema-badge">${project.relationships?.length ?? 0} edges</span>
+          <span class="schema-badge">${tr('{n} edges', { n: project.relationships?.length ?? 0 })}</span>
         </div>
         <p>
-          This workspace shows only relationships explicitly supplied by a teacher/import or clearly
-          marked synthetic data. ClassGraph does not infer friendship, conflict, compatibility,
-          social status, or peer influence from grades, participation, demographics, attendance,
-          names, or seating history.
+          ${tr('This workspace shows only relationships explicitly supplied by a teacher/import or clearly marked synthetic data. ClassGraph does not infer friendship, conflict, compatibility, social status, or peer influence from grades, participation, demographics, attendance, names, or seating history.')}
         </p>
 
         <form id="add-relationship-form" class="relationship-form">
           <label>
-            From
+            ${tr('From')}
             <select name="fromStudentId" ${canAdd ? '' : 'disabled'}>${fromStudentOptions}</select>
           </label>
           <label>
-            To
+            ${tr('To')}
             <select name="toStudentId" ${canAdd ? '' : 'disabled'}>${toStudentOptions}</select>
           </label>
           <label>
-            Type
+            ${tr('Type')}
             <select name="type" ${canAdd ? '' : 'disabled'}>
               ${relationshipTypeOptions('works-well-with')}
             </select>
           </label>
           <label>
-            Label
-            <input name="label" placeholder="Optional" ${canAdd ? '' : 'disabled'} />
+            ${tr('Label')}
+            <input name="label" placeholder="${tr('Optional')}" ${canAdd ? '' : 'disabled'} />
           </label>
           <label>
-            Weight
-            <input name="weight" type="number" step="any" placeholder="Optional" ${canAdd ? '' : 'disabled'} />
+            ${tr('Weight')}
+            <input name="weight" type="number" step="any" placeholder="${tr('Optional')}" ${canAdd ? '' : 'disabled'} />
           </label>
           <label class="lock-toggle relationship-directed-control">
             <input name="directed" type="checkbox" ${canAdd ? '' : 'disabled'} />
-            Directed
+            ${tr('Directed')}
           </label>
           <button class="primary compact" type="submit" ${canAdd ? '' : 'disabled'}>
-            Add relationship
+            ${tr('Add relationship')}
           </button>
         </form>
-        ${canAdd ? '' : '<p class="report-note">Add at least two students before recording a relationship.</p>'}
+        ${canAdd ? '' : `<p class="report-note">${tr('Add at least two students before recording a relationship.')}</p>`}
       </article>
 
       <article class="panel relationship-graph-panel">
         <div class="analysis-toolbar">
           <div>
-            <p class="eyebrow">Deterministic network</p>
-            <h2>Explicit edges only</h2>
+            <p class="eyebrow">${tr('Deterministic network')}</p>
+            <h2>${tr('Explicit edges only')}</h2>
           </div>
           <label class="compact-label">
-            Focus student
+            ${tr('Focus student')}
             <select id="relationship-focus">
-              ${optionHtml('', 'Whole class', selectedRelationshipFocusStudentId === null)}
+              ${optionHtml('', tr('Whole class'), selectedRelationshipFocusStudentId === null)}
               ${project.students
                 .map((student) =>
                   optionHtml(
@@ -4084,24 +5385,23 @@ function renderRelationships(content: HTMLElement): void {
           </label>
         </div>
         <p>
-          Node positions are deterministic. Focusing a student only rearranges the same explicit
-          edges so direct recorded neighbours are easier to inspect; it does not infer new links.
+          ${tr('Node positions are deterministic. Focusing a student only rearranges the same explicit edges so direct recorded neighbours are easier to inspect; it does not infer new links.')}
         </p>
         <div id="relationship-graph-stage" class="relationship-graph-stage">
-          <div class="empty-analysis">Building the explicit relationship graph…</div>
+          <div class="empty-analysis">${tr('Building the explicit relationship graph…')}</div>
         </div>
       </article>
 
       <article class="panel">
         <div class="analysis-toolbar">
           <div>
-            <p class="eyebrow">Accessible table</p>
-            <h2>Recorded edges and sources</h2>
+            <p class="eyebrow">${tr('Accessible table')}</p>
+            <h2>${tr('Recorded edges and sources')}</h2>
           </div>
           <label class="compact-label">
-            Type filter
+            ${tr('Type filter')}
             <select id="relationship-type-filter">
-              ${optionHtml('all', 'All types', selectedRelationshipTypeFilter === 'all')}
+              ${optionHtml('all', tr('All types'), selectedRelationshipTypeFilter === 'all')}
               ${relationshipTypeOptions(
                 selectedRelationshipTypeFilter === 'all'
                   ? undefined
@@ -4114,13 +5414,13 @@ function renderRelationships(content: HTMLElement): void {
           <table class="data-table relationship-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>From</th>
-                <th>To</th>
-                <th>Type / label</th>
-                <th>Direction</th>
-                <th>Weight</th>
-                <th>Provenance</th>
+                <th>${tr('ID')}</th>
+                <th>${tr('From')}</th>
+                <th>${tr('To')}</th>
+                <th>${tr('Type / label')}</th>
+                <th>${tr('Direction')}</th>
+                <th>${tr('Weight')}</th>
+                <th>${tr('Provenance')}</th>
                 <th></th>
               </tr>
             </thead>
@@ -4130,8 +5430,7 @@ function renderRelationships(content: HTMLElement): void {
           </table>
         </div>
         <p class="analysis-footnote">
-          Undirected A↔B and B↔A records with the same relationship meaning are treated as duplicates.
-          Directed A→B and B→A are distinct. Missing relationship records are never reconstructed.
+          ${tr('Undirected A↔B and B↔A records with the same relationship meaning are treated as duplicates. Directed A→B and B→A are distinct. Missing relationship records are never reconstructed.')}
         </p>
       </article>
 
@@ -4139,62 +5438,60 @@ function renderRelationships(content: HTMLElement): void {
         <article class="panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Approved seating history</p>
-              <h2>Repeat-neighbour record</h2>
+              <p class="eyebrow">${tr('Approved seating history')}</p>
+              <h2>${tr('Repeat-neighbour record')}</h2>
             </div>
-            <span class="schema-badge">${project.planning?.history?.length ?? 0} snapshots</span>
+            <span class="schema-badge">${tr('{n} snapshots', { n: project.planning?.history?.length ?? 0 })}</span>
           </div>
           <p>
-            History is added only when you explicitly record the current persisted seating plan.
-            Current candidates and missing past plans are never reconstructed.
+            ${tr('History is added only when you explicitly record the current persisted seating plan. Current candidates and missing past plans are never reconstructed.')}
           </p>
           <form id="record-history-form" class="snapshot-form">
             <label>
-              Label
-              <input name="label" placeholder="e.g. Week 4 approved plan" />
+              ${tr('Label')}
+              <input name="label" placeholder="${tr('e.g. Week 4 approved plan')}" />
             </label>
             <label>
-              Neighbour rule
+              ${tr('Neighbour rule')}
               <select name="neighbourMode">
-                <option value="orthogonal">Side-by-side only</option>
-                <option value="king">Side or diagonal</option>
+                <option value="orthogonal">${tr('Side-by-side only')}</option>
+                <option value="king">${tr('Side or diagonal')}</option>
               </select>
             </label>
             <button
               class="secondary compact"
               type="submit"
               ${project.room && (project.planning?.assignments?.length ?? 0) > 0 ? '' : 'disabled'}
-            >Record current seating</button>
+            >${tr('Record current seating')}</button>
           </form>
           ${renderHistoryRecords()}
           <div id="repeat-neighbour-stage" class="snapshot-analysis">
-            <div class="empty-analysis">Reading stored seating history…</div>
+            <div class="empty-analysis">${tr('Reading stored seating history…')}</div>
           </div>
         </article>
 
         <article class="panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Saved planning scenarios</p>
-              <h2>Before / after comparison</h2>
+              <p class="eyebrow">${tr('Saved planning scenarios')}</p>
+              <h2>${tr('Before / after comparison')}</h2>
             </div>
-            <span class="schema-badge">${project.planning?.scenarios?.length ?? 0} saved</span>
+            <span class="schema-badge">${tr('{n} saved', { n: project.planning?.scenarios?.length ?? 0 })}</span>
           </div>
           <p>
-            A scenario snapshots the exact persisted room, seating, groups, rules and planning seed.
-            It does not save transient generated candidates.
+            ${tr('A scenario snapshots the exact persisted room, seating, groups, rules and planning seed. It does not save transient generated candidates.')}
           </p>
           <form id="save-scenario-form" class="snapshot-form">
             <label>
-              Scenario label
-              <input name="label" required placeholder="e.g. Before museum project" />
+              ${tr('Scenario label')}
+              <input name="label" required placeholder="${tr('e.g. Before museum project')}" />
             </label>
-            <button class="secondary compact" type="submit">Save current planning</button>
+            <button class="secondary compact" type="submit">${tr('Save current planning')}</button>
           </form>
           ${renderScenarioRecords()}
           <div class="scenario-controls">
             <label>
-              Before
+              ${tr('Before')}
               <select id="scenario-left" ${(project.planning?.scenarios?.length ?? 0) < 2 ? 'disabled' : ''}>
                 ${(project.planning?.scenarios ?? [])
                   .map((scenario) =>
@@ -4204,7 +5501,7 @@ function renderRelationships(content: HTMLElement): void {
               </select>
             </label>
             <label>
-              After
+              ${tr('After')}
               <select id="scenario-right" ${(project.planning?.scenarios?.length ?? 0) < 2 ? 'disabled' : ''}>
                 ${(project.planning?.scenarios ?? [])
                   .map((scenario) =>
@@ -4222,8 +5519,8 @@ function renderRelationships(content: HTMLElement): void {
             <div class="empty-analysis">
               ${
                 (project.planning?.scenarios?.length ?? 0) >= 2
-                  ? 'Comparing saved planning snapshots…'
-                  : 'Save at least two planning scenarios to compare them.'
+                  ? tr('Comparing saved planning snapshots…')
+                  : tr('Save at least two planning scenarios to compare them.')
               }
             </div>
           </div>
@@ -4251,7 +5548,7 @@ function relationshipGraphClass(type: RelationshipType): string {
 
 function renderRelationshipGraphSvg(graph: RelationshipGraphView): string {
   if (graph.nodes.length === 0) {
-    return '<div class="empty-analysis">Add students to display the relationship graph.</div>'
+    return `<div class="empty-analysis">${tr('Add students to display the relationship graph.')}</div>`
   }
 
   const coordinates = new Map(
@@ -4265,8 +5562,8 @@ function renderRelationshipGraphSvg(graph: RelationshipGraphView): string {
       if (!from || !to) return ''
       const titleParts = [
         edge.label || edge.type,
-        edge.directed ? 'directed' : 'undirected',
-        edge.provenance?.kind ? `source: ${edge.provenance.kind}` : '',
+        edge.directed ? tr('directed') : tr('undirected'),
+        edge.provenance?.kind ? tr('source: {kind}', { kind: edge.provenance.kind }) : '',
       ].filter(Boolean)
       return `
         <line
@@ -4309,7 +5606,7 @@ function renderRelationshipGraphSvg(graph: RelationshipGraphView): string {
       class="relationship-graph"
       viewBox="0 0 1000 600"
       role="img"
-      aria-label="Explicit relationship network. A table equivalent appears below."
+      aria-label="${tr('Explicit relationship network. A table equivalent appears below.')}"
     >
       <defs>
         <marker
@@ -4349,7 +5646,7 @@ async function loadRelationshipGraph(): Promise<void> {
     if (project !== sourceProject || activeView !== 'relationships') return
     stage.innerHTML = `
       <div class="empty-analysis">
-        ${escapeHtml(error instanceof Error ? error.message : 'Could not build the relationship graph.')}
+        ${escapeHtml(error instanceof Error ? localizeError(error.message) : tr('Could not build the relationship graph.'))}
       </div>
     `
   }
@@ -4376,21 +5673,21 @@ function renderRepeatNeighbourHistory(history: RepeatNeighbourHistoryView): stri
 
   return `
     <div class="snapshot-summary-grid">
-      <div><b>${history.historyRecordCount}</b><span>stored snapshots</span></div>
-      <div><b>${history.usableRecordCount}</b><span>grid snapshots analysed</span></div>
-      <div><b>${history.pairs.length}</b><span>recorded neighbour pairs</span></div>
+      <div><b>${history.historyRecordCount}</b><span>${tr('stored snapshots')}</span></div>
+      <div><b>${history.usableRecordCount}</b><span>${tr('grid snapshots analysed')}</span></div>
+      <div><b>${history.pairs.length}</b><span>${tr('recorded neighbour pairs')}</span></div>
     </div>
     <div class="data-table-wrap">
       <table class="mini-table">
-        <thead><tr><th>Student A</th><th>Student B</th><th>Times adjacent</th><th>Snapshots</th></tr></thead>
+        <thead><tr><th>${tr('Student A')}</th><th>${tr('Student B')}</th><th>${tr('Times adjacent')}</th><th>${tr('Snapshots')}</th></tr></thead>
         <tbody>
-          ${rows || '<tr><td colspan="4" class="empty-cell">No neighbour pairs exist in the stored approved history.</td></tr>'}
+          ${rows || `<tr><td colspan="4" class="empty-cell">${tr('No neighbour pairs exist in the stored approved history.')}</td></tr>`}
         </tbody>
       </table>
     </div>
     ${
       history.skippedRecordIds.length
-        ? `<p class="report-note">Custom-layout history is preserved but not used for grid-neighbour counts: ${escapeHtml(history.skippedRecordIds.join(', '))}</p>`
+        ? `<p class="report-note">${tr('Custom-layout history is preserved but not used for grid-neighbour counts: {ids}', { ids: escapeHtml(history.skippedRecordIds.join(', ')) })}</p>`
         : ''
     }
   `
@@ -4412,7 +5709,9 @@ async function loadRepeatNeighbourHistory(): Promise<void> {
   } catch (error) {
     if (project !== sourceProject || activeView !== 'relationships') return
     stage.innerHTML = `<div class="empty-analysis">${escapeHtml(
-      error instanceof Error ? error.message : 'Could not analyse seating history.',
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not analyse seating history.'),
     )}</div>`
   }
 }
@@ -4425,25 +5724,32 @@ function deltaLabel(value: number): string {
 function renderScenarioComparison(comparison: PlanningScenarioComparisonView): string {
   const planningRows = [
     {
-      label: 'Persisted seat assignments',
+      label: tr('Persisted seat assignments'),
       left: comparison.assignments.leftCount,
       right: comparison.assignments.rightCount,
       delta: comparison.assignments.rightCount - comparison.assignments.leftCount,
-      detail: `${comparison.assignments.movedStudents.length} moved · ${comparison.assignments.addedStudents.length} added · ${comparison.assignments.removedStudents.length} removed`,
+      detail: tr('{moved} moved · {added} added · {removed} removed', {
+        moved: comparison.assignments.movedStudents.length,
+        added: comparison.assignments.addedStudents.length,
+        removed: comparison.assignments.removedStudents.length,
+      }),
     },
     {
-      label: 'Saved groups',
+      label: tr('Saved groups'),
       left: comparison.groups.leftCount,
       right: comparison.groups.rightCount,
       delta: comparison.groups.rightCount - comparison.groups.leftCount,
-      detail: `${comparison.groups.changedStudents.length} students changed group`,
+      detail: tr('{n} students changed group', { n: comparison.groups.changedStudents.length }),
     },
     {
-      label: 'Planning rules',
+      label: tr('Planning rules'),
       left: comparison.rules.leftCount,
       right: comparison.rules.rightCount,
       delta: comparison.rules.rightCount - comparison.rules.leftCount,
-      detail: `${comparison.rules.addedRuleIds.length} added · ${comparison.rules.removedRuleIds.length} removed`,
+      detail: tr('{added} added · {removed} removed', {
+        added: comparison.rules.addedRuleIds.length,
+        removed: comparison.rules.removedRuleIds.length,
+      }),
     },
   ]
 
@@ -4454,7 +5760,7 @@ function renderScenarioComparison(comparison: PlanningScenarioComparisonView): s
       left: item.left,
       right: item.right,
       delta: item.delta,
-      detail: 'Descriptive explicit-edge count',
+      detail: tr('Descriptive explicit-edge count'),
     })),
   ]
 
@@ -4486,21 +5792,19 @@ function renderScenarioComparison(comparison: PlanningScenarioComparisonView): s
 
   return `
     <p class="report-note">
-      Deltas are descriptive only. ClassGraph does not treat more or fewer relationship edges as
-      educationally better. Network counts use the current explicit relationship records against
-      each saved scenario's exact group membership.
+      ${tr("Deltas are descriptive only. ClassGraph does not treat more or fewer relationship edges as educationally better. Network counts use the current explicit relationship records against each saved scenario's exact group membership.")}
     </p>
     <div class="data-table-wrap">
       <table class="mini-table scenario-comparison-table">
-        <thead><tr><th>Dimension</th><th>Before</th><th>After</th><th>Δ</th></tr></thead>
+        <thead><tr><th>${tr('Dimension')}</th><th>${tr('Before')}</th><th>${tr('After')}</th><th>Δ</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
     <details class="scenario-type-details">
-      <summary>Relationship counts by recorded type</summary>
+      <summary>${tr('Relationship counts by recorded type')}</summary>
       <div class="data-table-wrap">
         <table class="mini-table">
-          <thead><tr><th>Type</th><th>Before</th><th>After</th><th>Δ</th></tr></thead>
+          <thead><tr><th>${tr('Type')}</th><th>${tr('Before')}</th><th>${tr('After')}</th><th>Δ</th></tr></thead>
           <tbody>${typeRows}</tbody>
         </table>
       </div>
@@ -4537,7 +5841,9 @@ async function loadScenarioComparison(): Promise<void> {
   } catch (error) {
     if (project !== sourceProject || activeView !== 'relationships') return
     stage.innerHTML = `<div class="empty-analysis">${escapeHtml(
-      error instanceof Error ? error.message : 'Could not compare planning scenarios.',
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not compare planning scenarios.'),
     )}</div>`
   }
 }
@@ -4601,7 +5907,7 @@ function bindRelationshipEvents(): void {
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-remove-history]')) {
     button.addEventListener('click', () => {
       const historyId = button.dataset.removeHistory
-      if (!historyId || !window.confirm('Remove this approved seating history record?')) return
+      if (!historyId || !window.confirm(tr('Remove this approved seating history record?'))) return
       void mutateProject({ type: 'remove-seating-history', historyId })
     })
   }
@@ -4609,7 +5915,7 @@ function bindRelationshipEvents(): void {
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-remove-scenario]')) {
     button.addEventListener('click', () => {
       const scenarioId = button.dataset.removeScenario
-      if (!scenarioId || !window.confirm('Remove this saved planning scenario?')) return
+      if (!scenarioId || !window.confirm(tr('Remove this saved planning scenario?'))) return
       if (scenarioId === selectedScenarioLeftId) selectedScenarioLeftId = null
       if (scenarioId === selectedScenarioRightId) selectedScenarioRightId = null
       void mutateProject({ type: 'remove-planning-scenario', scenarioId })
@@ -4704,7 +6010,7 @@ function bindRelationshipEvents(): void {
     button.addEventListener('click', () => {
       const relationshipId = button.dataset.removeRelationship
       if (!relationshipId) return
-      if (!window.confirm(`Remove relationship ${relationshipId}?`)) return
+      if (!window.confirm(tr('Remove relationship {id}?', { id: relationshipId }))) return
       void mutateProject({ type: 'remove-relationship', relationshipId })
     })
   }
@@ -4715,9 +6021,9 @@ function renderGraphs(content: HTMLElement): void {
 
   content.innerHTML = `
     <article class="panel analysis-loading">
-      <p class="eyebrow">Descriptive analysis</p>
-      <h2>Reading the current class data…</h2>
-      <p>No prediction or hidden student scoring is performed.</p>
+      <p class="eyebrow">${tr('Descriptive analysis')}</p>
+      <h2>${tr('Reading the current class data…')}</h2>
+      <p>${tr('No prediction or hidden student scoring is performed.')}</p>
     </article>
   `
 
@@ -4736,9 +6042,9 @@ async function loadProjectAnalysis(content: HTMLElement): Promise<void> {
   } catch (error) {
     content.innerHTML = `
       <article class="panel empty-state">
-        <p class="eyebrow">Analysis unavailable</p>
-        <h2>ClassGraph could not build this view.</h2>
-        <p>${escapeHtml(error instanceof Error ? error.message : 'Unknown analysis error.')}</p>
+        <p class="eyebrow">${tr('Analysis unavailable')}</p>
+        <h2>${tr('ClassGraph could not build this view.')}</h2>
+        <p>${escapeHtml(error instanceof Error ? localizeError(error.message) : tr('Unknown analysis error.'))}</p>
       </article>
     `
   }
@@ -4800,30 +6106,30 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
   content.innerHTML = `
     <div class="metric-cards">
       <article class="metric-card">
-        <span>Recorded cells</span>
+        <span>${tr('Recorded cells')}</span>
         <strong>${completeness.recordedCount}</strong>
-        <small>${completenessPercent}% of defined student × metric cells</small>
+        <small>${tr('{percent}% of defined student × metric cells', { percent: completenessPercent })}</small>
       </article>
       <article class="metric-card">
-        <span>Explicitly missing</span>
+        <span>${tr('Explicitly missing')}</span>
         <strong>${completeness.explicitMissingCount}</strong>
-        <small>Stored as unavailable, not zero</small>
+        <small>${tr('Stored as unavailable, not zero')}</small>
       </article>
       <article class="metric-card">
-        <span>Not recorded</span>
+        <span>${tr('Not recorded')}</span>
         <strong>${completeness.unrecordedCount}</strong>
-        <small>No value is stored for these cells</small>
+        <small>${tr('No value is stored for these cells')}</small>
       </article>
     </div>
 
     <article class="panel analysis-panel">
       <div class="analysis-toolbar">
         <div>
-          <p class="eyebrow">Distribution</p>
-          <h2>One metric at a time</h2>
+          <p class="eyebrow">${tr('Distribution')}</p>
+          <h2>${tr('One metric at a time')}</h2>
         </div>
         <label class="compact-label">
-          Metric
+          ${tr('Metric')}
           <select id="graph-metric-select">
             ${analysis.metrics
               .map((metric) =>
@@ -4839,12 +6145,12 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
     <article class="panel analysis-panel">
       <div class="analysis-toolbar">
         <div>
-          <p class="eyebrow">Numeric comparison</p>
-          <h2>Scatter view</h2>
+          <p class="eyebrow">${tr('Numeric comparison')}</p>
+          <h2>${tr('Scatter view')}</h2>
         </div>
         <div class="scatter-controls">
           <label class="compact-label">
-            X axis
+            ${tr('X axis')}
             <select id="scatter-x">
               ${numericMetrics
                 .map((metric) =>
@@ -4854,7 +6160,7 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
             </select>
           </label>
           <label class="compact-label">
-            Y axis
+            ${tr('Y axis')}
             <select id="scatter-y">
               ${numericMetrics
                 .map((metric) =>
@@ -4863,23 +6169,23 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
                 .join('')}
             </select>
           </label>
-          <button id="load-scatter" class="secondary compact" type="button" ${numericMetrics.length < 2 ? 'disabled' : ''}>Compare</button>
+          <button id="load-scatter" class="secondary compact" type="button" ${numericMetrics.length < 2 ? 'disabled' : ''}>${tr('Compare')}</button>
         </div>
       </div>
       <div id="scatter-result">
-        ${numericMetrics.length < 2 ? renderScatterUnavailable(numericMetrics.length) : '<p class="muted">Choose two numeric metrics and compare them.</p>'}
+        ${numericMetrics.length < 2 ? renderScatterUnavailable(numericMetrics.length) : `<p class="muted">${tr('Choose two numeric metrics and compare them.')}</p>`}
       </div>
     </article>
 
     <article class="panel analysis-panel">
       <div class="analysis-toolbar">
         <div>
-          <p class="eyebrow">Category comparison</p>
-          <h2>Cross-tabulation</h2>
+          <p class="eyebrow">${tr('Category comparison')}</p>
+          <h2>${tr('Cross-tabulation')}</h2>
         </div>
         <div class="scatter-controls">
           <label class="compact-label">
-            Rows
+            ${tr('Rows')}
             <select id="crosstab-row">
               ${levelledMetrics
                 .map((metric) =>
@@ -4889,7 +6195,7 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
             </select>
           </label>
           <label class="compact-label">
-            Columns
+            ${tr('Columns')}
             <select id="crosstab-column">
               ${levelledMetrics
                 .map((metric) =>
@@ -4898,14 +6204,14 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
                 .join('')}
             </select>
           </label>
-          <button id="load-crosstab" class="secondary compact" type="button" ${levelledMetrics.length < 2 ? 'disabled' : ''}>Compare</button>
+          <button id="load-crosstab" class="secondary compact" type="button" ${levelledMetrics.length < 2 ? 'disabled' : ''}>${tr('Compare')}</button>
         </div>
       </div>
       <div id="crosstab-result">
         ${
           levelledMetrics.length < 2
-            ? `<div class="empty-analysis"><p>${levelledMetrics.length === 0 ? 'No category, ordinal or yes/no metrics exist yet.' : 'Add a second category, ordinal or yes/no metric to cross-tabulate.'}</p></div>`
-            : '<p class="muted">Choose two category, ordinal or yes/no metrics to count students across both.</p>'
+            ? `<div class="empty-analysis"><p>${levelledMetrics.length === 0 ? tr('No category, ordinal or yes/no metrics exist yet.') : tr('Add a second category, ordinal or yes/no metric to cross-tabulate.')}</p></div>`
+            : `<p class="muted">${tr('Choose two category, ordinal or yes/no metrics to count students across both.')}</p>`
         }
       </div>
     </article>
@@ -4913,12 +6219,12 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
     <article class="panel analysis-panel">
       <div class="analysis-toolbar">
         <div>
-          <p class="eyebrow">Segment comparison</p>
-          <h2>By tag or group</h2>
+          <p class="eyebrow">${tr('Segment comparison')}</p>
+          <h2>${tr('By tag or group')}</h2>
         </div>
         <div class="scatter-controls">
           <label class="compact-label">
-            Metric
+            ${tr('Metric')}
             <select id="group-summary-metric">
               ${summaryMetrics
                 .map((metric) =>
@@ -4928,20 +6234,20 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
             </select>
           </label>
           <label class="compact-label">
-            Split by
+            ${tr('Split by')}
             <select id="group-summary-basis">
-              ${optionHtml('tag', 'Student tags', selectedGroupSummaryBasis === 'tag')}
-              ${optionHtml('planning-group', 'Planning groups', selectedGroupSummaryBasis === 'planning-group')}
+              ${optionHtml('tag', tr('Student tags'), selectedGroupSummaryBasis === 'tag')}
+              ${optionHtml('planning-group', tr('Planning groups'), selectedGroupSummaryBasis === 'planning-group')}
             </select>
           </label>
-          <button id="load-group-summary" class="secondary compact" type="button" ${summaryMetrics.length === 0 ? 'disabled' : ''}>Summarise</button>
+          <button id="load-group-summary" class="secondary compact" type="button" ${summaryMetrics.length === 0 ? 'disabled' : ''}>${tr('Summarise')}</button>
         </div>
       </div>
       <div id="group-summary-result">
         ${
           summaryMetrics.length === 0
             ? renderNoMetrics()
-            : '<p class="muted">Summarise one metric for each student tag or planning group.</p>'
+            : `<p class="muted">${tr('Summarise one metric for each student tag or planning group.')}</p>`
         }
       </div>
     </article>
@@ -4999,7 +6305,7 @@ function renderAnalysisResults(content: HTMLElement, analysis: ProjectAnalysis):
 function renderNoMetrics(): string {
   return `
     <div class="empty-analysis">
-      <p>No metric definitions exist yet. Add fields in the Students view first.</p>
+      <p>${tr('No metric definitions exist yet. Add fields in the Students view first.')}</p>
     </div>
   `
 }
@@ -5018,7 +6324,7 @@ function renderNumericAnalysis(metric: NumericMetricAnalysis): string {
             <div
               class="chart-bar"
               style="height: ${Math.max(4, (bucket.count / maxCount) * 100)}%"
-              title="${bucket.count} students"
+              title="${tr('{n} students', { n: bucket.count })}"
             ></div>
           </div>
           <span>${numberLabel(bucket.min)}–${numberLabel(bucket.max)}</span>
@@ -5043,39 +6349,39 @@ function renderNumericAnalysis(metric: NumericMetricAnalysis): string {
   const summary = metric.summary
   return `
     <div class="analysis-summary-strip">
-      ${summaryStat('Recorded', summary.recordedCount)}
-      ${summaryStat('Missing / absent', summary.missingCount)}
-      ${summaryStat('Min', summary.min)}
-      ${summaryStat('Median', summary.median)}
-      ${summaryStat('Mean', summary.mean)}
-      ${summaryStat('Max', summary.max)}
+      ${summaryStat(tr('Recorded'), summary.recordedCount)}
+      ${summaryStat(tr('Missing / absent'), summary.missingCount)}
+      ${summaryStat(tr('Min'), summary.min)}
+      ${summaryStat(tr('Median'), summary.median)}
+      ${summaryStat(tr('Mean'), summary.mean)}
+      ${summaryStat(tr('Max'), summary.max)}
     </div>
     <div class="analysis-split">
       <div>
-        <h3>${escapeHtml(metric.label)} distribution</h3>
+        <h3>${tr('{metric} distribution', { metric: escapeHtml(metric.label) })}</h3>
         <div
           class="bar-chart"
           role="img"
-          aria-label="Histogram for ${escapeHtml(metric.label)}"
+          aria-label="${tr('Histogram for {metric}', { metric: escapeHtml(metric.label) })}"
         >
-          ${bars || '<p class="muted">No recorded numeric values.</p>'}
+          ${bars || `<p class="muted">${tr('No recorded numeric values.')}</p>`}
         </div>
       </div>
       <div>
-        <h3>Table equivalent</h3>
+        <h3>${tr('Table equivalent')}</h3>
         <div class="data-table-wrap">
           <table class="source-table">
-            <thead><tr><th>From</th><th>To</th><th>Count</th></tr></thead>
+            <thead><tr><th>${tr('From')}</th><th>${tr('To')}</th><th>${tr('Count')}</th></tr></thead>
             <tbody>
-              ${tableRows || '<tr><td colspan="3" class="empty-cell">No recorded values.</td></tr>'}
+              ${tableRows || `<tr><td colspan="3" class="empty-cell">${tr('No recorded values.')}</td></tr>`}
             </tbody>
           </table>
         </div>
       </div>
     </div>
     <p class="analysis-footnote">
-      Quartiles: Q1 ${numberLabel(summary.q1)} · Q3 ${numberLabel(summary.q3)}.
-      This is descriptive only; ClassGraph does not label students from these values.
+      ${tr('Quartiles: Q1 {q1} · Q3 {q3}.', { q1: numberLabel(summary.q1), q3: numberLabel(summary.q3) })}
+      ${tr('This is descriptive only; ClassGraph does not label students from these values.')}
     </p>
   `
 }
@@ -5113,24 +6419,24 @@ function renderCategoryAnalysis(metric: CategoryMetricAnalysis): string {
 
   return `
     <div class="analysis-summary-strip">
-      ${summaryStat('Recorded', metric.summary.recordedCount)}
-      ${summaryStat('Missing / absent', metric.summary.missingCount)}
-      ${summaryStat('Categories seen', entries.length)}
+      ${summaryStat(tr('Recorded'), metric.summary.recordedCount)}
+      ${summaryStat(tr('Missing / absent'), metric.summary.missingCount)}
+      ${summaryStat(tr('Categories seen'), entries.length)}
     </div>
     <div class="analysis-split">
       <div>
-        <h3>${escapeHtml(metric.label)} counts</h3>
-        <div class="horizontal-chart" role="img" aria-label="Counts for ${escapeHtml(metric.label)}">
-          ${bars || '<p class="muted">No recorded values.</p>'}
+        <h3>${tr('{metric} counts', { metric: escapeHtml(metric.label) })}</h3>
+        <div class="horizontal-chart" role="img" aria-label="${tr('Counts for {metric}', { metric: escapeHtml(metric.label) })}">
+          ${bars || `<p class="muted">${tr('No recorded values.')}</p>`}
         </div>
       </div>
       <div>
-        <h3>Table equivalent</h3>
+        <h3>${tr('Table equivalent')}</h3>
         <div class="data-table-wrap">
           <table class="source-table">
-            <thead><tr><th>Value</th><th>Count</th><th>Recorded %</th></tr></thead>
+            <thead><tr><th>${tr('Value')}</th><th>${tr('Count')}</th><th>${tr('Recorded %')}</th></tr></thead>
             <tbody>
-              ${tableRows || '<tr><td colspan="3" class="empty-cell">No recorded values.</td></tr>'}
+              ${tableRows || `<tr><td colspan="3" class="empty-cell">${tr('No recorded values.')}</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -5157,7 +6463,7 @@ function renderScatterUnavailable(numericCount: number): string {
   return `
     <div class="empty-analysis">
       <p>
-        ${numericCount === 0 ? 'No numeric metrics exist yet.' : 'Add a second numeric metric to compare two axes.'}
+        ${numericCount === 0 ? tr('No numeric metrics exist yet.') : tr('Add a second numeric metric to compare two axes.')}
       </p>
     </div>
   `
@@ -5169,12 +6475,11 @@ async function loadScatter(): Promise<void> {
   if (!target) return
 
   if (selectedScatterX === selectedScatterY) {
-    target.innerHTML =
-      '<p class="muted">Choose two different numeric metrics for a useful comparison.</p>'
+    target.innerHTML = `<p class="muted">${tr('Choose two different numeric metrics for a useful comparison.')}</p>`
     return
   }
 
-  target.innerHTML = '<p class="muted">Building scatter view…</p>'
+  target.innerHTML = `<p class="muted">${tr('Building scatter view…')}</p>`
 
   try {
     const response = await postJson<{ scatter: ScatterView }>('/api/analysis/scatter', {
@@ -5186,7 +6491,7 @@ async function loadScatter(): Promise<void> {
     bindReportToggles(target)
   } catch (error) {
     target.innerHTML = `<p class="status">${escapeHtml(
-      error instanceof Error ? error.message : 'Could not build scatter view.',
+      error instanceof Error ? localizeError(error.message) : tr('Could not build scatter view.'),
     )}</p>`
   }
 }
@@ -5195,8 +6500,8 @@ function renderScatter(scatter: ScatterView): string {
   if (scatter.points.length === 0) {
     return `
       <div class="empty-analysis">
-        <p>No students have recorded numeric values for both selected metrics.</p>
-        <p class="muted">${scatter.omittedCount} students omitted because one or both values are unavailable.</p>
+        <p>${tr('No students have recorded numeric values for both selected metrics.')}</p>
+        <p class="muted">${tr('{n} students omitted because one or both values are unavailable.', { n: scatter.omittedCount })}</p>
       </div>
     `
   }
@@ -5244,7 +6549,7 @@ function renderScatter(scatter: ScatterView): string {
         <div
           class="scatter-plot"
           role="img"
-          aria-label="Scatter plot comparing ${escapeHtml(scatter.xLabel)} and ${escapeHtml(scatter.yLabel)}"
+          aria-label="${tr('Scatter plot comparing {x} and {y}', { x: escapeHtml(scatter.xLabel), y: escapeHtml(scatter.yLabel) })}"
         >
           ${dots}
         </div>
@@ -5252,17 +6557,17 @@ function renderScatter(scatter: ScatterView): string {
         ${renderAssociation(scatter.association)}
         ${renderReportToggle({ kind: 'association', xMetricKey: scatter.xMetricKey, yMetricKey: scatter.yMetricKey })}
         <p class="analysis-footnote">
-          ${scatter.omittedCount} students omitted because one or both selected values are not recorded.
-          Position shows association only; it does not imply causation.
+          ${tr('{n} students omitted because one or both selected values are not recorded.', { n: scatter.omittedCount })}
+          ${tr('Position shows association only; it does not imply causation.')}
         </p>
       </div>
       <div>
-        <h3>Table equivalent</h3>
+        <h3>${tr('Table equivalent')}</h3>
         <div class="data-table-wrap">
           <table class="source-table">
             <thead>
               <tr>
-                <th>Student</th>
+                <th>${tr('Student')}</th>
                 <th>${escapeHtml(scatter.xLabel)}</th>
                 <th>${escapeHtml(scatter.yLabel)}</th>
               </tr>
@@ -5279,21 +6584,34 @@ function renderAssociation(association: ScatterView['association']): string {
   if (association.coefficient === null) {
     const reason =
       association.unavailableReason === 'no-variation'
-        ? 'one of the metrics has the same value for every compared student'
-        : `at least 3 students need both values recorded (currently ${association.pairCount})`
-    return `<p class="association-note">Correlation not shown: ${reason}.</p>`
+        ? tr(
+            'Correlation not shown: one of the metrics has the same value for every compared student.',
+          )
+        : tr(
+            'Correlation not shown: at least 3 students need both values recorded (currently {n}).',
+            { n: association.pairCount },
+          )
+    return `<p class="association-note">${reason}</p>`
   }
   const direction =
     association.direction === 'positive'
-      ? 'higher values of one tend to appear with higher values of the other'
+      ? tr(
+          'across {n} students with both values recorded — higher values of one tend to appear with higher values of the other.',
+          { n: association.pairCount },
+        )
       : association.direction === 'negative'
-        ? 'higher values of one tend to appear with lower values of the other'
-        : 'no linear pattern'
+        ? tr(
+            'across {n} students with both values recorded — higher values of one tend to appear with lower values of the other.',
+            { n: association.pairCount },
+          )
+        : tr('across {n} students with both values recorded — no linear pattern.', {
+            n: association.pairCount,
+          })
   return `
     <p class="association-note">
       <strong>Pearson r = ${association.coefficient.toFixed(2)}</strong>
-      across ${association.pairCount} students with both values recorded — ${direction}.
-      <span>${escapeHtml(association.caveat)}</span>
+      ${direction}
+      <span>${escapeHtml(trServer(association.caveat))}</span>
     </p>
   `
 }
@@ -5304,11 +6622,11 @@ async function loadCrossTab(): Promise<void> {
   if (!target) return
 
   if (selectedCrossTabRow === selectedCrossTabColumn) {
-    target.innerHTML = '<p class="muted">Choose two different metrics to cross-tabulate.</p>'
+    target.innerHTML = `<p class="muted">${tr('Choose two different metrics to cross-tabulate.')}</p>`
     return
   }
 
-  target.innerHTML = '<p class="muted">Counting students…</p>'
+  target.innerHTML = `<p class="muted">${tr('Counting students…')}</p>`
 
   try {
     const response = await postJson<{ crossTab: CrossTabView }>('/api/analysis/crosstab', {
@@ -5320,7 +6638,9 @@ async function loadCrossTab(): Promise<void> {
     bindReportToggles(target)
   } catch (error) {
     target.innerHTML = `<p class="status">${escapeHtml(
-      error instanceof Error ? error.message : 'Could not build cross-tabulation.',
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not build cross-tabulation.'),
     )}</p>`
   }
 }
@@ -5358,19 +6678,19 @@ function renderCrossTab(view: CrossTabView): string {
     <div class="data-table-wrap">
       <table class="source-table comparison-table crosstab-table">
         <caption>
-          Students by ${escapeHtml(view.rowLabel)} (rows) and ${escapeHtml(view.columnLabel)} (columns)
+          ${tr('Students by {row} (rows) and {column} (columns)', { row: escapeHtml(view.rowLabel), column: escapeHtml(view.columnLabel) })}
         </caption>
         <thead>
           <tr>
             <th scope="col">${escapeHtml(view.rowLabel)}</th>
             ${header}
-            <th scope="col">Total</th>
+            <th scope="col">${tr('Total')}</th>
           </tr>
         </thead>
         <tbody>${body}</tbody>
         <tfoot>
           <tr>
-            <th scope="row">Total</th>
+            <th scope="row">${tr('Total')}</th>
             ${view.columnTotals.map((total) => `<td class="total-cell">${total}</td>`).join('')}
             <td class="total-cell">${view.studentCount}</td>
           </tr>
@@ -5378,9 +6698,9 @@ function renderCrossTab(view: CrossTabView): string {
       </table>
     </div>
     <p class="analysis-footnote">
-      ${view.bothRecordedCount} of ${view.studentCount} students have both values recorded.
-      <em>Missing</em> and <em>Not recorded</em> are kept as their own rows and columns rather than
-      guessed. Shading only repeats the counts; it is not a score.
+      ${tr('{recorded} of {total} students have both values recorded.', { recorded: view.bothRecordedCount, total: view.studentCount })}
+      ${tr('<em>Missing</em> and <em>Not recorded</em> are kept as their own rows and columns rather than guessed.')}
+      ${tr('Shading only repeats the counts; it is not a score.')}
     </p>
     ${renderReportToggle({ kind: 'crosstab', rowMetricKey: view.rowMetricKey, columnMetricKey: view.columnMetricKey })}
   `
@@ -5391,7 +6711,7 @@ async function loadGroupSummary(): Promise<void> {
   const target = document.querySelector<HTMLElement>('#group-summary-result')
   if (!target) return
 
-  target.innerHTML = '<p class="muted">Summarising…</p>'
+  target.innerHTML = `<p class="muted">${tr('Summarising…')}</p>`
 
   try {
     const response = await postJson<{ groupSummary: GroupSummaryView }>(
@@ -5402,7 +6722,7 @@ async function loadGroupSummary(): Promise<void> {
     bindReportToggles(target)
   } catch (error) {
     target.innerHTML = `<p class="status">${escapeHtml(
-      error instanceof Error ? error.message : 'Could not build summary.',
+      error instanceof Error ? localizeError(error.message) : tr('Could not build summary.'),
     )}</p>`
   }
 }
@@ -5413,13 +6733,16 @@ function segmentHeading(segment: ComparisonSegment): string {
 }
 
 function renderGroupSummary(view: GroupSummaryView): string {
-  const basisLabel = view.basis === 'tag' ? 'student tags' : 'planning groups'
+  const caption =
+    view.basis === 'tag'
+      ? tr('{metric} by student tags', { metric: escapeHtml(view.metricLabel) })
+      : tr('{metric} by planning groups', { metric: escapeHtml(view.metricLabel) })
   if (view.segments.every((item) => item.segment.remainder)) {
     return `
       <div class="empty-analysis">
-        <p>No ${basisLabel} exist yet.</p>
+        <p>${view.basis === 'tag' ? tr('No student tags exist yet.') : tr('No planning groups exist yet.')}</p>
         <p class="muted">
-          ${view.basis === 'tag' ? 'Add tags to students in the Students view.' : 'Create or accept groups in the Grouping view.'}
+          ${view.basis === 'tag' ? tr('Add tags to students in the Students view.') : tr('Create or accept groups in the Grouping view.')}
         </p>
       </div>
     `
@@ -5445,17 +6768,17 @@ function renderGroupSummary(view: GroupSummaryView): string {
       .join('')
     table = `
       <table class="source-table comparison-table">
-        <caption>${escapeHtml(view.metricLabel)} by ${basisLabel}</caption>
+        <caption>${caption}</caption>
         <thead>
           <tr>
-            <th scope="col">Segment (students)</th>
-            <th scope="col">Recorded</th>
-            <th scope="col">Missing</th>
-            <th scope="col">Not recorded</th>
-            <th scope="col">Min</th>
-            <th scope="col">Median</th>
-            <th scope="col">Mean</th>
-            <th scope="col">Max</th>
+            <th scope="col">${tr('Segment (students)')}</th>
+            <th scope="col">${tr('Recorded')}</th>
+            <th scope="col">${tr('Missing')}</th>
+            <th scope="col">${tr('Not recorded')}</th>
+            <th scope="col">${tr('Min')}</th>
+            <th scope="col">${tr('Median')}</th>
+            <th scope="col">${tr('Mean')}</th>
+            <th scope="col">${tr('Max')}</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -5475,10 +6798,10 @@ function renderGroupSummary(view: GroupSummaryView): string {
       .join('')
     table = `
       <table class="source-table comparison-table crosstab-table">
-        <caption>${escapeHtml(view.metricLabel)} by ${basisLabel}</caption>
+        <caption>${caption}</caption>
         <thead>
           <tr>
-            <th scope="col">Segment (students)</th>
+            <th scope="col">${tr('Segment (students)')}</th>
             ${view.levels.map((level) => `<th scope="col">${levelHeading(level)}</th>`).join('')}
           </tr>
         </thead>
@@ -5490,8 +6813,8 @@ function renderGroupSummary(view: GroupSummaryView): string {
   return `
     <div class="data-table-wrap">${table}</div>
     <p class="analysis-footnote">
-      ${view.overlapping ? 'Some students have more than one tag, so they are counted in each matching segment. ' : ''}
-      Segments describe the recorded data only; differences between them are not explanations.
+      ${view.overlapping ? `${tr('Some students have more than one tag, so they are counted in each matching segment.')} ` : ''}
+      ${tr('Segments describe the recorded data only; differences between them are not explanations.')}
     </p>
     ${renderReportToggle({ kind: 'group-summary', metricKey: view.metricKey, basis: view.basis })}
   `
@@ -5518,12 +6841,12 @@ function renderReportToggle(comparison: ReportComparison): string {
   const included = isComparisonInReport(comparison)
   return `
     <div class="report-toggle" data-included="${included}">
-      <span>${included ? 'Included in DOCX/PDF reports and Analysis JSON.' : 'Not in reports yet.'}</span>
+      <span>${included ? tr('Included in DOCX/PDF reports and Analysis JSON.') : tr('Not in reports yet.')}</span>
       <button
         class="${included ? 'ghost' : 'secondary'} compact"
         type="button"
         data-report-comparison="${escapeHtml(JSON.stringify(comparison))}"
-      >${included ? 'Remove from report' : 'Include in report'}</button>
+      >${included ? tr('Remove from report') : tr('Include in report')}</button>
     </div>
   `
 }
@@ -5558,7 +6881,11 @@ async function toggleReportComparison(button: HTMLButtonElement): Promise<void> 
     }
   } catch (error) {
     button.disabled = false
-    showStatus(error instanceof Error ? error.message : 'Could not update report selections.')
+    showStatus(
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not update report selections.'),
+    )
   }
 }
 
@@ -5570,17 +6897,23 @@ function describeReportComparison(comparison: ReportComparison): { kind: string;
   switch (comparison.kind) {
     case 'crosstab':
       return {
-        kind: 'Cross-tabulation',
-        label: `${metricLabelFor(comparison.rowMetricKey)} by ${metricLabelFor(comparison.columnMetricKey)}`,
+        kind: tr('Cross-tabulation'),
+        label: tr('{row} by {column}', {
+          row: metricLabelFor(comparison.rowMetricKey),
+          column: metricLabelFor(comparison.columnMetricKey),
+        }),
       }
     case 'association':
       return {
-        kind: 'Association',
-        label: `${metricLabelFor(comparison.xMetricKey)} and ${metricLabelFor(comparison.yMetricKey)}`,
+        kind: tr('Association'),
+        label: tr('{x} and {y}', {
+          x: metricLabelFor(comparison.xMetricKey),
+          y: metricLabelFor(comparison.yMetricKey),
+        }),
       }
     case 'group-summary':
       return {
-        kind: comparison.basis === 'tag' ? 'By student tag' : 'By planning group',
+        kind: comparison.basis === 'tag' ? tr('By student tag') : tr('By planning group'),
         label: metricLabelFor(comparison.metricKey),
       }
   }
@@ -5591,8 +6924,8 @@ function renderReportComparisonList(): string {
   if (comparisons.length === 0) {
     return `
       <p class="report-note">
-        None selected. Run a scatter, cross-tabulation or tag/group comparison in Graphs and choose
-        <b>Include in report</b> to add it here.
+        ${tr('None selected.')}
+        ${tr('Run a scatter, cross-tabulation or tag/group comparison in Graphs and choose <b>Include in report</b> to add it here.')}
       </p>
     `
   }
@@ -5604,7 +6937,7 @@ function renderReportComparisonList(): string {
           return `
             <li>
               <span><small>${escapeHtml(kind)}</small>${escapeHtml(label)}</span>
-              <button class="ghost compact" type="button" data-remove-report-comparison="${escapeHtml(reportComparisonId(comparison))}">Remove</button>
+              <button class="ghost compact" type="button" data-remove-report-comparison="${escapeHtml(reportComparisonId(comparison))}">${tr('Remove')}</button>
             </li>
           `
         })
@@ -5621,40 +6954,51 @@ async function quitDesktopApp(): Promise<void> {
         <div>
           <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
           <p class="eyebrow">ClassGraph</p>
-          <h1>Saved and closed.</h1>
-          <p>Your local project files remain on this device.</p>
+          <h1>${tr('Saved and closed.')}</h1>
+          <p>${tr('Your local project files remain on this device.')}</p>
         </div>
       </main>
     `
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not close ClassGraph.')
+    showStatus(
+      error instanceof Error ? localizeError(error.message) : tr('Could not close ClassGraph.'),
+    )
   }
 }
 
-async function exportProject(): Promise<void> {
+async function exportProject(plain = false): Promise<void> {
   if (!project) return
   clearStatus()
+  const encrypted = protectionStatus?.protected === true && !plain
 
   try {
     if (window.classGraphDesktop) {
       const result = await window.classGraphDesktop.saveProjectCopy(
         JSON.stringify(project),
         project.title,
+        plain,
       )
       if (result.canceled) {
-        showStatus('Backup canceled.', 'success')
+        showStatus(tr('Backup canceled.'), 'success')
         return
       }
+      const path = result.filePath
       showStatus(
-        result.filePath ? `Backup saved to ${result.filePath}` : 'Backup saved.',
+        encrypted
+          ? path
+            ? tr('Password-protected backup saved to {path}.', { path })
+            : tr('Password-protected backup saved.')
+          : path
+            ? tr('Backup saved to {path}.', { path })
+            : tr('Backup saved.'),
         'success',
       )
       return
     }
 
-    const response = await classGraphApiFetch('/api/export', {
+    const response = await classGraphApiFetch('/api/export/backup', {
       method: 'POST',
-      body: JSON.stringify(project),
+      body: JSON.stringify({ project, plain }),
     })
     if (!response.ok) throw await responseError(response)
 
@@ -5668,13 +7012,33 @@ async function exportProject(): Promise<void> {
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
-    showStatus('Backup JSON downloaded.', 'success')
+    showStatus(
+      encrypted ? tr('Password-protected backup downloaded.') : tr('Backup JSON downloaded.'),
+      'success',
+    )
   } catch (error) {
-    showStatus(error instanceof Error ? error.message : 'Could not create the backup JSON.')
+    showStatus(
+      error instanceof Error
+        ? localizeError(error.message)
+        : tr('Could not create the backup JSON.'),
+    )
+  }
+}
+
+async function startupUpdateCheck(): Promise<void> {
+  try {
+    updateSettings = await desktopUpdates<UpdateSettingsView>('get-settings')
+    if (!updateSettings?.checkOnStart || startupUpdateCheckDone) return
+    startupUpdateCheckDone = true
+    updateStatus = await desktopUpdates<UpdateStatusView>('check')
+    if (updateStatus?.available && project) renderWorkspace()
+  } catch {
+    // Optional.
   }
 }
 
 async function initializeApp(): Promise<void> {
+  void startupUpdateCheck()
   let restoreError: string | null = null
 
   try {
@@ -5696,11 +7060,562 @@ async function initializeApp(): Promise<void> {
     }
   } catch (error) {
     restoreError =
-      error instanceof Error ? error.message : 'ClassGraph could not restore the last saved class.'
+      error instanceof Error
+        ? error.message
+        : tr('ClassGraph could not restore the last saved class.')
+    const last = projectLibraryView?.projects.find(
+      (item) => item.projectId === projectLibraryView?.lastProjectId,
+    )
+    if (restoreError.includes('CG-2016') && last) {
+      renderUnlockScreen({ kind: 'library', projectId: last.projectId, label: last.title })
+      return
+    }
   }
 
   renderSetup()
-  if (restoreError) showStatus(restoreError)
+  if (restoreError) showStatus(localizeError(restoreError))
+}
+
+// ---- Terms: compare this class with another term, matched by student ID ----
+
+type TermValueStateView = 'recorded' | 'missing' | 'not-recorded' | 'not-in-term'
+
+interface TermValueView {
+  state: TermValueStateView
+  value: number | string | boolean | null
+}
+
+interface TermSideSummaryView {
+  recordedCount: number
+  missingCount: number
+  notRecordedCount: number
+  median: number | null
+  mean: number | null
+  min: number | null
+  max: number | null
+  counts: Record<string, number>
+}
+
+interface TermMetricView {
+  key: string
+  earlierLabel: string
+  laterLabel: string
+  kind: 'number' | 'ordinal' | 'category' | 'boolean'
+  unit: string | null
+  levels: string[]
+  earlier: TermSideSummaryView
+  later: TermSideSummaryView
+  pairCount: number
+  notComparedCount: number
+  higherCount: number
+  lowerCount: number
+  sameCount: number
+  changedCount: number
+  medianChange: number | null
+  meanChange: number | null
+  transitions: Record<string, Record<string, number>>
+  rows: Array<{
+    studentId: string
+    earlier: TermValueView
+    later: TermValueView
+    change: number | null
+  }>
+}
+
+interface TermLabelView {
+  projectId: string
+  title: string
+  term: string | null
+  updatedAt: string
+  studentCount: number
+}
+
+interface TermComparisonView {
+  earlier: TermLabelView
+  later: TermLabelView
+  students: Array<{ id: string; earlierName: string | null; laterName: string | null }>
+  roster: { bothCount: number; onlyEarlier: string[]; onlyLater: string[] }
+  metrics: TermMetricView[]
+  notCompared: Array<{
+    key: string
+    earlierLabel: string | null
+    laterLabel: string | null
+    reason: 'only-earlier' | 'only-later' | 'kind-changed' | 'scale-changed' | 'text'
+  }>
+}
+
+interface TermCompareRequest {
+  otherProjectId?: string
+  otherText?: string
+  otherPassword?: string
+  currentTerm: 'earlier' | 'later'
+}
+
+let termRequest: TermCompareRequest | null = null
+let termComparison: TermComparisonView | null = null
+let termLibrary: ProjectSummaryView[] | null = null
+
+function termName(label: TermLabelView): string {
+  return label.term
+    ? tr('{title} ({term})', { title: escapeHtml(label.title), term: escapeHtml(label.term) })
+    : escapeHtml(label.title)
+}
+
+function termValueText(value: TermValueView, kind: TermMetricView['kind']): string {
+  if (value.state === 'missing') return tr('Missing')
+  if (value.state === 'not-recorded') return tr('Not recorded')
+  if (value.state === 'not-in-term') return tr('Not in this term')
+  if (kind === 'boolean') return value.value === true ? tr('Yes') : tr('No')
+  if (typeof value.value === 'number') return formatNumber(value.value)
+  return escapeHtml(String(value.value))
+}
+
+function termLevelText(level: string, kind: TermMetricView['kind']): string {
+  if (kind === 'boolean') return level === 'true' ? tr('Yes') : tr('No')
+  return escapeHtml(level)
+}
+
+function signedNumber(value: number | null, unit: string | null): string {
+  if (value === null) return '—'
+  const text = `${value > 0 ? '+' : ''}${formatNumber(value)}`
+  return unit ? `${text} ${escapeHtml(unit)}` : text
+}
+
+function renderTermMetric(metric: TermMetricView, comparison: TermComparisonView): string {
+  const title =
+    metric.earlierLabel === metric.laterLabel
+      ? escapeHtml(metric.laterLabel)
+      : tr('{earlier} → {later}', {
+          earlier: escapeHtml(metric.earlierLabel),
+          later: escapeHtml(metric.laterLabel),
+        })
+
+  const sideRows = (rows: Array<[string, (side: TermSideSummaryView) => string]>) =>
+    rows
+      .map(
+        ([name, value]) =>
+          `<tr><th scope="row">${name}</th><td>${value(metric.earlier)}</td><td>${value(metric.later)}</td></tr>`,
+      )
+      .join('')
+
+  const countRows: Array<[string, (side: TermSideSummaryView) => string]> = [
+    [tr('Recorded'), (side) => String(side.recordedCount)],
+    [tr('Missing'), (side) => String(side.missingCount)],
+    [tr('Not recorded'), (side) => String(side.notRecordedCount)],
+  ]
+  const summary =
+    metric.kind === 'number'
+      ? sideRows([
+          ...countRows,
+          [tr('Median'), (side) => formatNumber(side.median)],
+          [tr('Mean'), (side) => formatNumber(side.mean)],
+          [tr('Minimum'), (side) => formatNumber(side.min)],
+          [tr('Maximum'), (side) => formatNumber(side.max)],
+        ])
+      : sideRows([
+          ...countRows,
+          ...metric.levels.map((level): [string, (side: TermSideSummaryView) => string] => [
+            termLevelText(level, metric.kind),
+            (side) => String(side.counts[level] ?? 0),
+          ]),
+        ])
+
+  let changes: string
+  if (metric.kind === 'number') {
+    changes = tr(
+      '{pairs} students have a value in both terms: {higher} higher, {lower} lower, {same} the same. Median change {median}; mean change {mean}.',
+      {
+        pairs: metric.pairCount,
+        higher: metric.higherCount,
+        lower: metric.lowerCount,
+        same: metric.sameCount,
+        median: signedNumber(metric.medianChange, metric.unit),
+        mean: signedNumber(metric.meanChange, metric.unit),
+      },
+    )
+  } else if (metric.kind === 'ordinal') {
+    changes = tr(
+      '{pairs} students have a value in both terms: {higher} higher on the scale, {lower} lower on the scale, {same} the same. Median change {median} steps.',
+      {
+        pairs: metric.pairCount,
+        higher: metric.higherCount,
+        lower: metric.lowerCount,
+        same: metric.sameCount,
+        median: signedNumber(metric.medianChange, null),
+      },
+    )
+  } else {
+    changes = tr(
+      '{pairs} students have a value in both terms: {changed} have a different value, {same} the same value.',
+      { pairs: metric.pairCount, changed: metric.changedCount, same: metric.sameCount },
+    )
+  }
+  const notCompared =
+    metric.notComparedCount > 0
+      ? `<p class="term-note">${tr(
+          '{n} students in both terms are not compared here because a value is missing or not recorded in one of them.',
+          { n: metric.notComparedCount },
+        )}</p>`
+      : ''
+
+  const transitions =
+    metric.kind === 'number'
+      ? ''
+      : `
+        <div class="data-table-wrap">
+          <table class="source-table term-transitions">
+            <caption>${tr('Earlier value (rows) and later value (columns), students in both terms')}</caption>
+            <thead>
+              <tr><th scope="col">${tr('Earlier \\ Later')}</th>${metric.levels
+                .map((level) => `<th scope="col">${termLevelText(level, metric.kind)}</th>`)
+                .join('')}</tr>
+            </thead>
+            <tbody>
+              ${metric.levels
+                .map(
+                  (from) =>
+                    `<tr><th scope="row">${termLevelText(from, metric.kind)}</th>${metric.levels
+                      .map((to) => `<td>${metric.transitions[from]?.[to] ?? 0}</td>`)
+                      .join('')}</tr>`,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>`
+
+  const studentRows = metric.rows
+    .map((row, index) => {
+      const student = comparison.students[index]
+      const name = student?.laterName ?? student?.earlierName ?? row.studentId
+      const change =
+        metric.kind === 'number' || metric.kind === 'ordinal'
+          ? `<td>${row.change === null ? '—' : signedNumber(row.change, null)}</td>`
+          : ''
+      return `<tr><td>${escapeHtml(name)} <span class="id-cell">${escapeHtml(row.studentId)}</span></td><td>${termValueText(row.earlier, metric.kind)}</td><td>${termValueText(row.later, metric.kind)}</td>${change}</tr>`
+    })
+    .join('')
+
+  return `
+    <article class="panel term-metric" data-term-metric="${escapeHtml(metric.key)}">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">${escapeHtml(metric.key)}</p>
+          <h2>${title}</h2>
+        </div>
+      </div>
+      <div class="data-table-wrap">
+        <table class="source-table term-summary">
+          <thead><tr><th scope="col"></th><th scope="col">${tr('Earlier term')}</th><th scope="col">${tr('Later term')}</th></tr></thead>
+          <tbody>${summary}</tbody>
+        </table>
+      </div>
+      <p class="term-changes">${changes}</p>
+      ${notCompared}
+      ${transitions}
+      <details class="term-students">
+        <summary>${tr('Values for each student')}</summary>
+        <div class="data-table-wrap">
+          <table class="source-table">
+            <thead><tr><th scope="col">${tr('Student')}</th><th scope="col">${tr('Earlier term')}</th><th scope="col">${tr('Later term')}</th>${
+              metric.kind === 'number' || metric.kind === 'ordinal'
+                ? `<th scope="col">${tr('Change')}</th>`
+                : ''
+            }</tr></thead>
+            <tbody>${studentRows}</tbody>
+          </table>
+        </div>
+      </details>
+    </article>
+  `
+}
+
+function notComparedReason(reason: TermComparisonView['notCompared'][number]['reason']): string {
+  switch (reason) {
+    case 'only-earlier':
+      return tr('only in the earlier term')
+    case 'only-later':
+      return tr('only in the later term')
+    case 'kind-changed':
+      return tr('its type is different in the two terms')
+    case 'scale-changed':
+      return tr('its scale or unit is different in the two terms')
+    case 'text':
+      return tr('text is not compared')
+  }
+}
+
+function renderTermResults(comparison: TermComparisonView): string {
+  const nameOf = (id: string) => {
+    const student = comparison.students.find((item) => item.id === id)
+    return escapeHtml(student?.laterName ?? student?.earlierName ?? id)
+  }
+  const rosterList = (ids: string[], heading: string) =>
+    ids.length === 0
+      ? ''
+      : `<details><summary>${heading}</summary><p>${ids.map(nameOf).join('、')}</p></details>`
+
+  const notCompared =
+    comparison.notCompared.length === 0
+      ? ''
+      : `
+        <article class="panel">
+          <p class="eyebrow">${tr('Not compared')}</p>
+          <ul class="term-not-compared">
+            ${comparison.notCompared
+              .map(
+                (item) =>
+                  `<li><b>${escapeHtml(item.laterLabel ?? item.earlierLabel ?? item.key)}</b>: ${notComparedReason(item.reason)}</li>`,
+              )
+              .join('')}
+          </ul>
+        </article>`
+
+  return `
+    <article class="panel term-overview">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">${tr('Matched by student ID')}</p>
+          <h2 tabindex="-1">${tr('{earlier} → {later}', { earlier: termName(comparison.earlier), later: termName(comparison.later) })}</h2>
+        </div>
+        <button id="term-csv" class="secondary compact" type="button">${tr('Download CSV')}</button>
+      </div>
+      <div class="term-roster">
+        <div><b>${comparison.roster.bothCount}</b><span>${tr('students in both terms')}</span></div>
+        <div><b>${comparison.roster.onlyEarlier.length}</b><span>${tr('only in the earlier term')}</span></div>
+        <div><b>${comparison.roster.onlyLater.length}</b><span>${tr('only in the later term')}</span></div>
+      </div>
+      ${rosterList(comparison.roster.onlyEarlier, tr('Students only in the earlier term'))}
+      ${rosterList(comparison.roster.onlyLater, tr('Students only in the later term'))}
+      <p class="term-note">${tr(
+        'This describes what was recorded in each term. It does not say whether a change is good or bad, or why it happened. A metric with the same key may still have been measured differently in each term.',
+      )}</p>
+    </article>
+    ${
+      comparison.metrics.length === 0
+        ? `<div class="empty-analysis"><p>${tr('The two terms have no metrics in common to compare.')}</p></div>`
+        : comparison.metrics.map((metric) => renderTermMetric(metric, comparison)).join('')
+    }
+    ${notCompared}
+  `
+}
+
+function renderTerms(content: HTMLElement): void {
+  if (!project) return
+  const current = project
+  const others = (termLibrary ?? []).filter((item) => item.projectId !== current.projectId)
+  const selected = termRequest?.otherProjectId ?? (termRequest?.otherText ? '__file__' : '')
+  const options = others
+    .map((item) => {
+      const label = item.locked
+        ? tr('{title} (locked: open it once to unlock)', { title: escapeHtml(item.title) })
+        : escapeHtml(item.title)
+      return `<option value="${escapeHtml(item.projectId)}" ${item.locked ? 'disabled' : ''} ${selected === item.projectId ? 'selected' : ''}>${label} · ${escapeHtml(formatSavedDate(item.updatedAt))}</option>`
+    })
+    .join('')
+
+  content.innerHTML = `
+    <div class="terms-stack">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">${tr('Term comparison')}</p>
+            <h2>${tr('Compare with another term')}</h2>
+          </div>
+        </div>
+        <p>${tr(
+          'Choose another term of this class: a saved class or a backup file. Students are matched by student ID, and metrics by their key. Nothing is changed or saved.',
+        )}</p>
+        <form id="term-form" class="term-form">
+          <label>
+            ${tr('Other term')}
+            <select id="term-other" required>
+              <option value="" ${selected === '' ? 'selected' : ''}>${tr('Choose…')}</option>
+              ${options}
+              <option value="__file__" ${selected === '__file__' ? 'selected' : ''}>${tr('A backup file…')}</option>
+            </select>
+          </label>
+          <label id="term-file-field" ${selected === '__file__' ? '' : 'hidden'}>
+            ${tr('Backup file (.classgraph.json or .json)')}
+            <input id="term-file" type="file" accept=".json,application/json" />
+          </label>
+          <label id="term-password-field" ${selected === '__file__' ? '' : 'hidden'}>
+            ${tr('Password (only for a password-protected backup)')}
+            <input id="term-password" type="password" autocomplete="off" />
+          </label>
+          <label>
+            ${tr('This class is the')}
+            <select id="term-current">
+              <option value="later" ${termRequest?.currentTerm !== 'earlier' ? 'selected' : ''}>${tr('later term')}</option>
+              <option value="earlier" ${termRequest?.currentTerm === 'earlier' ? 'selected' : ''}>${tr('earlier term')}</option>
+            </select>
+          </label>
+          <button class="primary" type="submit">${tr('Compare')}</button>
+        </form>
+      </article>
+
+      <div id="term-results">${termComparison ? renderTermResults(termComparison) : ''}</div>
+
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">${tr('New term')}</p>
+            <h2>${tr('Start the next term from this class')}</h2>
+          </div>
+        </div>
+        <p>${tr(
+          'Creates a new class with the same students and metrics, and nothing recorded yet, so the two terms can be compared later. Seating, groups, relationships and notes are not copied.',
+        )}</p>
+        <form id="next-term-form" class="term-form">
+          <label>
+            ${tr('Class name')}
+            <input name="title" required value="${escapeHtml(current.title)}" />
+          </label>
+          <label>
+            ${tr('Term')}
+            <input name="term" placeholder="${escapeHtml(tr('e.g. Spring 2027'))}" />
+          </label>
+          <button class="secondary" type="submit">${tr('Create next term')}</button>
+        </form>
+      </article>
+    </div>
+  `
+
+  if (termLibrary === null) {
+    void getJson<ProjectLibraryView>('/api/projects')
+      .then((library) => {
+        termLibrary = library.projects
+        if (activeView === 'terms') renderWorkspaceContent()
+      })
+      .catch(() => {
+        termLibrary = []
+      })
+  }
+  bindTermEvents()
+}
+
+async function runTermComparison(request: TermCompareRequest): Promise<void> {
+  if (!project) return
+  clearStatus()
+  try {
+    const response = await postJson<{ comparison: TermComparisonView }>('/api/compare/terms', {
+      project,
+      ...request,
+    })
+    termRequest = { ...request, otherPassword: undefined }
+    if (request.otherPassword) termRequest.otherPassword = request.otherPassword
+    termComparison = response.comparison
+    renderWorkspaceContent()
+    document.querySelector<HTMLElement>('#term-results h2')?.focus()
+  } catch (error) {
+    showStatus(
+      error instanceof Error ? localizeError(error.message) : tr('Could not compare the terms.'),
+    )
+  }
+}
+
+function bindTermEvents(): void {
+  const other = document.querySelector<HTMLSelectElement>('#term-other')
+  other?.addEventListener('change', () => {
+    const file = other.value === '__file__'
+    document.querySelector<HTMLElement>('#term-file-field')!.hidden = !file
+    document.querySelector<HTMLElement>('#term-password-field')!.hidden = !file
+  })
+
+  document.querySelector<HTMLFormElement>('#term-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const currentTerm =
+      document.querySelector<HTMLSelectElement>('#term-current')?.value === 'earlier'
+        ? 'earlier'
+        : 'later'
+    const choice = other?.value ?? ''
+    if (choice === '__file__') {
+      const file = document.querySelector<HTMLInputElement>('#term-file')?.files?.[0]
+      const password = document.querySelector<HTMLInputElement>('#term-password')?.value ?? ''
+      if (!file) {
+        if (termRequest?.otherText) {
+          void runTermComparison({ ...termRequest, currentTerm })
+          return
+        }
+        showStatus(tr('Choose a backup file to compare with.'))
+        return
+      }
+      void file.text().then((text) =>
+        runTermComparison({
+          otherText: text,
+          ...(password ? { otherPassword: password } : {}),
+          currentTerm,
+        }),
+      )
+      return
+    }
+    if (!choice) {
+      showStatus(tr('Choose a saved class or a backup file to compare with.'))
+      return
+    }
+    void runTermComparison({ otherProjectId: choice, currentTerm })
+  })
+
+  document.querySelector<HTMLButtonElement>('#term-csv')?.addEventListener('click', () => {
+    if (termRequest) void downloadTermCsv(termRequest)
+  })
+
+  document
+    .querySelector<HTMLFormElement>('#next-term-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      if (!project) return
+      const form = new FormData(event.currentTarget as HTMLFormElement)
+      void (async () => {
+        try {
+          const response = await postJson<ProjectResponse>('/api/project/next-term', {
+            project,
+            projectId: projectId(),
+            title: asString(form, 'title'),
+            term: asString(form, 'term'),
+          })
+          termLibrary = null
+          termComparison = null
+          termRequest = null
+          openProject(response.project)
+          showStatus(
+            tr('Next term created. Its students and metrics are ready to record.'),
+            'success',
+          )
+        } catch (error) {
+          showStatus(
+            error instanceof Error
+              ? localizeError(error.message)
+              : tr('Could not create the next term.'),
+          )
+        }
+      })()
+    })
+}
+
+async function downloadTermCsv(request: TermCompareRequest): Promise<void> {
+  if (!project) return
+  try {
+    const response = await classGraphApiFetch('/api/export/term-comparison-csv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project, ...request }),
+    })
+    if (!response.ok) throw await responseError(response)
+    const url = URL.createObjectURL(await response.blob())
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = reportDownloadName(response, 'classgraph-term-comparison.csv')
+    anchor.hidden = true
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+    showStatus(tr('Export created locally.'), 'success')
+  } catch (error) {
+    showStatus(
+      error instanceof Error ? localizeError(error.message) : tr('Could not create the export.'),
+    )
+  }
 }
 
 void initializeApp()

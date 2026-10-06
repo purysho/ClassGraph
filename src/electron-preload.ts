@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('classGraphDesktop', {
   request: (request: unknown) => ipcRenderer.invoke('classgraph:request', request),
-  saveProjectCopy: (serializedProject: string, suggestedTitle: string) =>
-    ipcRenderer.invoke('classgraph:save-project-copy', serializedProject, suggestedTitle),
+  updates: (action: string, payload?: unknown) =>
+    ipcRenderer.invoke('classgraph:updates', action, payload),
+  saveProjectCopy: (serializedProject: string, suggestedTitle: string, plain?: boolean) =>
+    ipcRenderer.invoke('classgraph:save-project-copy', serializedProject, suggestedTitle, plain),
 })

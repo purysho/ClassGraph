@@ -121,7 +121,24 @@ The Phase 3 adapter therefore requires:
 - no automatic overwrite of observed EduBoard data;
 - no database write as part of the validation/parser contract.
 
-The matching EduBoard parser/fixture tests live on isolated branch `feat/classgraph-handback-contract` / PR #62. That branch is intentionally non-writing: it validates and plans prospective writes but does not call EduBoard database/repository mutation functions.
+The matching EduBoard parser/fixture tests started on branch `feat/classgraph-handback-contract` /
+EduBoard PR #62, which is intentionally non-writing.
+
+### Round trip (EduBoard PR #64)
+
+1. **EduBoard → ClassGraph.** EduBoard's Seating tab → **Export for ClassGraph** writes an Exchange
+   v1 project: EduBoard student IDs and display names, the seating grid as a `grid` room with
+   ClassGraph seat IDs (`seat-r{row+1}-c{col+1}`), current seats as planning assignments, and
+   `imported` provenance with source `eduboard`. No grades, attendance, notes or contact details.
+   Open it in ClassGraph with **Import / restore backup**.
+2. **ClassGraph → EduBoard.** Reports → **EduBoard Hand-back JSON**. EduBoard's **Import from
+   ClassGraph…** previews the plan against the open class, refuses students who are not in that
+   class (`EB-2010`), enlarges the grid only if the teacher allows it, and replaces the class's
+   seating chart in one transaction.
+
+Shared fixtures keep both sides honest: `tests/fixtures/eduboard-class-export-v1.json` and
+`tests/fixtures/eduboard-roundtrip-handback-v1.json` here, with identical copies in EduBoard's
+`src/shared/__tests__/fixtures/`. Each repository tests that its side produces or accepts them.
 
 ## Unsupported or future fields
 
@@ -135,5 +152,12 @@ The matching EduBoard parser/fixture tests live on isolated branch `feat/classgr
 DOCX and PDF are presentation formats, not interchange sources of truth.
 
 - DOCX supports full Unicode content through WordprocessingML.
-- The current lean PDF path uses PDF built-in fonts. If any rendered text cannot be encoded safely, ClassGraph fails with `CG-5004` rather than substituting or corrupting it.
-- A future packaged Unicode PDF font requires a separate licensing/size review before bundling.
+- PDFs whose text fits the built-in Latin fonts use Helvetica, unchanged from earlier releases.
+- Any other text (for example Chinese names) switches the whole PDF to the bundled Noto Sans SC
+  subset. Only the glyphs a document uses are embedded, so a typical class PDF stays well under
+  100 KB. Bold is drawn with a fill-and-outline effect because one weight is bundled.
+- Characters the bundled font does not cover (for example emoji, Hangul, or CJK Extension A/B)
+  make export fail with `CG-5004`, naming the characters, rather than substituting or dropping
+  them. DOCX export still works for such text.
+- Font: Noto Sans SC (SIL Open Font License 1.1), pinned upstream commit and checksums in
+  `scripts/build-cjk-font.py`; licence text in `assets/fonts/OFL.txt`.

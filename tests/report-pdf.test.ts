@@ -1,4 +1,7 @@
-import { loadPdfDocument } from '../src/pdf-runtime.js'
+import fontkit from '@pdf-lib/fontkit'
+import { readFileSync } from 'node:fs'
+import { createPdfDocument, loadPdfDocument } from '../src/pdf-runtime.js'
+import { embedReportFonts } from '../src/pdf-fonts.js'
 import { describe, expect, it } from 'vitest'
 import { ClassGraphExportError } from '../src/export-errors.js'
 import { generatePdfReport, generateSeatingPlanPdf } from '../src/report-pdf.js'
@@ -64,13 +67,24 @@ describe('PDF exports', () => {
     }
   })
 
-  it('fails clearly rather than corrupting unsupported Unicode', async () => {
-    await expect(generatePdfReport(fixture('Grade 5 英语'))).rejects.toMatchObject({
-      code: 'CG-5004',
-    })
-    await expect(generateSeatingPlanPdf(fixture('Grade 5 英语'))).rejects.toMatchObject({
-      code: 'CG-5004',
-    })
+  it('exports Chinese titles and names in both PDF reports', async () => {
+    const project = fixture('Grade 5 英语')
+    project.students[0] = { ...project.students[0]!, displayName: '张喆' }
+    project.room!.seats[0] = { ...project.room!.seats[0]!, tags: ['前排'] }
+
+    const report = await generatePdfReport(project)
+    const seating = await generateSeatingPlanPdf(project)
+    expect((await loadPdfDocument(report)).getPageCount()).toBeGreaterThan(0)
+    expect((await loadPdfDocument(seating)).getPageCount()).toBeGreaterThanOrEqual(2)
+    // Only the glyphs used are embedded, not the whole 7 MB font.
+    expect(report.byteLength).toBeLessThan(150_000)
+    expect(seating.byteLength).toBeLessThan(150_000)
+  })
+
+  it('fails clearly, naming the character, rather than dropping it', async () => {
+    const project = fixture('Grade 5 英语 😀')
+    await expect(generatePdfReport(project)).rejects.toMatchObject({ code: 'CG-5004' })
+    await expect(generateSeatingPlanPdf(project)).rejects.toThrow('😀')
   })
 
   it('requires a grid room for seating-plan PDF export', async () => {
@@ -93,5 +107,37 @@ describe('PDF exports', () => {
     await generatePdfReport(project)
     await generateSeatingPlanPdf(project)
     expect(project).toEqual(before)
+  })
+})
+
+describe('PDF font selection', () => {
+  it('keeps the built-in Latin fonts for text they can encode', async () => {
+    const fonts = await embedReportFonts(await createPdfDocument(), [
+      'Grade 5 English',
+      'Zoë – café',
+    ])
+    expect(fonts.unicode).toBe(false)
+    expect(fonts.bold.syntheticBold).toBe(false)
+  })
+
+  it('switches to the bundled CJK font and simulates bold with one weight', async () => {
+    const fonts = await embedReportFonts(await createPdfDocument(), ['学生甲', 'Grade 5'])
+    expect(fonts.unicode).toBe(true)
+    expect(fonts.bold.syntheticBold).toBe(true)
+    expect(fonts.regular.missingCharacters('张喆 玥 淏 English')).toEqual([])
+  })
+
+  it('reports every character neither font can draw', async () => {
+    await expect(
+      embedReportFonts(await createPdfDocument(), ['学生甲', '\u4dae', '안녕']),
+    ).rejects.toThrow(/\u4dae.*안/u)
+  })
+
+  it('ships a font whose glyphs survive pdf-lib subsetting', () => {
+    // fontkit writes a short-format loca table when subsetting, which needs even glyph offsets.
+    const font = fontkit.create(
+      readFileSync('assets/fonts/NotoSansSC-Regular-ClassGraph.ttf'),
+    ) as unknown as { loca: { offsets: number[] } }
+    expect(font.loca.offsets.every((offset) => offset % 2 === 0)).toBe(true)
   })
 })

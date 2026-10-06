@@ -48,7 +48,7 @@ export async function classGraphApiFetch(
   if (environment.desktopBridge) {
     const method = (init?.method?.toUpperCase() ?? 'GET') === 'POST' ? 'POST' : 'GET'
     if (init?.body !== undefined && typeof init.body !== 'string') {
-      throw new Error('CG-2015 desktop API request bodies must be text')
+      throw new Error('CG-2025 desktop API request bodies must be text')
     }
 
     const result = await environment.desktopBridge.request({

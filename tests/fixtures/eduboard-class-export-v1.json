@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0",
+  "projectId": "eduboard-export-fixture",
+  "title": "五年级（3）班 English",
+  "createdAt": "2026-10-06T10:00:00.000Z",
+  "updatedAt": "2026-10-06T10:00:00.000Z",
+  "classInfo": {
+    "classId": "eb-class-5-3",
+    "subject": "English",
+    "gradeOrLevel": "Grade 5"
+  },
+  "metricDefinitions": [],
+  "students": [
+    {
+      "id": "eb-student-1",
+      "displayName": "张喆",
+      "metrics": {}
+    },
+    {
+      "id": "eb-student-2",
+      "displayName": "李玥",
+      "metrics": {}
+    },
+    {
+      "id": "eb-student-3",
+      "displayName": "Lily Chen",
+      "metrics": {}
+    }
+  ],
+  "room": {
+    "layout": "grid",
+    "rows": 2,
+    "columns": 3,
+    "front": "top",
+    "seats": [
+      {
+        "id": "seat-r1-c1",
+        "row": 0,
+        "column": 0,
+        "enabled": true
+      },
+      {
+        "id": "seat-r1-c2",
+        "row": 0,
+        "column": 1,
+        "enabled": true
+      },
+      {
+        "id": "seat-r1-c3",
+        "row": 0,
+        "column": 2,
+        "enabled": true
+      },
+      {
+        "id": "seat-r2-c1",
+        "row": 1,
+        "column": 0,
+        "enabled": true
+      },
+      {
+        "id": "seat-r2-c2",
+        "row": 1,
+        "column": 1,
+        "enabled": true
+      },
+      {
+        "id": "seat-r2-c3",
+        "row": 1,
+        "column": 2,
+        "enabled": true
+      }
+    ]
+  },
+  "planning": {
+    "assignments": [
+      {
+        "studentId": "eb-student-1",
+        "seatId": "seat-r1-c1",
+        "locked": false
+      },
+      {
+        "studentId": "eb-student-2",
+        "seatId": "seat-r1-c2",
+        "locked": false
+      }
+    ],
+    "rules": [],
+    "groups": []
+  },
+  "provenance": {
+    "/room": {
+      "kind": "imported",
+      "source": "eduboard"
+    },
+    "/students/0/id": {
+      "kind": "imported",
+      "source": "eduboard"
+    },
+    "/students/0/displayName": {
+      "kind": "imported",
+      "source": "eduboard"
+    },
+    "/students/1/id": {
+      "kind": "imported",
+      "source": "eduboard"
+    },
+    "/students/1/displayName": {
+      "kind": "imported",
+      "source": "eduboard"
+    },
+    "/students/2/id": {
+      "kind": "imported",
+      "source": "eduboard"
+    },
+    "/students/2/displayName": {
+      "kind": "imported",
+      "source": "eduboard"
+    },
+    "/planning/assignments": {
+      "kind": "imported",
+      "source": "eduboard"
+    }
+  },
+  "extensions": {
+    "eduboard": {
+      "classId": "eb-class-5-3",
+      "exportedAt": "2026-10-06T10:00:00.000Z"
+    }
+  }
+}

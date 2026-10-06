@@ -1,38 +1,48 @@
 import {
   createPdfDocument,
   pdfRgb,
-  pdfStandardFonts,
   type PdfDocumentAdapter,
-  type PdfFontAdapter,
   type PdfPageAdapter,
 } from './pdf-runtime.js'
 import { ClassGraphExportError } from './export-errors.js'
 import type { ClassGraphProject, PlanningSeatAssignment, SeatDefinition } from './model.js'
-import { buildHumanReport, type HumanReportTable } from './report-content.js'
+import { assertRenderable, drawReportText, embedReportFonts, type ReportFont } from './pdf-fonts.js'
+import { buildHumanReport, type HumanReport, type HumanReportTable } from './report-content.js'
 import { classGraphProjectSchema } from './schema.js'
 
 const A4_PORTRAIT: [number, number] = [595.28, 841.89]
 const A4_LANDSCAPE: [number, number] = [841.89, 595.28]
 const MARGIN = 42
 
-function exportUnicodeError(): ClassGraphExportError {
-  return new ClassGraphExportError(
-    'CG-5004',
-    'This PDF contains characters that the built-in PDF font cannot encode. Use DOCX export for full Unicode text or configure a local embedded Unicode font in a future packaged build.',
-  )
+function widthOf(font: ReportFont, text: string, size: number): number {
+  return font.pdf.widthOfTextAtSize(text, size)
 }
 
-function ensureEncodable(font: PdfFontAdapter, text: string): void {
-  try {
-    font.encodeText(text)
-  } catch {
-    throw exportUnicodeError()
+/** Splits a single unbreakable token (for example a run of Chinese characters) to fit `width`. */
+function breakToken(font: ReportFont, token: string, size: number, width: number): string[] {
+  const pieces: string[] = []
+  let current = ''
+  for (const character of token) {
+    const candidate = current + character
+    if (current && widthOf(font, candidate, size) > width) {
+      pieces.push(current)
+      current = character
+    } else {
+      current = candidate
+    }
   }
+  if (current) pieces.push(current)
+  return pieces
 }
 
-function wrapText(font: PdfFontAdapter, text: string, size: number, width: number): string[] {
-  ensureEncodable(font, text)
-  const words = text.split(/\s+/).filter(Boolean)
+function wrapText(font: ReportFont, text: string, size: number, width: number): string[] {
+  assertRenderable(font, text)
+  const words = text
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap((word) =>
+      widthOf(font, word, size) > width ? breakToken(font, word, size, width) : [word],
+    )
   if (words.length === 0) return ['']
 
   const lines: string[] = []
@@ -40,7 +50,7 @@ function wrapText(font: PdfFontAdapter, text: string, size: number, width: numbe
 
   for (const word of words) {
     const candidate = current ? `${current} ${word}` : word
-    if (font.widthOfTextAtSize(candidate, size) <= width || !current) {
+    if (widthOf(font, candidate, size) <= width || !current) {
       current = candidate
       continue
     }
@@ -51,11 +61,21 @@ function wrapText(font: PdfFontAdapter, text: string, size: number, width: numbe
   return lines
 }
 
+/** Clips `text` with an ellipsis so it fits `width` at `size`. */
+function fitToWidth(font: ReportFont, text: string, size: number, width: number): string {
+  if (widthOf(font, text, size) <= width) return text
+  const characters = [...text]
+  while (characters.length > 0 && widthOf(font, `${characters.join('')}…`, size) > width) {
+    characters.pop()
+  }
+  return `${characters.join('')}…`
+}
+
 interface PdfCursor {
   document: PdfDocumentAdapter
   page: PdfPageAdapter
-  regular: PdfFontAdapter
-  bold: PdfFontAdapter
+  regular: ReportFont
+  bold: ReportFont
   y: number
   pageWidth: number
   pageHeight: number
@@ -63,8 +83,8 @@ interface PdfCursor {
 
 function newPortraitPage(
   document: PdfDocumentAdapter,
-  regular: PdfFontAdapter,
-  bold: PdfFontAdapter,
+  regular: ReportFont,
+  bold: ReportFont,
 ): PdfCursor {
   const page = document.addPage(A4_PORTRAIT)
   return {
@@ -97,11 +117,10 @@ function drawWrapped(
   const next = ensureRoom(cursor, lines.length * lineHeight + (options.spacingAfter ?? 4))
 
   for (const line of lines) {
-    next.page.drawText(line, {
+    drawReportText(next.page, line, font, {
       x: MARGIN + indent,
       y: next.y - size,
       size,
-      font,
       color: pdfRgb(0.12, 0.16, 0.18),
     })
     next.y -= lineHeight
@@ -131,12 +150,27 @@ function drawTable(cursor: PdfCursor, table: HumanReportTable): PdfCursor {
   return next
 }
 
+function reportTexts(report: HumanReport): string[] {
+  return [
+    report.title,
+    report.subtitle,
+    ...report.sections.flatMap((section) => [
+      section.title,
+      ...section.paragraphs,
+      ...section.tables.flatMap((table) => [
+        table.title ?? '',
+        ...table.headers,
+        ...table.rows.flat(),
+      ]),
+    ]),
+  ]
+}
+
 export async function generatePdfReport(project: ClassGraphProject): Promise<Uint8Array> {
   const validated = classGraphProjectSchema.parse(project)
   const report = buildHumanReport(validated)
   const document = await createPdfDocument()
-  const regular = await document.embedFont(pdfStandardFonts.Helvetica)
-  const bold = await document.embedFont(pdfStandardFonts.HelveticaBold)
+  const { regular, bold } = await embedReportFonts(document, reportTexts(report))
   let cursor = newPortraitPage(document, regular, bold)
 
   cursor = drawWrapped(cursor, report.title, { bold: true, size: 19, spacingAfter: 5 })
@@ -173,8 +207,8 @@ function seatByGridPosition(
 
 function drawSeatCell(
   page: PdfPageAdapter,
-  font: PdfFontAdapter,
-  bold: PdfFontAdapter,
+  font: ReportFont,
+  bold: ReportFont,
   project: ClassGraphProject,
   seat: SeatDefinition | undefined,
   assignmentMap: Map<string, PlanningSeatAssignment>,
@@ -207,17 +241,13 @@ function drawSeatCell(
   const size = Math.max(5.5, Math.min(8, width / 12))
   let textY = y + height - size - 5
   for (let index = 0; index < lines.length; index += 1) {
-    const value = lines[index] ?? ''
-    ensureEncodable(font, value)
-    const clipped = value.length > 28 ? `${value.slice(0, 27)}…` : value
-    ensureEncodable(font, clipped)
-    page.drawText(clipped, {
+    const lineFont = index === 1 ? bold : font
+    const clipped = fitToWidth(lineFont, lines[index] ?? '', size, width - 8)
+    drawReportText(page, clipped, lineFont, {
       x: x + 4,
       y: textY,
       size,
-      font: index === 1 ? bold : font,
       color: pdfRgb(0.14, 0.18, 0.2),
-      maxWidth: width - 8,
     })
     textY -= size + 2
     if (textY < y + 3) break
@@ -240,8 +270,12 @@ export async function generateSeatingPlanPdf(project: ClassGraphProject): Promis
   }
 
   const document = await createPdfDocument()
-  const regular = await document.embedFont(pdfStandardFonts.Helvetica)
-  const bold = await document.embedFont(pdfStandardFonts.HelveticaBold)
+  const { regular, bold } = await embedReportFonts(document, [
+    validated.title,
+    validated.room.front ?? '',
+    ...validated.students.flatMap((student) => [student.id, student.displayName ?? '']),
+    ...validated.room.seats.flatMap((seat) => [seat.id, ...(seat.tags ?? [])]),
+  ])
   const assignments = validated.planning?.assignments ?? []
   const assignmentMap = seatAssignmentMap(assignments)
 
@@ -253,21 +287,18 @@ export async function generateSeatingPlanPdf(project: ClassGraphProject): Promis
   for (let rowStart = 0; rowStart < rows; rowStart += rowsPerPage) {
     for (let columnStart = 0; columnStart < columns; columnStart += columnsPerPage) {
       const page = document.addPage(A4_LANDSCAPE)
-      ensureEncodable(bold, validated.title)
-      page.drawText(validated.title, {
-        x: MARGIN,
-        y: A4_LANDSCAPE[1] - MARGIN + 5,
-        size: 15,
-        font: bold,
-      })
+      drawReportText(
+        page,
+        fitToWidth(bold, validated.title, 15, A4_LANDSCAPE[0] - MARGIN * 2),
+        bold,
+        { x: MARGIN, y: A4_LANDSCAPE[1] - MARGIN + 5, size: 15 },
+      )
 
       const marker = `Front of room: ${validated.room.front ?? 'not specified'} · Rows ${rowStart + 1}-${Math.min(rows, rowStart + rowsPerPage)} · Columns ${columnStart + 1}-${Math.min(columns, columnStart + columnsPerPage)}`
-      ensureEncodable(regular, marker)
-      page.drawText(marker, {
+      drawReportText(page, marker, regular, {
         x: MARGIN,
         y: A4_LANDSCAPE[1] - MARGIN - 15,
         size: 9,
-        font: regular,
       })
 
       const visibleColumns = Math.min(columnsPerPage, columns - columnStart)
@@ -301,20 +332,23 @@ export async function generateSeatingPlanPdf(project: ClassGraphProject): Promis
 
   let page = document.addPage(A4_LANDSCAPE)
   let y = A4_LANDSCAPE[1] - MARGIN
-  page.drawText('Assignment table', { x: MARGIN, y, size: 14, font: bold })
+  drawReportText(page, 'Assignment table', bold, { x: MARGIN, y, size: 14 })
   y -= 22
 
   for (const student of validated.students) {
     const assignment = assignments.find((item) => item.studentId === student.id)
     const row = `${studentLabel(validated, student.id)} | ${assignment?.seatId ?? 'Unassigned'} | ${assignment?.locked ? 'Locked' : 'Unlocked'}`
-    ensureEncodable(regular, row)
     if (y < MARGIN + 12) {
       page = document.addPage(A4_LANDSCAPE)
       y = A4_LANDSCAPE[1] - MARGIN
-      page.drawText('Assignment table (continued)', { x: MARGIN, y, size: 14, font: bold })
+      drawReportText(page, 'Assignment table (continued)', bold, { x: MARGIN, y, size: 14 })
       y -= 22
     }
-    page.drawText(row, { x: MARGIN, y, size: 9, font: regular })
+    drawReportText(page, fitToWidth(regular, row, 9, A4_LANDSCAPE[0] - MARGIN * 2), regular, {
+      x: MARGIN,
+      y,
+      size: 9,
+    })
     y -= 13
   }
 

@@ -1,5 +1,12 @@
 import { buildCrossTab, buildGroupSummary, type GroupingBasis } from './analysis-compare.js'
 import { buildProjectAnalysis, buildScatterView } from './analysis-view.js'
+import {
+  applyTableImport,
+  parseTableImportRequest,
+  planTableImport,
+  suggestTableImport,
+} from './table-import.js'
+import { readTableFile } from './table-read.js'
 import { acceptPlanningRuleSuggestions, acceptSyntheticSpecDraft } from './assistance-acceptance.js'
 import type { AssistanceExecutionMode, AssistanceTask } from './assistance-contract.js'
 import type { AssistanceProvider } from './assistance-provider.js'
@@ -20,6 +27,7 @@ import { ClassGraphImportError, parseProjectJson, serializeProjectJson } from '.
 import { generateSeatingCandidates } from './planning.js'
 import { buildRepeatNeighbourHistory } from './planning-history.js'
 import { comparePlanningScenarios } from './planning-scenarios.js'
+import { parseProtectedFile, unlockProtectedFile } from './project-crypto.js'
 import type { FileProjectStore } from './project-store.js'
 import { applyProjectMutation, parseProjectMutationRequest } from './project-mutations.js'
 import { buildRelationshipGraph } from './relationship-graph.js'
@@ -28,6 +36,7 @@ import { generatePdfReport, generateSeatingPlanPdf } from './report-pdf.js'
 import { classGraphProjectSchema } from './schema.js'
 import { parseStructuredSyntheticRequest } from './synthetic-request.js'
 import { generateSyntheticProject } from './synthetic.js'
+import { compareTerms, startNextTerm, termComparisonCsv } from './term-comparison.js'
 import { createEmptyProject } from './workspace.js'
 
 export interface ClassGraphApiOptions {
@@ -123,6 +132,14 @@ function requiredPositiveInteger(record: Record<string, unknown>, key: string): 
   return value
 }
 
+function expectPassword(record: Record<string, unknown>, key: string): string {
+  const value = record[key]
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`CG-1001 ${key} must be a non-empty string`)
+  }
+  return value
+}
+
 function optionalBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
   const value = record[key]
   if (value === undefined) return undefined
@@ -191,6 +208,32 @@ function parseProjectSetup(value: unknown): ProjectSetupRequest {
   }
 }
 
+/**
+ * The term to compare with comes from the saved-class library (respecting locks) or from a backup
+ * file's text. A password-protected backup is decrypted in memory only, with its password.
+ */
+async function otherTermFromRequest(
+  record: Record<string, unknown>,
+  projectStore: FileProjectStore | undefined,
+) {
+  const projectId = optionalString(record, 'otherProjectId')
+  if (projectId) {
+    if (!projectStore) throw new Error('CG-2026 local project storage is not enabled')
+    return projectStore.load(projectId)
+  }
+  const text = optionalString(record, 'otherText')
+  if (!text) throw new Error('CG-1001 choose a saved class or a backup file to compare with')
+  const protectedFile = parseProtectedFile(text)
+  if (protectedFile) {
+    const password = optionalString(record, 'otherPassword')
+    if (!password) {
+      throw new Error('CG-2015 this backup is password protected; enter its password to use it')
+    }
+    return (await unlockProtectedFile(protectedFile, password)).project
+  }
+  return parseProjectJson(text)
+}
+
 function parseProjectFromRequest(record: Record<string, unknown>) {
   const result = classGraphProjectSchema.safeParse(record.project)
   if (!result.success) {
@@ -252,11 +295,88 @@ export async function dispatchClassGraphApi(
     }
 
     if (method === 'POST' && path === '/api/projects/open') {
-      if (!projectStore) throw new Error('CG-2010 local project storage is not enabled')
+      if (!projectStore) throw new Error('CG-2026 local project storage is not enabled')
       const record = expectRecord(parseJsonBody(body))
       return jsonResponse(200, {
         project: await projectStore.load(expectString(record, 'projectId')),
       })
+    }
+
+    if (path.startsWith('/api/protection/') || path === '/api/projects/unlock') {
+      if (!projectStore) throw new Error('CG-2026 local project storage is not enabled')
+    }
+
+    if (method === 'POST' && path === '/api/projects/unlock') {
+      const record = expectRecord(parseJsonBody(body))
+      return jsonResponse(200, {
+        project: await projectStore!.unlock(
+          expectString(record, 'projectId'),
+          expectPassword(record, 'password'),
+        ),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/protection/status') {
+      const record = expectRecord(parseJsonBody(body))
+      return jsonResponse(200, {
+        protection: await projectStore!.protectionStatus(expectString(record, 'projectId')),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/protection/enable') {
+      const record = expectRecord(parseJsonBody(body))
+      const project = parseProjectFromRequest(record)
+      await projectStore!.protect(project, expectPassword(record, 'password'))
+      return jsonResponse(200, { protection: { protected: true, unlocked: true } })
+    }
+
+    if (method === 'POST' && path === '/api/protection/change') {
+      const record = expectRecord(parseJsonBody(body))
+      await projectStore!.changePassword(
+        expectString(record, 'projectId'),
+        expectPassword(record, 'currentPassword'),
+        expectPassword(record, 'newPassword'),
+      )
+      return jsonResponse(200, { protection: { protected: true, unlocked: true } })
+    }
+
+    if (method === 'POST' && path === '/api/protection/disable') {
+      const record = expectRecord(parseJsonBody(body))
+      await projectStore!.unprotect(
+        expectString(record, 'projectId'),
+        expectPassword(record, 'currentPassword'),
+      )
+      return jsonResponse(200, { protection: { protected: false, unlocked: false } })
+    }
+
+    if (method === 'POST' && path === '/api/protection/lock') {
+      const record = expectRecord(parseJsonBody(body))
+      projectStore!.lock(expectString(record, 'projectId'))
+      return jsonResponse(200, { locked: true })
+    }
+
+    if (method === 'POST' && path === '/api/protection/import') {
+      const record = expectRecord(parseJsonBody(body))
+      return jsonResponse(200, {
+        project: await projectStore!.importProtected(
+          expectString(record, 'fileText'),
+          expectPassword(record, 'password'),
+        ),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/export/backup') {
+      const record = expectRecord(parseJsonBody(body))
+      const project = parseProjectFromRequest(record)
+      const plain = optionalBoolean(record, 'plain') === true
+      const contents = projectStore
+        ? await projectStore.serializeBackup(project, plain)
+        : serializeProjectJson(project)
+      return downloadResponse(
+        contents,
+        'application/json; charset=utf-8',
+        `${safeExportStem(project.title)}.classgraph.json`,
+      )
     }
 
     if (method === 'GET' && path === '/api/assistance/status') {
@@ -319,6 +439,41 @@ export async function dispatchClassGraphApi(
       })
       await projectStore?.save(project)
       return jsonResponse(200, { project })
+    }
+
+    if (
+      method === 'POST' &&
+      (path === '/api/compare/terms' || path === '/api/export/term-comparison-csv')
+    ) {
+      const record = expectRecord(parseJsonBody(body))
+      const current = parseProjectFromRequest(record)
+      const other = await otherTermFromRequest(record, projectStore)
+      if (other.projectId === current.projectId && other.updatedAt === current.updatedAt) {
+        throw new Error('CG-3012 choose a different class or an older backup to compare with')
+      }
+      const currentIsEarlier = record.currentTerm === 'earlier'
+      const comparison = currentIsEarlier
+        ? compareTerms(current, other)
+        : compareTerms(other, current)
+      const later = currentIsEarlier ? other : current
+      if (path === '/api/compare/terms') return jsonResponse(200, { comparison })
+      return downloadResponse(
+        termComparisonCsv(comparison),
+        'text/csv; charset=utf-8',
+        `${safeExportStem(later.title)}-term-comparison.csv`,
+      )
+    }
+
+    if (method === 'POST' && path === '/api/project/next-term') {
+      const record = expectRecord(parseJsonBody(body))
+      const next = startNextTerm(parseProjectFromRequest(record), {
+        projectId: expectString(record, 'projectId'),
+        title: expectString(record, 'title'),
+        term: optionalString(record, 'term') ?? '',
+        now: new Date().toISOString(),
+      })
+      await projectStore?.save(next)
+      return jsonResponse(200, { project: next })
     }
 
     if (method === 'POST' && path === '/api/project/mutate') {
@@ -502,10 +657,59 @@ export async function dispatchClassGraphApi(
       )
     }
 
-    if (method === 'POST' && path === '/api/import') {
-      const project = parseProjectJson(body ?? '')
+    if (method === 'POST' && path === '/api/import/table/read') {
+      const record = expectRecord(parseJsonBody(body))
+      const fileName = expectString(record, 'fileName')
+      const bytes = Buffer.from(expectString(record, 'dataBase64'), 'base64')
+      const table = await readTableFile(fileName, new Uint8Array(bytes))
+      const existing = record.project === undefined ? undefined : parseProjectFromRequest(record)
+      return jsonResponse(200, {
+        table,
+        suggestions: table.sheets.map((sheet) => suggestTableImport(sheet.rows, existing)),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/import/table/suggest') {
+      const record = expectRecord(parseJsonBody(body))
+      const request = parseTableImportRequest({ ...expectRecord(record.request), columns: [] })
+      const existing = record.project === undefined ? undefined : parseProjectFromRequest(record)
+      return jsonResponse(200, {
+        suggestion: suggestTableImport(request.rows, existing, request.headerRow),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/import/table/preview') {
+      const record = expectRecord(parseJsonBody(body))
+      const request = parseTableImportRequest(record.request)
+      const existing = record.project === undefined ? undefined : parseProjectFromRequest(record)
+      return jsonResponse(200, { plan: planTableImport(request, existing) })
+    }
+
+    if (method === 'POST' && path === '/api/import/table/apply') {
+      const record = expectRecord(parseJsonBody(body))
+      const request = parseTableImportRequest(record.request)
+      const now = new Date().toISOString()
+      const project =
+        record.project === undefined
+          ? applyTableImport(request, {
+              mode: 'new-project',
+              projectId: expectString(record, 'projectId'),
+              title: expectString(record, 'title'),
+              now,
+            })
+          : applyTableImport(request, {
+              mode: 'merge',
+              project: parseProjectFromRequest(record),
+              now,
+            })
       await projectStore?.save(project)
       return jsonResponse(200, { project })
+    }
+
+    if (method === 'POST' && path === '/api/import') {
+      if (projectStore)
+        return jsonResponse(200, { project: await projectStore.importText(body ?? '') })
+      return jsonResponse(200, { project: parseProjectJson(body ?? '') })
     }
 
     if (method === 'POST' && path === '/api/export') {

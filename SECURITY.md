@@ -18,7 +18,8 @@ The local server binds to `127.0.0.1` by default. No internet connection is requ
 - Candidate-generation endpoints do not mutate the project; seating/grouping choices persist only after an explicit teacher action.
 - Report/export endpoints validate the project again, generate bytes in memory, and return them directly; normal export does not write a persistent server-side report copy.
 - Export filenames are sanitised and responses use explicit MIME types plus `no-store`, `nosniff`, and `no-referrer` protections.
-- PDF export never silently transliterates or substitutes unsupported Unicode. Built-in-font-incompatible text fails with `CG-5004`; DOCX remains the full-Unicode report option.
+- PDF export never silently transliterates, substitutes or drops characters. Text outside the built-in Latin fonts uses the bundled Noto Sans SC subset; anything that font cannot draw fails with `CG-5004`, naming the characters. DOCX remains the full-Unicode report option.
+- Spreadsheet imports are parsed as data only (CSV text, or .xlsx cell values via a zip/XML reader; formulas are never evaluated), size-capped at 2,000 rows and 100 columns, validated, and previewed before anything is saved.
 - EduBoard hand-back keeps source-safe values, derived analysis, synthetic paths, and approved planning in separate sections. It requires explicit target-class selection and exact student-ID mapping before any future EduBoard write path.
 - UI assets are served from an explicit allow-list rather than arbitrary filesystem paths.
 - Local responses use no-store, nosniff, and no-referrer protections; the app does not enable cross-origin access by default.
@@ -31,7 +32,13 @@ The local server binds to `127.0.0.1` by default. No internet connection is requ
 - Assistance results remain proposal-only. Synthetic-spec acceptance validates a specification without generating students; planning-rule acceptance returns validated selections before a separate project mutation.
 - The core teacher workflow and offline assistance do not require remote scripts, accounts, APIs, or provider credentials.
 - Names are optional; pseudonymous student IDs are supported throughout the data model.
-- Production persistence of identifiable data must receive an explicit at-rest protection review before release.
+- Optional per-class password protection encrypts the class file and its automatic safety copies at rest (AES-256-GCM; key from scrypt N=2^17, r=8, p=1; project ID authenticated as additional data). Only the random project ID is readable in a protected file.
+- Keys for unlocked classes are held only in main-process memory; passwords and keys are never written to disk, project files, browser storage, logs or exports.
+- A protected class whose key is not in memory is never rewritten as plain JSON; saving it fails with `CG-2016`.
+- Turning protection on deletes that class's existing plain automatic safety copies; changing the password re-encrypts them. Backups of protected classes stay encrypted unless the teacher explicitly confirms a plain copy.
+- There is no password recovery. Exported reports (DOCX, PDF, JSON) are not encrypted.
+- Unprotected classes remain readable JSON by design, so teachers can copy and inspect them.
+- Update checks contact `api.github.com` only when the teacher presses **Check for updates** or has opted in to checking at startup (off by default). They send no class data. In-app installs (Windows installer, Linux AppImage) use electron-updater, which verifies the downloaded file's SHA-512 against the release's `latest*.yml`; installing always needs an explicit click. Only `github.com/purysho/ClassGraph` release links are opened.
 
 ## Reporting a vulnerability
 

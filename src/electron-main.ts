@@ -3,7 +3,10 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { dispatchClassGraphApi, type ClassGraphApiRequest } from './api-dispatch.js'
 import { createEnvironmentAssistanceProvider } from './assistance-provider.js'
-import { parseProjectJson, serializeProjectJson } from './json.js'
+import { DesktopUpdates } from './desktop-updates.js'
+import { parseUpdateSettings } from './update-policy.js'
+import { parseProjectJson } from './json.js'
+import { createEmptyProject } from './workspace.js'
 import {
   defaultClassGraphDataDirectory,
   FileProjectStore,
@@ -95,6 +98,29 @@ async function runSelfTest(store: FileProjectStore): Promise<void> {
     throw new Error('ClassGraph native desktop self-test returned an unexpected transport.')
   }
 
+  // Exercises the packaged CJK PDF font: it must be found inside the installed app.
+  const pdf = await dispatchClassGraphApi(
+    {
+      method: 'POST',
+      path: '/api/export/pdf',
+      body: JSON.stringify({
+        project: createEmptyProject({
+          projectId: 'pdf-self-test',
+          title: '五年级 英语 Self Test',
+          now: new Date().toISOString(),
+        }),
+      }),
+    },
+    { projectStore: store, desktop: true },
+  )
+  const signature =
+    pdf.body instanceof Uint8Array ? new TextDecoder('latin1').decode(pdf.body.slice(0, 5)) : ''
+  if (pdf.status !== 200 || signature !== '%PDF-') {
+    throw new Error(
+      `ClassGraph native PDF self-test failed: ${typeof pdf.body === 'string' ? pdf.body : pdf.status}`,
+    )
+  }
+
   console.log('ClassGraph native desktop self-test passed.')
 }
 
@@ -160,6 +186,7 @@ async function start(): Promise<void> {
   })
 
   await app.whenReady()
+  process.env.CLASSGRAPH_ASSETS_DIR ??= packagedAsset('assets')
   const store = await createProjectStore()
   const assistanceProvider = createEnvironmentAssistanceProvider()
 
@@ -173,10 +200,36 @@ async function start(): Promise<void> {
     return serializeDesktopResponse(response)
   })
 
+  const updates = new DesktopUpdates()
+  ipcMain.handle('classgraph:updates', async (_event, action: unknown, payload: unknown) => {
+    switch (action) {
+      case 'status':
+        return updates.getStatus()
+      case 'check':
+        return updates.check()
+      case 'download':
+        return updates.download()
+      case 'install':
+        updates.install()
+        return updates.getStatus()
+      case 'open-releases':
+        await updates.openReleasePage()
+        return updates.getStatus()
+      case 'get-settings':
+        return updates.getSettings()
+      case 'set-settings':
+        return updates.setSettings(parseUpdateSettings(payload))
+      default:
+        throw new Error('CG-2028 unknown update action')
+    }
+  })
+
   ipcMain.handle(
     'classgraph:save-project-copy',
-    async (_event, serializedProject: string, suggestedTitle: string) => {
+    async (_event, serializedProject: string, suggestedTitle: string, plain?: boolean) => {
       const project = parseProjectJson(serializedProject)
+      // Protected classes stay encrypted in backups unless the teacher chose a plain copy.
+      const contents = await store.serializeBackup(project, plain === true)
       const backupDirectory = join(app.getPath('documents'), 'ClassGraph', 'Backups')
       await mkdir(backupDirectory, { recursive: true })
 
@@ -190,12 +243,16 @@ async function start(): Promise<void> {
       })
 
       if (result.canceled || !result.filePath) return { canceled: true }
-      await writeFile(result.filePath, serializeProjectJson(project), 'utf8')
+      await writeFile(result.filePath, contents, 'utf8')
       return { canceled: false, filePath: result.filePath }
     },
   )
 
   if (process.argv.includes('--self-test')) {
+    const updateStatus = updates.getStatus()
+    if (updateStatus.channel === 'unavailable' || updateStatus.checkedAt !== null) {
+      throw new Error('ClassGraph update self-test failed: unexpected channel or network check')
+    }
     await runSelfTest(store)
     await runRendererSelfTest()
     app.quit()

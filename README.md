@@ -33,7 +33,9 @@ No Node.js installation is needed. These are normal desktop builds: ClassGraph o
 - **Linux** — use `ClassGraph-Linux-x64.AppImage`.
 - **Verify a download** — compare it with [`SHA256SUMS.txt`](https://github.com/purysho/ClassGraph/releases/latest/download/SHA256SUMS.txt).
 
-> Windows builds are currently unsigned and macOS builds are ad-hoc signed rather than notarised. Windows SmartScreen or macOS Gatekeeper may therefore show a first-run warning.
+**Updates:** from v0.10.0, use **Check for updates** on the start screen. The Windows installer and Linux AppImage can update themselves; macOS and the portable build link to the new download. ClassGraph never checks unless you ask or tick _Check automatically_.
+
+> Windows builds are currently unsigned and macOS builds are ad-hoc signed rather than notarised. Windows SmartScreen or macOS Gatekeeper may therefore show a first-run warning. The release workflow signs and notarises automatically once signing secrets are added; see [`docs/SIGNING.md`](docs/SIGNING.md).
 
 ![ClassGraph workspace overview](docs/screenshots/classgraph-overview.png)
 
@@ -56,7 +58,7 @@ ClassGraph is designed to support teacher judgement. It does **not** diagnose st
 
 ClassGraph **saves projects automatically as ordinary files in your Documents folder**. The packaged app opens in its own desktop window; closing the window closes ClassGraph.
 
-1. **Create, import, restore, or generate** a class.
+1. **Create, import from a spreadsheet, restore, or generate** a class.
 2. **Record the metrics you choose** and keep observed, entered, imported, derived, and synthetic values distinguishable.
 3. **Explore descriptive views** before making planning changes.
 4. **Build seating or grouping candidates** against explicit constraints and objectives.
@@ -64,6 +66,10 @@ ClassGraph **saves projects automatically as ordinary files in your Documents fo
 6. **Copy or back up the project file** whenever you want an extra copy in OneDrive, iCloud Drive, Google Drive, USB storage, or another computer.
 
 The packaged desktop app does not bind to `127.0.0.1`, does not open a browser, and does not require a background PowerShell/terminal window.
+
+### Password protection
+
+Choose **Password…** in a class to encrypt its file and automatic safety copies. You will be asked for the password each time ClassGraph opens that class. **There is no way to recover a forgotten password**, so keep it somewhere safe. Reports you export (DOCX, PDF, JSON) are not encrypted.
 
 ### Saving, backups, and moving computers
 
@@ -130,6 +136,12 @@ npm run dev
 
 That development mode uses the loopback server; the downloadable desktop builds do not.
 
+Browser end-to-end tests (needs `npx playwright install chromium` once):
+
+```bash
+npm run test:e2e
+```
+
 ### Optional network provider
 
 Network assistance is **off by default**. To enable the generic HTTPS provider boundary, set:
@@ -144,6 +156,7 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 
 ## Current outputs
 
+- Class lists imported from Excel (.xlsx) or CSV, with column mapping and a preview
 - Editable student/class table
 - Metric completeness views
 - Numeric distributions and descriptive statistics
@@ -159,13 +172,13 @@ CLASSGRAPH_ASSISTANCE_TOKEN=optional-bearer-token
 - Saved planning-scenario comparisons
 - Versioned project, analysis and seating-plan JSON
 - Local DOCX descriptive reports
-- Local PDF descriptive reports
-- Landscape seating-plan PDFs
+- Local PDF descriptive reports, including Chinese names and titles
+- Landscape seating-plan PDFs, including Chinese names
 - Offline assistance proposals
 - Optional network assistance with pre-send disclosure
 
 <details>
-<summary><strong>Implementation history — Phases 1–10</strong></summary>
+<summary><strong>Implementation history — Phases 1–15</strong></summary>
 
 ### Phase 1 — Workspace and analysis
 
@@ -207,6 +220,38 @@ Teacher-selected cross-tabulations, a caveated Pearson association on the scatte
 
 **Include in report** saves a comparison with the project. Selected comparisons are recalculated at export time and appear in DOCX/PDF reports and Analysis JSON v1.1.
 
+### Phase 11 — Chinese text in PDFs
+
+PDF reports and seating plans embed a bundled Noto Sans SC subset when they contain Chinese or other non-Latin text, carrying only the characters each document uses. Characters the font cannot draw stop the export with `CG-5004` and are named, never dropped.
+
+### Phase 12 — Spreadsheet import
+
+Create a class from an `.xlsx` or CSV file (including GBK-encoded Chinese CSVs), or update an existing class from one. Teachers map each column, see every change and problem before saving, and blank cells stay Missing.
+
+### Phase 13 — Password protection
+
+Any class can be protected with a password. Its file and automatic safety copies are encrypted (AES-256-GCM, scrypt), backups stay encrypted unless a plain copy is explicitly chosen, and a forgotten password cannot be recovered.
+
+### Phase 14 — End-to-end tests
+
+A Playwright suite drives the real interface in CI: spreadsheet import, comparisons, report exports with Chinese names, password protection, and backup/restore.
+
+### Phase 15 — In-app updates
+
+**Check for updates** on the start screen. The Windows installer and Linux AppImage download and install new versions in the app; macOS and the portable build link to the download page. Nothing is checked unless you ask or opt in.
+
+### Phase 16 — Accessibility and dark mode
+
+Every screen passes automated WCAG 2.1 AA checks in light and dark themes, with visible keyboard focus, a skip link and named controls. **Appearance** follows the system or can be set to Light or Dark.
+
+### Phase 17 — Chinese interface
+
+**Language** switches the whole interface between English and Simplified Chinese (中文), following the system language by default. Errors show a Chinese explanation with their `CG-xxxx` code and the original English detail.
+
+### Phase 18 — Comparing terms
+
+**Terms** compares this class with another term (a saved class or a backup), matching students by ID. It shows what was recorded in each term and how matched values differ, never whether a change is good or bad, and exports the per-student values as CSV. **Start the next term** copies the students and metrics with nothing recorded.
+
 </details>
 
 ## Design and recovery documents
@@ -224,11 +269,25 @@ Teacher-selected cross-tabulations, a caveated Pearson association on the scatte
 - [`docs/V0.8.1_HOTFIX.md`](docs/V0.8.1_HOTFIX.md) — v0.8.1 desktop transport hotfix
 - [`docs/PHASE_9.md`](docs/PHASE_9.md) — Phase 9 multi-metric comparisons and Gate 9
 - [`docs/PHASE_10.md`](docs/PHASE_10.md) — Phase 10 comparisons in reports and Gate 10
+- [`docs/PHASE_11.md`](docs/PHASE_11.md) — Phase 11 Chinese text in PDFs and Gate 11
+- [`docs/PHASE_12.md`](docs/PHASE_12.md) — Phase 12 spreadsheet import and Gate 12
+- [`docs/PHASE_13.md`](docs/PHASE_13.md) — Phase 13 password protection and Gate 13
+- [`docs/PHASE_14.md`](docs/PHASE_14.md) — Phase 14 browser end-to-end tests
+- [`docs/PHASE_15.md`](docs/PHASE_15.md) — Phase 15 in-app updates
+- [`docs/PHASE_16.md`](docs/PHASE_16.md) — Phase 16 accessibility and dark mode
+- [`docs/PHASE_17.md`](docs/PHASE_17.md) — Phase 17 Chinese-language interface
+- [`docs/PHASE_18.md`](docs/PHASE_18.md) — Phase 18 comparing terms side by side
+- [`docs/SIGNING.md`](docs/SIGNING.md) — enabling code signing and notarisation
 
 ## Branding
 
 - [ClassGraph mark](docs/branding/classgraph-mark.svg)
 - [ClassGraph lockup](docs/branding/classgraph-lockup.svg)
+
+## Third-party fonts
+
+PDF exports bundle a subset of [Noto Sans SC](https://github.com/notofonts/noto-cjk) under the
+SIL Open Font License 1.1 (`assets/fonts/OFL.txt`).
 
 ## License and security
 

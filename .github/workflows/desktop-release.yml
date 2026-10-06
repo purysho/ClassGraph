@@ -63,10 +63,50 @@ jobs:
       - run: npm ci
       - run: npm run build:desktop
 
+      # Signing is optional: with no secrets configured, builds stay unsigned exactly as before.
+      # See docs/SIGNING.md for the secrets each option needs.
+      - name: Configure Windows signing (only when secrets exist)
+        if: matrix.id == 'windows-x64'
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          AZURE_PUBLISHER_NAME: ${{ secrets.AZURE_PUBLISHER_NAME }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          if ($env:AZURE_CLIENT_ID) {
+            "AZURE_TENANT_ID=$env:AZURE_TENANT_ID" >> $env:GITHUB_ENV
+            "AZURE_CLIENT_ID=$env:AZURE_CLIENT_ID" >> $env:GITHUB_ENV
+            "AZURE_CLIENT_SECRET=$env:AZURE_CLIENT_SECRET" >> $env:GITHUB_ENV
+            $flags = @(
+              "-c.win.azureSignOptions.endpoint=$env:AZURE_SIGNING_ENDPOINT",
+              "-c.win.azureSignOptions.codeSigningAccountName=$env:AZURE_SIGNING_ACCOUNT",
+              "-c.win.azureSignOptions.certificateProfileName=$env:AZURE_CERTIFICATE_PROFILE",
+              "-c.win.azureSignOptions.publisherName=$env:AZURE_PUBLISHER_NAME"
+            ) -join ' '
+            "WIN_SIGN_FLAGS=$flags" >> $env:GITHUB_ENV
+            "WIN_SIGNED=true" >> $env:GITHUB_ENV
+            Write-Host 'Windows builds will be signed with Azure Trusted Signing.'
+          } elseif ($env:WIN_CSC_LINK) {
+            "CSC_LINK=$env:WIN_CSC_LINK" >> $env:GITHUB_ENV
+            "CSC_KEY_PASSWORD=$env:WIN_CSC_KEY_PASSWORD" >> $env:GITHUB_ENV
+            "WIN_SIGNED=true" >> $env:GITHUB_ENV
+            Write-Host 'Windows builds will be signed with the WIN_CSC_LINK certificate.'
+          } else {
+            Write-Host 'No Windows signing secrets: building unsigned.'
+          }
+
       - name: Build unpacked Windows app
         if: matrix.id == 'windows-x64'
         shell: pwsh
-        run: npx electron-builder --dir --win --x64 --publish never
+        run: |
+          $flags = if ($env:WIN_SIGN_FLAGS) { $env:WIN_SIGN_FLAGS -split ' ' } else { @() }
+          npx electron-builder --dir --win --x64 --publish never @flags
 
       - name: Smoke-test Windows native app
         if: matrix.id == 'windows-x64'
@@ -85,7 +125,16 @@ jobs:
       - name: Package Windows installer and portable app
         if: matrix.id == 'windows-x64'
         shell: pwsh
-        run: npx electron-builder --win --x64 --publish never
+        run: |
+          $flags = if ($env:WIN_SIGN_FLAGS) { $env:WIN_SIGN_FLAGS -split ' ' } else { @() }
+          npx electron-builder --win --x64 --publish never @flags
+          if ($env:WIN_SIGNED -eq 'true') {
+            foreach ($file in @('release-desktop\ClassGraph-Setup.exe', 'release-desktop\win-unpacked\ClassGraph.exe')) {
+              $signature = Get-AuthenticodeSignature $file
+              if ($signature.Status -ne 'Valid') { throw "$file signature is $($signature.Status)" }
+              Write-Host "$file signed by $($signature.SignerCertificate.Subject)"
+            }
+          }
 
       - name: Prepare Windows downloads
         if: matrix.id == 'windows-x64'
@@ -94,6 +143,12 @@ jobs:
           New-Item -ItemType Directory -Force release-package | Out-Null
           Copy-Item release-desktop\ClassGraph-Setup.exe release-package\ClassGraph-Setup.exe
           Copy-Item release-desktop\ClassGraph-Portable.exe release-package\ClassGraph-Portable.exe
+          # In-app updates (electron-updater) read latest.yml; the blockmap enables smaller downloads.
+          Copy-Item release-desktop\latest.yml release-package\latest.yml
+          Copy-Item release-desktop\ClassGraph-Setup.exe.blockmap release-package\ClassGraph-Setup.exe.blockmap
+          if (-not (Select-String -Path release-package\latest.yml -Pattern 'url: ClassGraph-Setup.exe' -Quiet)) {
+            throw 'latest.yml does not reference ClassGraph-Setup.exe'
+          }
 
       - name: Build unpacked Linux app
         if: matrix.id == 'linux-x64'
@@ -118,11 +173,47 @@ jobs:
           mkdir -p release-package
           cp release-desktop/ClassGraph-Linux-x64.AppImage release-package/ClassGraph-Linux-x64.AppImage
           chmod +x release-package/ClassGraph-Linux-x64.AppImage
+          # In-app updates (electron-updater) read latest-linux.yml.
+          cp release-desktop/latest-linux.yml release-package/latest-linux.yml
+          grep -q 'url: ClassGraph-Linux-x64.AppImage' release-package/latest-linux.yml
+
+      - name: Configure macOS signing and notarisation (only when secrets exist)
+        if: startsWith(matrix.id, 'macos-')
+        shell: bash
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$MAC_CSC_LINK" ]; then
+            {
+              echo "CSC_LINK=$MAC_CSC_LINK"
+              echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD"
+              echo "MAC_SIGN_FLAGS=-c.mac.hardenedRuntime=true -c.mac.entitlements=build/entitlements.mac.plist -c.mac.entitlementsInherit=build/entitlements.mac.plist"
+              echo "MAC_SIGNED=true"
+            } >> "$GITHUB_ENV"
+            if [ -n "$APPLE_ID" ]; then
+              {
+                echo "APPLE_ID=$APPLE_ID"
+                echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD"
+                echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+                echo "MAC_NOTARIZED=true"
+              } >> "$GITHUB_ENV"
+              echo 'macOS builds will be signed and notarised.'
+            else
+              echo 'macOS builds will be signed but not notarised (no APPLE_ID secret).'
+            fi
+          else
+            echo 'No macOS signing secrets: building ad-hoc signed, as before.'
+          fi
 
       - name: Build unpacked macOS app
         if: startsWith(matrix.id, 'macos-')
         shell: bash
-        run: npx electron-builder --dir --mac --${{ matrix.arch }} --publish never
+        # Notarise only the final DMG/ZIP build below; this unpacked copy just runs the self-test.
+        run: npx electron-builder --dir --mac --${{ matrix.arch }} --publish never ${MAC_SIGN_FLAGS:-} -c.mac.notarize=false
 
       - name: Smoke-test macOS native app
         if: startsWith(matrix.id, 'macos-')
@@ -136,7 +227,16 @@ jobs:
       - name: Package macOS app
         if: startsWith(matrix.id, 'macos-')
         shell: bash
-        run: npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never
+        run: |
+          set -euo pipefail
+          npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never ${MAC_SIGN_FLAGS:-}
+          if [ "${MAC_SIGNED:-}" = "true" ]; then
+            app="$(find release-desktop -maxdepth 3 -name 'ClassGraph.app' -type d | head -n 1)"
+            codesign --verify --deep --strict --verbose=2 "$app"
+            if [ "${MAC_NOTARIZED:-}" = "true" ]; then
+              spctl --assess --type execute --verbose=2 "$app"
+            fi
+          fi
 
       - name: Prepare macOS downloads
         if: matrix.id == 'macos-arm64'
