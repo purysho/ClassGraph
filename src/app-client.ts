@@ -312,8 +312,14 @@ interface ClassGraphProject {
   relationships?: RelationshipRecord[]
   room?: RoomRecord
   planning?: PlanningRecord
+  reporting?: { comparisons?: ReportComparison[] }
   provenance: Record<string, ProvenanceEntry>
 }
+
+type ReportComparison =
+  | { kind: 'crosstab'; rowMetricKey: string; columnMetricKey: string }
+  | { kind: 'association'; xMetricKey: string; yMetricKey: string }
+  | { kind: 'group-summary'; metricKey: string; basis: 'tag' | 'planning-group' }
 
 interface ProjectResponse {
   project: ClassGraphProject
@@ -3259,6 +3265,21 @@ function renderReports(content: HTMLElement): void {
         </article>
       </div>
 
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Report contents</p>
+            <h2>Selected comparisons</h2>
+          </div>
+          <span class="schema-badge">${project.reporting?.comparisons?.length ?? 0} selected</span>
+        </div>
+        <p>
+          These comparisons are recalculated from the current data each time you export DOCX, PDF
+          or Analysis JSON. They are saved with the project.
+        </p>
+        ${renderReportComparisonList()}
+      </article>
+
       <article class="panel quiet">
         <p class="eyebrow">EduBoard hand-back</p>
         <h2>Explicit mapping, never silent overwrite</h2>
@@ -3271,6 +3292,15 @@ function renderReports(content: HTMLElement): void {
       </article>
     </div>
   `
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>(
+    '[data-remove-report-comparison]',
+  )) {
+    button.addEventListener('click', () => {
+      const comparisonId = button.dataset.removeReportComparison
+      if (comparisonId) void mutateProject({ type: 'remove-report-comparison', comparisonId })
+    })
+  }
 
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-report-export]')) {
     button.addEventListener('click', () => {
@@ -5153,6 +5183,7 @@ async function loadScatter(): Promise<void> {
       yMetricKey: selectedScatterY,
     })
     target.innerHTML = renderScatter(response.scatter)
+    bindReportToggles(target)
   } catch (error) {
     target.innerHTML = `<p class="status">${escapeHtml(
       error instanceof Error ? error.message : 'Could not build scatter view.',
@@ -5219,6 +5250,7 @@ function renderScatter(scatter: ScatterView): string {
         </div>
         <div class="scatter-x-title">→ ${escapeHtml(scatter.xLabel)}</div>
         ${renderAssociation(scatter.association)}
+        ${renderReportToggle({ kind: 'association', xMetricKey: scatter.xMetricKey, yMetricKey: scatter.yMetricKey })}
         <p class="analysis-footnote">
           ${scatter.omittedCount} students omitted because one or both selected values are not recorded.
           Position shows association only; it does not imply causation.
@@ -5285,6 +5317,7 @@ async function loadCrossTab(): Promise<void> {
       columnMetricKey: selectedCrossTabColumn,
     })
     target.innerHTML = renderCrossTab(response.crossTab)
+    bindReportToggles(target)
   } catch (error) {
     target.innerHTML = `<p class="status">${escapeHtml(
       error instanceof Error ? error.message : 'Could not build cross-tabulation.',
@@ -5349,6 +5382,7 @@ function renderCrossTab(view: CrossTabView): string {
       <em>Missing</em> and <em>Not recorded</em> are kept as their own rows and columns rather than
       guessed. Shading only repeats the counts; it is not a score.
     </p>
+    ${renderReportToggle({ kind: 'crosstab', rowMetricKey: view.rowMetricKey, columnMetricKey: view.columnMetricKey })}
   `
 }
 
@@ -5365,6 +5399,7 @@ async function loadGroupSummary(): Promise<void> {
       { project, metricKey: selectedGroupSummaryMetric, basis: selectedGroupSummaryBasis },
     )
     target.innerHTML = renderGroupSummary(response.groupSummary)
+    bindReportToggles(target)
   } catch (error) {
     target.innerHTML = `<p class="status">${escapeHtml(
       error instanceof Error ? error.message : 'Could not build summary.',
@@ -5458,6 +5493,123 @@ function renderGroupSummary(view: GroupSummaryView): string {
       ${view.overlapping ? 'Some students have more than one tag, so they are counted in each matching segment. ' : ''}
       Segments describe the recorded data only; differences between them are not explanations.
     </p>
+    ${renderReportToggle({ kind: 'group-summary', metricKey: view.metricKey, basis: view.basis })}
+  `
+}
+
+/** Mirrors reportComparisonId in src/schema.ts. */
+function reportComparisonId(comparison: ReportComparison): string {
+  switch (comparison.kind) {
+    case 'crosstab':
+      return JSON.stringify(['crosstab', comparison.rowMetricKey, comparison.columnMetricKey])
+    case 'association':
+      return JSON.stringify(['association', comparison.xMetricKey, comparison.yMetricKey])
+    case 'group-summary':
+      return JSON.stringify(['group-summary', comparison.metricKey, comparison.basis])
+  }
+}
+
+function isComparisonInReport(comparison: ReportComparison): boolean {
+  const id = reportComparisonId(comparison)
+  return (project?.reporting?.comparisons ?? []).some((item) => reportComparisonId(item) === id)
+}
+
+function renderReportToggle(comparison: ReportComparison): string {
+  const included = isComparisonInReport(comparison)
+  return `
+    <div class="report-toggle" data-included="${included}">
+      <span>${included ? 'Included in DOCX/PDF reports and Analysis JSON.' : 'Not in reports yet.'}</span>
+      <button
+        class="${included ? 'ghost' : 'secondary'} compact"
+        type="button"
+        data-report-comparison="${escapeHtml(JSON.stringify(comparison))}"
+      >${included ? 'Remove from report' : 'Include in report'}</button>
+    </div>
+  `
+}
+
+function bindReportToggles(container: HTMLElement): void {
+  for (const button of container.querySelectorAll<HTMLButtonElement>('[data-report-comparison]')) {
+    button.addEventListener('click', () => {
+      void toggleReportComparison(button)
+    })
+  }
+}
+
+async function toggleReportComparison(button: HTMLButtonElement): Promise<void> {
+  if (!project || !button.dataset.reportComparison) return
+  const comparison = JSON.parse(button.dataset.reportComparison) as ReportComparison
+  const command = isComparisonInReport(comparison)
+    ? { type: 'remove-report-comparison', comparisonId: reportComparisonId(comparison) }
+    : { type: 'add-report-comparison', comparison }
+  button.disabled = true
+  clearStatus()
+
+  try {
+    // Mutate without re-rendering the workspace so the comparison the teacher is reading stays put.
+    const response = await postJson<ProjectResponse>('/api/project/mutate', { project, command })
+    project = response.project
+    const holder = document.createElement('div')
+    holder.innerHTML = renderReportToggle(comparison)
+    const replacement = holder.firstElementChild
+    if (replacement instanceof HTMLElement) {
+      button.closest('.report-toggle')?.replaceWith(replacement)
+      bindReportToggles(replacement)
+    }
+  } catch (error) {
+    button.disabled = false
+    showStatus(error instanceof Error ? error.message : 'Could not update report selections.')
+  }
+}
+
+function metricLabelFor(key: string): string {
+  return project?.metricDefinitions.find((metric) => metric.key === key)?.label ?? key
+}
+
+function describeReportComparison(comparison: ReportComparison): { kind: string; label: string } {
+  switch (comparison.kind) {
+    case 'crosstab':
+      return {
+        kind: 'Cross-tabulation',
+        label: `${metricLabelFor(comparison.rowMetricKey)} by ${metricLabelFor(comparison.columnMetricKey)}`,
+      }
+    case 'association':
+      return {
+        kind: 'Association',
+        label: `${metricLabelFor(comparison.xMetricKey)} and ${metricLabelFor(comparison.yMetricKey)}`,
+      }
+    case 'group-summary':
+      return {
+        kind: comparison.basis === 'tag' ? 'By student tag' : 'By planning group',
+        label: metricLabelFor(comparison.metricKey),
+      }
+  }
+}
+
+function renderReportComparisonList(): string {
+  const comparisons = project?.reporting?.comparisons ?? []
+  if (comparisons.length === 0) {
+    return `
+      <p class="report-note">
+        None selected. Run a scatter, cross-tabulation or tag/group comparison in Graphs and choose
+        <b>Include in report</b> to add it here.
+      </p>
+    `
+  }
+  return `
+    <ol class="report-comparison-list">
+      ${comparisons
+        .map((comparison) => {
+          const { kind, label } = describeReportComparison(comparison)
+          return `
+            <li>
+              <span><small>${escapeHtml(kind)}</small>${escapeHtml(label)}</span>
+              <button class="ghost compact" type="button" data-remove-report-comparison="${escapeHtml(reportComparisonId(comparison))}">Remove</button>
+            </li>
+          `
+        })
+        .join('')}
+    </ol>
   `
 }
 
