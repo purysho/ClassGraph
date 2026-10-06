@@ -3,7 +3,7 @@
 **Phase:** 9 — Multi-metric descriptive comparisons  
 **Branch:** `claude/intelligent-cerf-9dyifr`  
 **Base:** `main` after v0.8.1  
-**Status:** Implemented — PR open, v0.9.0 release on merge  
+**Status:** Complete — Gate 9 passed; v0.9.0 released  
 **Last updated:** 2026-10-06
 
 ## Why this phase
@@ -74,7 +74,8 @@ or new persisted data.
 - [x] Browser development mode exercised with a 24-student demo project: scatter association,
       cross-tab, numeric-by-tag and ordinal-by-group views render with no console errors, including
       at phone width.
-- [ ] Native desktop self-test matrix (runs in the desktop workflow on the PR).
+- [x] Native desktop self-test matrix on PR #13: Windows x64, Linux x64, macOS Apple Silicon and
+      macOS Intel all passed.
 
 ## Not in scope
 
@@ -86,6 +87,16 @@ or new persisted data.
 ## Release
 
 - [x] Bump to v0.9.0.
-- [x] Add `.release/v0.9.0`; merging this branch to `main` triggers the desktop release workflow.
-- [ ] Native Windows, Linux, macOS Apple Silicon and macOS Intel build/self-test on the PR.
-- [ ] Merge and verify published v0.9.0 assets.
+- [x] Add `.release/v0.9.0`; merging to `main` triggers the desktop release workflow.
+- [x] PR #13 merged to `main` at `3bc4a57f3f97efa655f0871777570eb3c36d3485`.
+- [x] Desktop release workflow `37407771985`: verify, all four native builds/self-tests, and
+      publish succeeded.
+- [x] Published release `v0.9.0` with verified assets:
+  - `ClassGraph-Setup.exe`
+  - `ClassGraph-Portable.exe`
+  - `ClassGraph-macOS-AppleSilicon.dmg`
+  - `ClassGraph-macOS-AppleSilicon.app.zip`
+  - `ClassGraph-macOS-Intel.dmg`
+  - `ClassGraph-macOS-Intel.app.zip`
+  - `ClassGraph-Linux-x64.AppImage`
+  - `SHA256SUMS.txt`
