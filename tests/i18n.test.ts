@@ -7,9 +7,10 @@ import { ZH_ERRORS } from '../src/i18n-zh-errors.js'
 
 const CLIENT = readFileSync(new URL('../src/app-client.ts', import.meta.url), 'utf8')
 
-/** Reads a single-quoted TypeScript string literal starting at `start` (the opening quote). */
+/** Reads a quoted TypeScript string literal starting at `start` (the opening quote). */
 function literalAt(source: string, start: number): { value: string; end: number } | null {
-  if (source[start] !== "'") return null
+  const quote = source[start]
+  if (quote !== "'" && quote !== '"') return null
   let value = ''
   for (let index = start + 1; index < source.length; index += 1) {
     const char = source[index]!
@@ -17,7 +18,7 @@ function literalAt(source: string, start: number): { value: string; end: number 
       const next = source[index + 1]!
       value += next === 'n' ? '\n' : next
       index += 1
-    } else if (char === "'") {
+    } else if (char === quote) {
       return { value, end: index + 1 }
     } else {
       value += char
@@ -149,6 +150,7 @@ describe('Chinese for messages written by the analysis code', () => {
     'Hard rule r1 was violated in 12 of 200 tested arrangements.',
     'pair-distance (r2) penalty 1.50: Seat distance is 3.00.',
     'Largest-smallest group size difference is 1.',
+    'Association is not causation. This figure describes how the recorded values move together in this class only.',
     'Group mean spread for score is 4.25; 1 student(s) lacked a recorded value and were ignored.',
   ]
 

@@ -104,6 +104,12 @@ export const ZH_SERVER_PATTERNS: [RegExp, Replacement][] = [
       `${kind}（${rule}）惩罚分 ${penalty}：${translateServerMessage(details)}`,
   ],
 
+  // Graphs
+  [
+    /^Association is not causation\. This figure describes how the recorded values move together in this class only\.$/,
+    '相关不等于因果。这个数值只描述这个班级中已记录的数值如何一起变化。',
+  ],
+
   // Groups
   [/^Largest-smallest group size difference is (\d+)\.$/, '人数最多和最少的组相差 $1 人。'],
   [

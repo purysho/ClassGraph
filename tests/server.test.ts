@@ -55,12 +55,22 @@ describe('local app server', () => {
   })
 
   it('serves every runtime module the browser client imports in development mode', async () => {
-    const source = await readFile('src/app-client.ts', 'utf8')
-    const runtimeImports = [
-      ...source.matchAll(/^import\s+(?!type\b)[^;]*?from\s+'\.\/([\w-]+\.js)'/gm),
-    ]
-      .map((match) => match[1])
-      .filter((name): name is string => name !== undefined)
+    // Follows imports from app-client.ts through every module it loads.
+    const runtimeImports: string[] = []
+    const pending = ['app-client.js']
+    while (pending.length > 0) {
+      const source = await readFile(`src/${pending.pop()!.replace(/\.js$/, '.ts')}`, 'utf8')
+      for (const match of source.matchAll(
+        /^import\s+(?!type\b)[^;]*?from\s+'\.\/([\w-]+\.js)'/gm,
+      )) {
+        const name = match[1]!
+        if (!runtimeImports.includes(name)) {
+          runtimeImports.push(name)
+          pending.push(name)
+        }
+      }
+    }
+    expect(runtimeImports).toContain('i18n-zh.js')
     expect(runtimeImports).toContain('api-client-transport.js')
 
     const buildDirectory = await mkdtemp(join(tmpdir(), 'classgraph-build-'))

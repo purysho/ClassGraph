@@ -5,6 +5,15 @@ import { dispatchClassGraphApi, type ClassGraphApiResponse } from './api-dispatc
 import type { AssistanceProvider } from './assistance-provider.js'
 import type { FileProjectStore } from './project-store.js'
 
+/** Modules app-client.js imports, directly or through another module. */
+const CLIENT_RUNTIME_MODULES = new Set([
+  'api-client-transport.js',
+  'i18n.js',
+  'i18n-zh.js',
+  'i18n-zh-errors.js',
+  'i18n-zh-server.js',
+])
+
 export type StaticAssetMap = Readonly<Record<string, Uint8Array>>
 
 export interface ClassGraphServerOptions {
@@ -118,9 +127,10 @@ async function serveStatic(
       return true
     }
 
-    // Runtime module imported by app-client.js; must be served for browser development mode.
-    if (pathname === '/dist/api-client-transport.js') {
-      await sendFile(response, join(buildDirectory, 'api-client-transport.js'))
+    // Runtime modules imported by app-client.js; they must be served for browser development mode.
+    const clientModule = /^\/dist\/([\w-]+\.js)$/.exec(pathname)?.[1]
+    if (clientModule && CLIENT_RUNTIME_MODULES.has(clientModule)) {
+      await sendFile(response, join(buildDirectory, clientModule))
       return true
     }
 

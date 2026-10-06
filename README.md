@@ -240,6 +240,14 @@ A Playwright suite drives the real interface in CI: spreadsheet import, comparis
 
 **Check for updates** on the start screen. The Windows installer and Linux AppImage download and install new versions in the app; macOS and the portable build link to the download page. Nothing is checked unless you ask or opt in.
 
+### Phase 16 — Accessibility and dark mode
+
+Every screen passes automated WCAG 2.1 AA checks in light and dark themes, with visible keyboard focus, a skip link and named controls. **Appearance** follows the system or can be set to Light or Dark.
+
+### Phase 17 — Chinese interface
+
+**Language** switches the whole interface between English and Simplified Chinese (中文), following the system language by default. Errors show a Chinese explanation with their `CG-xxxx` code and the original English detail.
+
 </details>
 
 ## Design and recovery documents
@@ -263,6 +271,7 @@ A Playwright suite drives the real interface in CI: spreadsheet import, comparis
 - [`docs/PHASE_14.md`](docs/PHASE_14.md) — Phase 14 browser end-to-end tests
 - [`docs/PHASE_15.md`](docs/PHASE_15.md) — Phase 15 in-app updates
 - [`docs/PHASE_16.md`](docs/PHASE_16.md) — Phase 16 accessibility and dark mode
+- [`docs/PHASE_17.md`](docs/PHASE_17.md) — Phase 17 Chinese-language interface
 - [`docs/SIGNING.md`](docs/SIGNING.md) — enabling code signing and notarisation
 
 ## Branding

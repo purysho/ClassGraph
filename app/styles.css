@@ -3319,6 +3319,8 @@ textarea:focus-visible {
 }
 
 .sidebar-appearance {
+  display: grid;
+  gap: 8px;
   padding: 0 12px 12px;
 }
 
@@ -3331,6 +3333,8 @@ textarea:focus-visible {
 
 .setup-appearance {
   display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
   justify-content: flex-end;
   color: var(--fg-5a6872);
 }
@@ -3344,4 +3348,9 @@ textarea:focus-visible {
 /* Chinese text has no uppercase, and wide letter-spacing breaks up characters. */
 :root:lang(zh) .eyebrow {
   letter-spacing: 0.06em;
+}
+
+/* Keep short Chinese button labels such as 保存 on one line in narrow table cells. */
+:root:lang(zh) button {
+  word-break: keep-all;
 }
