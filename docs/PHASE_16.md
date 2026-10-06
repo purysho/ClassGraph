@@ -60,8 +60,7 @@
   - The choice is stored in this browser profile's `localStorage`. If storage is unavailable, it
     still applies until ClassGraph closes.
   - The desktop window follows the operating system's setting through `prefers-color-scheme`.
-- **What stays light.** Printed and exported reports (PDF, HTML, CSV) are unchanged and always
-  light.
+- **What stays light.** Exported reports (PDF and DOCX) are unchanged and always light.
 
 ## Tests
 

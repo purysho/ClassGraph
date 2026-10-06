@@ -3354,3 +3354,72 @@ textarea:focus-visible {
 :root:lang(zh) button {
   word-break: keep-all;
 }
+
+/* Term comparison */
+.terms-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.term-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.term-roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.term-roster div {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg-f3f6f7);
+}
+
+.term-roster b {
+  font-size: 1.4rem;
+}
+
+.term-roster span,
+.term-note {
+  color: var(--fg-5a6872);
+  font-size: 0.82rem;
+}
+
+.term-changes {
+  font-weight: 600;
+}
+
+.term-summary th[scope='row'],
+.term-transitions th[scope='row'] {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.8rem;
+}
+
+.term-transitions caption {
+  caption-side: top;
+  padding: 8px 0;
+  text-align: left;
+  color: var(--fg-5a6872);
+  font-size: 0.8rem;
+}
+
+.term-students summary,
+.term-overview details summary {
+  cursor: pointer;
+  margin: 8px 0;
+  font-weight: 700;
+}
+
+/* Elements styled with display (labels, grids) must still disappear when hidden. */
+[hidden] {
+  display: none !important;
+}

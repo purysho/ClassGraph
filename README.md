@@ -248,6 +248,10 @@ Every screen passes automated WCAG 2.1 AA checks in light and dark themes, with 
 
 **Language** switches the whole interface between English and Simplified Chinese (中文), following the system language by default. Errors show a Chinese explanation with their `CG-xxxx` code and the original English detail.
 
+### Phase 18 — Comparing terms
+
+**Terms** compares this class with another term (a saved class or a backup), matching students by ID. It shows what was recorded in each term and how matched values differ, never whether a change is good or bad, and exports the per-student values as CSV. **Start the next term** copies the students and metrics with nothing recorded.
+
 </details>
 
 ## Design and recovery documents
@@ -272,6 +276,7 @@ Every screen passes automated WCAG 2.1 AA checks in light and dark themes, with 
 - [`docs/PHASE_15.md`](docs/PHASE_15.md) — Phase 15 in-app updates
 - [`docs/PHASE_16.md`](docs/PHASE_16.md) — Phase 16 accessibility and dark mode
 - [`docs/PHASE_17.md`](docs/PHASE_17.md) — Phase 17 Chinese-language interface
+- [`docs/PHASE_18.md`](docs/PHASE_18.md) — Phase 18 comparing terms side by side
 - [`docs/SIGNING.md`](docs/SIGNING.md) — enabling code signing and notarisation
 
 ## Branding

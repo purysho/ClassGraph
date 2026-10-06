@@ -10,6 +10,7 @@ const VIEWS = [
   'seating',
   'assistance',
   'reports',
+  'terms',
 ] as const
 
 async function violations(page: Page): Promise<string[]> {

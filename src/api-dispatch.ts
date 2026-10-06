@@ -27,6 +27,7 @@ import { ClassGraphImportError, parseProjectJson, serializeProjectJson } from '.
 import { generateSeatingCandidates } from './planning.js'
 import { buildRepeatNeighbourHistory } from './planning-history.js'
 import { comparePlanningScenarios } from './planning-scenarios.js'
+import { parseProtectedFile, unlockProtectedFile } from './project-crypto.js'
 import type { FileProjectStore } from './project-store.js'
 import { applyProjectMutation, parseProjectMutationRequest } from './project-mutations.js'
 import { buildRelationshipGraph } from './relationship-graph.js'
@@ -35,6 +36,7 @@ import { generatePdfReport, generateSeatingPlanPdf } from './report-pdf.js'
 import { classGraphProjectSchema } from './schema.js'
 import { parseStructuredSyntheticRequest } from './synthetic-request.js'
 import { generateSyntheticProject } from './synthetic.js'
+import { compareTerms, startNextTerm, termComparisonCsv } from './term-comparison.js'
 import { createEmptyProject } from './workspace.js'
 
 export interface ClassGraphApiOptions {
@@ -204,6 +206,32 @@ function parseProjectSetup(value: unknown): ProjectSetupRequest {
     title: expectString(record, 'title'),
     classInfo,
   }
+}
+
+/**
+ * The term to compare with comes from the saved-class library (respecting locks) or from a backup
+ * file's text. A password-protected backup is decrypted in memory only, with its password.
+ */
+async function otherTermFromRequest(
+  record: Record<string, unknown>,
+  projectStore: FileProjectStore | undefined,
+) {
+  const projectId = optionalString(record, 'otherProjectId')
+  if (projectId) {
+    if (!projectStore) throw new Error('CG-2026 local project storage is not enabled')
+    return projectStore.load(projectId)
+  }
+  const text = optionalString(record, 'otherText')
+  if (!text) throw new Error('CG-1001 choose a saved class or a backup file to compare with')
+  const protectedFile = parseProtectedFile(text)
+  if (protectedFile) {
+    const password = optionalString(record, 'otherPassword')
+    if (!password) {
+      throw new Error('CG-2015 this backup is password protected; enter its password to use it')
+    }
+    return (await unlockProtectedFile(protectedFile, password)).project
+  }
+  return parseProjectJson(text)
 }
 
 function parseProjectFromRequest(record: Record<string, unknown>) {
@@ -411,6 +439,41 @@ export async function dispatchClassGraphApi(
       })
       await projectStore?.save(project)
       return jsonResponse(200, { project })
+    }
+
+    if (
+      method === 'POST' &&
+      (path === '/api/compare/terms' || path === '/api/export/term-comparison-csv')
+    ) {
+      const record = expectRecord(parseJsonBody(body))
+      const current = parseProjectFromRequest(record)
+      const other = await otherTermFromRequest(record, projectStore)
+      if (other.projectId === current.projectId && other.updatedAt === current.updatedAt) {
+        throw new Error('CG-3012 choose a different class or an older backup to compare with')
+      }
+      const currentIsEarlier = record.currentTerm === 'earlier'
+      const comparison = currentIsEarlier
+        ? compareTerms(current, other)
+        : compareTerms(other, current)
+      const later = currentIsEarlier ? other : current
+      if (path === '/api/compare/terms') return jsonResponse(200, { comparison })
+      return downloadResponse(
+        termComparisonCsv(comparison),
+        'text/csv; charset=utf-8',
+        `${safeExportStem(later.title)}-term-comparison.csv`,
+      )
+    }
+
+    if (method === 'POST' && path === '/api/project/next-term') {
+      const record = expectRecord(parseJsonBody(body))
+      const next = startNextTerm(parseProjectFromRequest(record), {
+        projectId: expectString(record, 'projectId'),
+        title: expectString(record, 'title'),
+        term: optionalString(record, 'term') ?? '',
+        now: new Date().toISOString(),
+      })
+      await projectStore?.save(next)
+      return jsonResponse(200, { project: next })
     }
 
     if (method === 'POST' && path === '/api/project/mutate') {

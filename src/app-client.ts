@@ -670,6 +670,7 @@ type WorkspaceView =
   | 'seating'
   | 'assistance'
   | 'reports'
+  | 'terms'
   | 'protection'
 
 interface ProtectionStatusView {
@@ -2722,6 +2723,7 @@ function renderWorkspace(): void {
           <button data-view="seating">${tr('Seating')}</button>
           <button data-view="assistance">${tr('Assistance')}</button>
           <button data-view="reports">${tr('Reports')}</button>
+          <button data-view="terms">${tr('Terms')}</button>
         </nav>
 
         <div class="sidebar-footer">
@@ -2769,7 +2771,8 @@ function renderWorkspace(): void {
         nextView === 'relationships' ||
         nextView === 'seating' ||
         nextView === 'assistance' ||
-        nextView === 'reports'
+        nextView === 'reports' ||
+        nextView === 'terms'
       ) {
         activeView = nextView
         renderWorkspace()
@@ -2851,6 +2854,11 @@ function renderWorkspaceContent(): void {
 
   if (activeView === 'protection') {
     renderProtection(content)
+    return
+  }
+
+  if (activeView === 'terms') {
+    renderTerms(content)
     return
   }
 
@@ -7066,6 +7074,548 @@ async function initializeApp(): Promise<void> {
 
   renderSetup()
   if (restoreError) showStatus(localizeError(restoreError))
+}
+
+// ---- Terms: compare this class with another term, matched by student ID ----
+
+type TermValueStateView = 'recorded' | 'missing' | 'not-recorded' | 'not-in-term'
+
+interface TermValueView {
+  state: TermValueStateView
+  value: number | string | boolean | null
+}
+
+interface TermSideSummaryView {
+  recordedCount: number
+  missingCount: number
+  notRecordedCount: number
+  median: number | null
+  mean: number | null
+  min: number | null
+  max: number | null
+  counts: Record<string, number>
+}
+
+interface TermMetricView {
+  key: string
+  earlierLabel: string
+  laterLabel: string
+  kind: 'number' | 'ordinal' | 'category' | 'boolean'
+  unit: string | null
+  levels: string[]
+  earlier: TermSideSummaryView
+  later: TermSideSummaryView
+  pairCount: number
+  notComparedCount: number
+  higherCount: number
+  lowerCount: number
+  sameCount: number
+  changedCount: number
+  medianChange: number | null
+  meanChange: number | null
+  transitions: Record<string, Record<string, number>>
+  rows: Array<{
+    studentId: string
+    earlier: TermValueView
+    later: TermValueView
+    change: number | null
+  }>
+}
+
+interface TermLabelView {
+  projectId: string
+  title: string
+  term: string | null
+  updatedAt: string
+  studentCount: number
+}
+
+interface TermComparisonView {
+  earlier: TermLabelView
+  later: TermLabelView
+  students: Array<{ id: string; earlierName: string | null; laterName: string | null }>
+  roster: { bothCount: number; onlyEarlier: string[]; onlyLater: string[] }
+  metrics: TermMetricView[]
+  notCompared: Array<{
+    key: string
+    earlierLabel: string | null
+    laterLabel: string | null
+    reason: 'only-earlier' | 'only-later' | 'kind-changed' | 'scale-changed' | 'text'
+  }>
+}
+
+interface TermCompareRequest {
+  otherProjectId?: string
+  otherText?: string
+  otherPassword?: string
+  currentTerm: 'earlier' | 'later'
+}
+
+let termRequest: TermCompareRequest | null = null
+let termComparison: TermComparisonView | null = null
+let termLibrary: ProjectSummaryView[] | null = null
+
+function termName(label: TermLabelView): string {
+  return label.term
+    ? tr('{title} ({term})', { title: escapeHtml(label.title), term: escapeHtml(label.term) })
+    : escapeHtml(label.title)
+}
+
+function termValueText(value: TermValueView, kind: TermMetricView['kind']): string {
+  if (value.state === 'missing') return tr('Missing')
+  if (value.state === 'not-recorded') return tr('Not recorded')
+  if (value.state === 'not-in-term') return tr('Not in this term')
+  if (kind === 'boolean') return value.value === true ? tr('Yes') : tr('No')
+  if (typeof value.value === 'number') return formatNumber(value.value)
+  return escapeHtml(String(value.value))
+}
+
+function termLevelText(level: string, kind: TermMetricView['kind']): string {
+  if (kind === 'boolean') return level === 'true' ? tr('Yes') : tr('No')
+  return escapeHtml(level)
+}
+
+function signedNumber(value: number | null, unit: string | null): string {
+  if (value === null) return '—'
+  const text = `${value > 0 ? '+' : ''}${formatNumber(value)}`
+  return unit ? `${text} ${escapeHtml(unit)}` : text
+}
+
+function renderTermMetric(metric: TermMetricView, comparison: TermComparisonView): string {
+  const title =
+    metric.earlierLabel === metric.laterLabel
+      ? escapeHtml(metric.laterLabel)
+      : tr('{earlier} → {later}', {
+          earlier: escapeHtml(metric.earlierLabel),
+          later: escapeHtml(metric.laterLabel),
+        })
+
+  const sideRows = (rows: Array<[string, (side: TermSideSummaryView) => string]>) =>
+    rows
+      .map(
+        ([name, value]) =>
+          `<tr><th scope="row">${name}</th><td>${value(metric.earlier)}</td><td>${value(metric.later)}</td></tr>`,
+      )
+      .join('')
+
+  const countRows: Array<[string, (side: TermSideSummaryView) => string]> = [
+    [tr('Recorded'), (side) => String(side.recordedCount)],
+    [tr('Missing'), (side) => String(side.missingCount)],
+    [tr('Not recorded'), (side) => String(side.notRecordedCount)],
+  ]
+  const summary =
+    metric.kind === 'number'
+      ? sideRows([
+          ...countRows,
+          [tr('Median'), (side) => formatNumber(side.median)],
+          [tr('Mean'), (side) => formatNumber(side.mean)],
+          [tr('Minimum'), (side) => formatNumber(side.min)],
+          [tr('Maximum'), (side) => formatNumber(side.max)],
+        ])
+      : sideRows([
+          ...countRows,
+          ...metric.levels.map((level): [string, (side: TermSideSummaryView) => string] => [
+            termLevelText(level, metric.kind),
+            (side) => String(side.counts[level] ?? 0),
+          ]),
+        ])
+
+  let changes: string
+  if (metric.kind === 'number') {
+    changes = tr(
+      '{pairs} students have a value in both terms: {higher} higher, {lower} lower, {same} the same. Median change {median}; mean change {mean}.',
+      {
+        pairs: metric.pairCount,
+        higher: metric.higherCount,
+        lower: metric.lowerCount,
+        same: metric.sameCount,
+        median: signedNumber(metric.medianChange, metric.unit),
+        mean: signedNumber(metric.meanChange, metric.unit),
+      },
+    )
+  } else if (metric.kind === 'ordinal') {
+    changes = tr(
+      '{pairs} students have a value in both terms: {higher} higher on the scale, {lower} lower on the scale, {same} the same. Median change {median} steps.',
+      {
+        pairs: metric.pairCount,
+        higher: metric.higherCount,
+        lower: metric.lowerCount,
+        same: metric.sameCount,
+        median: signedNumber(metric.medianChange, null),
+      },
+    )
+  } else {
+    changes = tr(
+      '{pairs} students have a value in both terms: {changed} have a different value, {same} the same value.',
+      { pairs: metric.pairCount, changed: metric.changedCount, same: metric.sameCount },
+    )
+  }
+  const notCompared =
+    metric.notComparedCount > 0
+      ? `<p class="term-note">${tr(
+          '{n} students in both terms are not compared here because a value is missing or not recorded in one of them.',
+          { n: metric.notComparedCount },
+        )}</p>`
+      : ''
+
+  const transitions =
+    metric.kind === 'number'
+      ? ''
+      : `
+        <div class="data-table-wrap">
+          <table class="source-table term-transitions">
+            <caption>${tr('Earlier value (rows) and later value (columns), students in both terms')}</caption>
+            <thead>
+              <tr><th scope="col">${tr('Earlier \\ Later')}</th>${metric.levels
+                .map((level) => `<th scope="col">${termLevelText(level, metric.kind)}</th>`)
+                .join('')}</tr>
+            </thead>
+            <tbody>
+              ${metric.levels
+                .map(
+                  (from) =>
+                    `<tr><th scope="row">${termLevelText(from, metric.kind)}</th>${metric.levels
+                      .map((to) => `<td>${metric.transitions[from]?.[to] ?? 0}</td>`)
+                      .join('')}</tr>`,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>`
+
+  const studentRows = metric.rows
+    .map((row, index) => {
+      const student = comparison.students[index]
+      const name = student?.laterName ?? student?.earlierName ?? row.studentId
+      const change =
+        metric.kind === 'number' || metric.kind === 'ordinal'
+          ? `<td>${row.change === null ? '—' : signedNumber(row.change, null)}</td>`
+          : ''
+      return `<tr><td>${escapeHtml(name)} <span class="id-cell">${escapeHtml(row.studentId)}</span></td><td>${termValueText(row.earlier, metric.kind)}</td><td>${termValueText(row.later, metric.kind)}</td>${change}</tr>`
+    })
+    .join('')
+
+  return `
+    <article class="panel term-metric" data-term-metric="${escapeHtml(metric.key)}">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">${escapeHtml(metric.key)}</p>
+          <h2>${title}</h2>
+        </div>
+      </div>
+      <div class="data-table-wrap">
+        <table class="source-table term-summary">
+          <thead><tr><th scope="col"></th><th scope="col">${tr('Earlier term')}</th><th scope="col">${tr('Later term')}</th></tr></thead>
+          <tbody>${summary}</tbody>
+        </table>
+      </div>
+      <p class="term-changes">${changes}</p>
+      ${notCompared}
+      ${transitions}
+      <details class="term-students">
+        <summary>${tr('Values for each student')}</summary>
+        <div class="data-table-wrap">
+          <table class="source-table">
+            <thead><tr><th scope="col">${tr('Student')}</th><th scope="col">${tr('Earlier term')}</th><th scope="col">${tr('Later term')}</th>${
+              metric.kind === 'number' || metric.kind === 'ordinal'
+                ? `<th scope="col">${tr('Change')}</th>`
+                : ''
+            }</tr></thead>
+            <tbody>${studentRows}</tbody>
+          </table>
+        </div>
+      </details>
+    </article>
+  `
+}
+
+function notComparedReason(reason: TermComparisonView['notCompared'][number]['reason']): string {
+  switch (reason) {
+    case 'only-earlier':
+      return tr('only in the earlier term')
+    case 'only-later':
+      return tr('only in the later term')
+    case 'kind-changed':
+      return tr('its type is different in the two terms')
+    case 'scale-changed':
+      return tr('its scale or unit is different in the two terms')
+    case 'text':
+      return tr('text is not compared')
+  }
+}
+
+function renderTermResults(comparison: TermComparisonView): string {
+  const nameOf = (id: string) => {
+    const student = comparison.students.find((item) => item.id === id)
+    return escapeHtml(student?.laterName ?? student?.earlierName ?? id)
+  }
+  const rosterList = (ids: string[], heading: string) =>
+    ids.length === 0
+      ? ''
+      : `<details><summary>${heading}</summary><p>${ids.map(nameOf).join('、')}</p></details>`
+
+  const notCompared =
+    comparison.notCompared.length === 0
+      ? ''
+      : `
+        <article class="panel">
+          <p class="eyebrow">${tr('Not compared')}</p>
+          <ul class="term-not-compared">
+            ${comparison.notCompared
+              .map(
+                (item) =>
+                  `<li><b>${escapeHtml(item.laterLabel ?? item.earlierLabel ?? item.key)}</b>: ${notComparedReason(item.reason)}</li>`,
+              )
+              .join('')}
+          </ul>
+        </article>`
+
+  return `
+    <article class="panel term-overview">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">${tr('Matched by student ID')}</p>
+          <h2 tabindex="-1">${tr('{earlier} → {later}', { earlier: termName(comparison.earlier), later: termName(comparison.later) })}</h2>
+        </div>
+        <button id="term-csv" class="secondary compact" type="button">${tr('Download CSV')}</button>
+      </div>
+      <div class="term-roster">
+        <div><b>${comparison.roster.bothCount}</b><span>${tr('students in both terms')}</span></div>
+        <div><b>${comparison.roster.onlyEarlier.length}</b><span>${tr('only in the earlier term')}</span></div>
+        <div><b>${comparison.roster.onlyLater.length}</b><span>${tr('only in the later term')}</span></div>
+      </div>
+      ${rosterList(comparison.roster.onlyEarlier, tr('Students only in the earlier term'))}
+      ${rosterList(comparison.roster.onlyLater, tr('Students only in the later term'))}
+      <p class="term-note">${tr(
+        'This describes what was recorded in each term. It does not say whether a change is good or bad, or why it happened. A metric with the same key may still have been measured differently in each term.',
+      )}</p>
+    </article>
+    ${
+      comparison.metrics.length === 0
+        ? `<div class="empty-analysis"><p>${tr('The two terms have no metrics in common to compare.')}</p></div>`
+        : comparison.metrics.map((metric) => renderTermMetric(metric, comparison)).join('')
+    }
+    ${notCompared}
+  `
+}
+
+function renderTerms(content: HTMLElement): void {
+  if (!project) return
+  const current = project
+  const others = (termLibrary ?? []).filter((item) => item.projectId !== current.projectId)
+  const selected = termRequest?.otherProjectId ?? (termRequest?.otherText ? '__file__' : '')
+  const options = others
+    .map((item) => {
+      const label = item.locked
+        ? tr('{title} (locked: open it once to unlock)', { title: escapeHtml(item.title) })
+        : escapeHtml(item.title)
+      return `<option value="${escapeHtml(item.projectId)}" ${item.locked ? 'disabled' : ''} ${selected === item.projectId ? 'selected' : ''}>${label} · ${escapeHtml(formatSavedDate(item.updatedAt))}</option>`
+    })
+    .join('')
+
+  content.innerHTML = `
+    <div class="terms-stack">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">${tr('Term comparison')}</p>
+            <h2>${tr('Compare with another term')}</h2>
+          </div>
+        </div>
+        <p>${tr(
+          'Choose another term of this class: a saved class or a backup file. Students are matched by student ID, and metrics by their key. Nothing is changed or saved.',
+        )}</p>
+        <form id="term-form" class="term-form">
+          <label>
+            ${tr('Other term')}
+            <select id="term-other" required>
+              <option value="" ${selected === '' ? 'selected' : ''}>${tr('Choose…')}</option>
+              ${options}
+              <option value="__file__" ${selected === '__file__' ? 'selected' : ''}>${tr('A backup file…')}</option>
+            </select>
+          </label>
+          <label id="term-file-field" ${selected === '__file__' ? '' : 'hidden'}>
+            ${tr('Backup file (.classgraph.json or .json)')}
+            <input id="term-file" type="file" accept=".json,application/json" />
+          </label>
+          <label id="term-password-field" ${selected === '__file__' ? '' : 'hidden'}>
+            ${tr('Password (only for a password-protected backup)')}
+            <input id="term-password" type="password" autocomplete="off" />
+          </label>
+          <label>
+            ${tr('This class is the')}
+            <select id="term-current">
+              <option value="later" ${termRequest?.currentTerm !== 'earlier' ? 'selected' : ''}>${tr('later term')}</option>
+              <option value="earlier" ${termRequest?.currentTerm === 'earlier' ? 'selected' : ''}>${tr('earlier term')}</option>
+            </select>
+          </label>
+          <button class="primary" type="submit">${tr('Compare')}</button>
+        </form>
+      </article>
+
+      <div id="term-results">${termComparison ? renderTermResults(termComparison) : ''}</div>
+
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">${tr('New term')}</p>
+            <h2>${tr('Start the next term from this class')}</h2>
+          </div>
+        </div>
+        <p>${tr(
+          'Creates a new class with the same students and metrics, and nothing recorded yet, so the two terms can be compared later. Seating, groups, relationships and notes are not copied.',
+        )}</p>
+        <form id="next-term-form" class="term-form">
+          <label>
+            ${tr('Class name')}
+            <input name="title" required value="${escapeHtml(current.title)}" />
+          </label>
+          <label>
+            ${tr('Term')}
+            <input name="term" placeholder="${escapeHtml(tr('e.g. Spring 2027'))}" />
+          </label>
+          <button class="secondary" type="submit">${tr('Create next term')}</button>
+        </form>
+      </article>
+    </div>
+  `
+
+  if (termLibrary === null) {
+    void getJson<ProjectLibraryView>('/api/projects')
+      .then((library) => {
+        termLibrary = library.projects
+        if (activeView === 'terms') renderWorkspaceContent()
+      })
+      .catch(() => {
+        termLibrary = []
+      })
+  }
+  bindTermEvents()
+}
+
+async function runTermComparison(request: TermCompareRequest): Promise<void> {
+  if (!project) return
+  clearStatus()
+  try {
+    const response = await postJson<{ comparison: TermComparisonView }>('/api/compare/terms', {
+      project,
+      ...request,
+    })
+    termRequest = { ...request, otherPassword: undefined }
+    if (request.otherPassword) termRequest.otherPassword = request.otherPassword
+    termComparison = response.comparison
+    renderWorkspaceContent()
+    document.querySelector<HTMLElement>('#term-results h2')?.focus()
+  } catch (error) {
+    showStatus(
+      error instanceof Error ? localizeError(error.message) : tr('Could not compare the terms.'),
+    )
+  }
+}
+
+function bindTermEvents(): void {
+  const other = document.querySelector<HTMLSelectElement>('#term-other')
+  other?.addEventListener('change', () => {
+    const file = other.value === '__file__'
+    document.querySelector<HTMLElement>('#term-file-field')!.hidden = !file
+    document.querySelector<HTMLElement>('#term-password-field')!.hidden = !file
+  })
+
+  document.querySelector<HTMLFormElement>('#term-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const currentTerm =
+      document.querySelector<HTMLSelectElement>('#term-current')?.value === 'earlier'
+        ? 'earlier'
+        : 'later'
+    const choice = other?.value ?? ''
+    if (choice === '__file__') {
+      const file = document.querySelector<HTMLInputElement>('#term-file')?.files?.[0]
+      const password = document.querySelector<HTMLInputElement>('#term-password')?.value ?? ''
+      if (!file) {
+        if (termRequest?.otherText) {
+          void runTermComparison({ ...termRequest, currentTerm })
+          return
+        }
+        showStatus(tr('Choose a backup file to compare with.'))
+        return
+      }
+      void file.text().then((text) =>
+        runTermComparison({
+          otherText: text,
+          ...(password ? { otherPassword: password } : {}),
+          currentTerm,
+        }),
+      )
+      return
+    }
+    if (!choice) {
+      showStatus(tr('Choose a saved class or a backup file to compare with.'))
+      return
+    }
+    void runTermComparison({ otherProjectId: choice, currentTerm })
+  })
+
+  document.querySelector<HTMLButtonElement>('#term-csv')?.addEventListener('click', () => {
+    if (termRequest) void downloadTermCsv(termRequest)
+  })
+
+  document
+    .querySelector<HTMLFormElement>('#next-term-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      if (!project) return
+      const form = new FormData(event.currentTarget as HTMLFormElement)
+      void (async () => {
+        try {
+          const response = await postJson<ProjectResponse>('/api/project/next-term', {
+            project,
+            projectId: projectId(),
+            title: asString(form, 'title'),
+            term: asString(form, 'term'),
+          })
+          termLibrary = null
+          termComparison = null
+          termRequest = null
+          openProject(response.project)
+          showStatus(
+            tr('Next term created. Its students and metrics are ready to record.'),
+            'success',
+          )
+        } catch (error) {
+          showStatus(
+            error instanceof Error
+              ? localizeError(error.message)
+              : tr('Could not create the next term.'),
+          )
+        }
+      })()
+    })
+}
+
+async function downloadTermCsv(request: TermCompareRequest): Promise<void> {
+  if (!project) return
+  try {
+    const response = await classGraphApiFetch('/api/export/term-comparison-csv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project, ...request }),
+    })
+    if (!response.ok) throw await responseError(response)
+    const url = URL.createObjectURL(await response.blob())
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = reportDownloadName(response, 'classgraph-term-comparison.csv')
+    anchor.hidden = true
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+    showStatus(tr('Export created locally.'), 'success')
+  } catch (error) {
+    showStatus(
+      error instanceof Error ? localizeError(error.message) : tr('Could not create the export.'),
+    )
+  }
 }
 
 void initializeApp()

@@ -68,7 +68,7 @@ ClassGraph could read and print Chinese names, but its whole interface was in En
 
 ## Limits
 
-- **Reports and exports** (PDF, DOCX, HTML, CSV) are still written in English. Chinese names
+- **Reports and exports** (PDF, DOCX and JSON) are still written in English. Chinese names
   print correctly; Chinese report text would be a follow-up.
 - **Synthetic example data** keeps its English metric names (Assessment, Participation), because
   those names are class data, not interface text.
