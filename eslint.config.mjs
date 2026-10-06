@@ -5,6 +5,8 @@ export default tseslint.config(
   {
     ignores: [
       'release-desktop/**',
+      'test-results/**',
+      'playwright-report/**',
       'dist/**',
       'coverage/**',
       'node_modules/**',

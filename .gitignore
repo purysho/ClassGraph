@@ -9,3 +9,5 @@ coverage/
 .desktop-build/
 release/
 release-desktop/
+test-results/
+playwright-report/
