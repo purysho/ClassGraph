@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { dispatchClassGraphApi, type ClassGraphApiRequest } from './api-dispatch.js'
 import { createEnvironmentAssistanceProvider } from './assistance-provider.js'
 import { parseProjectJson, serializeProjectJson } from './json.js'
+import { createEmptyProject } from './workspace.js'
 import {
   defaultClassGraphDataDirectory,
   FileProjectStore,
@@ -95,6 +96,29 @@ async function runSelfTest(store: FileProjectStore): Promise<void> {
     throw new Error('ClassGraph native desktop self-test returned an unexpected transport.')
   }
 
+  // Exercises the packaged CJK PDF font: it must be found inside the installed app.
+  const pdf = await dispatchClassGraphApi(
+    {
+      method: 'POST',
+      path: '/api/export/pdf',
+      body: JSON.stringify({
+        project: createEmptyProject({
+          projectId: 'pdf-self-test',
+          title: '五年级 英语 Self Test',
+          now: new Date().toISOString(),
+        }),
+      }),
+    },
+    { projectStore: store, desktop: true },
+  )
+  const signature =
+    pdf.body instanceof Uint8Array ? new TextDecoder('latin1').decode(pdf.body.slice(0, 5)) : ''
+  if (pdf.status !== 200 || signature !== '%PDF-') {
+    throw new Error(
+      `ClassGraph native PDF self-test failed: ${typeof pdf.body === 'string' ? pdf.body : pdf.status}`,
+    )
+  }
+
   console.log('ClassGraph native desktop self-test passed.')
 }
 
@@ -160,6 +184,7 @@ async function start(): Promise<void> {
   })
 
   await app.whenReady()
+  process.env.CLASSGRAPH_ASSETS_DIR ??= packagedAsset('assets')
   const store = await createProjectStore()
   const assistanceProvider = createEnvironmentAssistanceProvider()
 

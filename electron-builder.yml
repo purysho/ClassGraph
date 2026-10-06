@@ -7,6 +7,7 @@ directories:
 files:
   - app/**
   - dist/**
+  - assets/fonts/**
   - package.json
   - build/icon.png
   - build/icon.ico
