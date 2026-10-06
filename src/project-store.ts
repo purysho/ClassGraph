@@ -4,6 +4,18 @@ import { homedir } from 'node:os'
 import { basename, join, posix, win32 } from 'node:path'
 import type { ClassGraphProject } from './model.js'
 import { parseProjectJson, serializeProjectJson } from './json.js'
+import {
+  assertAcceptablePassword,
+  decryptProject,
+  deriveProjectKey,
+  encryptProject,
+  parseProtectedFile,
+  protectionError,
+  unlockProtectedFile,
+  type ProjectKey,
+  type ProtectedProjectFile,
+  type ScryptParams,
+} from './project-crypto.js'
 
 const LIBRARY_VERSION = '2.0'
 const MAX_LOCAL_BACKUPS = 5
@@ -19,8 +31,13 @@ export interface ProjectSummary {
   projectId: string
   title: string
   updatedAt: string
-  studentCount: number
+  /** Null while a password-protected class is locked. */
+  studentCount: number | null
   fileName: string
+  /** The file on disk is password protected. */
+  protected: boolean
+  /** Protected and not unlocked in this session; title and counts are unavailable. */
+  locked: boolean
   subject?: string
   gradeOrLevel?: string
 }
@@ -43,16 +60,31 @@ export interface DataDirectoryInput {
 interface StoredProject {
   path: string
   fileName: string
-  project: ClassGraphProject
+  projectId: string
+  /** Present for plain files and for protected files unlocked in this session. */
+  project?: ClassGraphProject
+  protectedFile?: ProtectedProjectFile
+  modifiedAt: string
 }
 
-function projectSummary(project: ClassGraphProject, fileName: string): ProjectSummary {
+export interface ProjectProtectionStatus {
+  protected: boolean
+  unlocked: boolean
+}
+
+function projectSummary(
+  project: ClassGraphProject,
+  fileName: string,
+  isProtected = false,
+): ProjectSummary {
   const summary: ProjectSummary = {
     projectId: project.projectId,
     title: project.title,
     updatedAt: project.updatedAt,
     studentCount: project.students.length,
     fileName,
+    protected: isProtected,
+    locked: false,
   }
   if (project.classInfo.subject) summary.subject = project.classInfo.subject
   if (project.classInfo.gradeOrLevel) summary.gradeOrLevel = project.classInfo.gradeOrLevel
@@ -116,7 +148,30 @@ export function defaultClassGraphDataDirectory(input: DataDirectoryInput = {}): 
   return posix.join(env.XDG_DATA_HOME ?? posix.join(home, '.local', 'share'), 'ClassGraph')
 }
 
+function lockedSummary(stored: StoredProject): ProjectSummary {
+  return {
+    projectId: stored.projectId,
+    title: stored.fileName.replace(/\.classgraph\.json$|\.json$/i, ''),
+    updatedAt: stored.modifiedAt,
+    studentCount: null,
+    fileName: stored.fileName,
+    protected: true,
+    locked: true,
+  }
+}
+
+function lockedError(): Error {
+  return protectionError(
+    'CG-2016',
+    'this class is password protected; enter its password to open it',
+  )
+}
+
 export class FileProjectStore {
+  /** Keys for protected classes unlocked in this session. Never written to disk. */
+  private readonly keys = new Map<string, ProjectKey>()
+  /** Overridable for tests; production uses the default scrypt cost. */
+  scryptParams: ScryptParams | undefined = undefined
   readonly dataDirectory: string
   readonly projectsDirectory: string
   readonly backupsDirectory: string
@@ -174,8 +229,23 @@ export class FileProjectStore {
 
       const path = join(this.projectsDirectory, entry)
       try {
-        const project = parseProjectJson(await readFile(path, 'utf8'))
-        stored.push({ path, fileName: entry, project })
+        const text = await readFile(path, 'utf8')
+        const modifiedAt = (await stat(path)).mtime.toISOString()
+        const protectedFile = parseProtectedFile(text)
+        if (protectedFile) {
+          const key = this.keys.get(protectedFile.projectId)
+          stored.push({
+            path,
+            fileName: entry,
+            projectId: protectedFile.projectId,
+            protectedFile,
+            modifiedAt,
+            ...(key ? { project: decryptProject(protectedFile, key) } : {}),
+          })
+        } else {
+          const project = parseProjectJson(text)
+          stored.push({ path, fileName: entry, projectId: project.projectId, project, modifiedAt })
+        }
       } catch {
         // Invalid or unrelated JSON stays untouched and is not shown as a ClassGraph project.
       }
@@ -221,49 +291,202 @@ export class FileProjectStore {
     )
   }
 
+  private async writeAtomically(target: string, contents: string): Promise<void> {
+    const temp = `${target}.next`
+    await writeFile(temp, contents, { encoding: 'utf8', mode: 0o600 })
+    await rm(target, { force: true })
+    await rename(temp, target)
+  }
+
   async save(project: ClassGraphProject): Promise<ProjectSummary> {
     await this.initialize()
     const stored = await this.readStoredProjects()
-    const existing = stored.find((item) => item.project.projectId === project.projectId)
+    const existing = stored.find((item) => item.projectId === project.projectId)
+    const key = this.keys.get(project.projectId)
+
+    // Never write a protected class back to disk as plain JSON.
+    if (existing?.protectedFile && !key) throw lockedError()
+
     const target = existing?.path ?? (await this.uniqueProjectPath(project.title))
     const fileName = basename(target)
-    const serialized = serializeProjectJson(project)
+    const plain = serializeProjectJson(project)
+    const unchanged =
+      existing?.project !== undefined && serializeProjectJson(existing.project) === plain
 
-    let unchanged = false
-    try {
-      unchanged = (await readFile(target, 'utf8')) === serialized
-    } catch {
-      unchanged = false
-    }
-
-    if (!unchanged) {
-      if (existing) await this.preservePrevious(existing.project, target)
-      const temp = `${target}.next`
-      await writeFile(temp, serialized, { encoding: 'utf8', mode: 0o600 })
-      await rm(target, { force: true })
-      await rename(temp, target)
+    if (!unchanged || (key && !existing?.protectedFile)) {
+      if (existing?.project) await this.preservePrevious(existing.project, target)
+      await this.writeAtomically(target, key ? encryptProject(project, key) : plain)
     }
 
     await this.remember(project.projectId)
-    return projectSummary(project, fileName)
+    return projectSummary(project, fileName, key !== undefined)
   }
 
   async load(projectId: string): Promise<ClassGraphProject> {
     const stored = await this.readStoredProjects()
-    const match = stored.find((item) => item.project.projectId === projectId)
+    const match = stored.find((item) => item.projectId === projectId)
 
     if (!match) {
       throw new Error('CG-2012 saved project could not be found in the ClassGraph Projects folder')
     }
+    if (!match.project) throw lockedError()
 
     await this.remember(projectId)
     return match.project
   }
 
-  async importFile(path: string): Promise<ClassGraphProject> {
-    const project = parseProjectJson(await readFile(path, 'utf8'))
+  async protectionStatus(projectId: string): Promise<ProjectProtectionStatus> {
+    const stored = (await this.readStoredProjects()).find((item) => item.projectId === projectId)
+    return {
+      protected: stored?.protectedFile !== undefined,
+      unlocked: this.keys.has(projectId),
+    }
+  }
+
+  async unlock(projectId: string, password: string): Promise<ClassGraphProject> {
+    const stored = (await this.readStoredProjects()).find((item) => item.projectId === projectId)
+    if (!stored) {
+      throw new Error('CG-2012 saved project could not be found in the ClassGraph Projects folder')
+    }
+    if (!stored.protectedFile) return this.load(projectId)
+    const { project, key } = await unlockProtectedFile(stored.protectedFile, password)
+    this.keys.set(projectId, key)
+    await this.remember(projectId)
+    return project
+  }
+
+  /**
+   * Turns on (or replaces) password protection. Existing plain safety copies of this class are
+   * deleted, because they would otherwise leave the same data readable next to the protected file.
+   */
+  async protect(project: ClassGraphProject, password: string): Promise<ProjectSummary> {
+    assertAcceptablePassword(password)
+    const status = await this.protectionStatus(project.projectId)
+    if (status.protected && !status.unlocked) throw lockedError()
+
+    const previousKey = this.keys.get(project.projectId)
+    const nextKey = await deriveProjectKey(password, undefined, this.scryptParams)
+    this.keys.set(project.projectId, nextKey)
+    await this.secureBackups(project.projectId, previousKey, nextKey)
+    const stored = (await this.readStoredProjects()).find(
+      (item) => item.projectId === project.projectId,
+    )
+    const target = stored?.path ?? (await this.uniqueProjectPath(project.title))
+    await this.writeAtomically(target, encryptProject(project, nextKey))
+    await this.remember(project.projectId)
+    return projectSummary(project, basename(target), true)
+  }
+
+  async changePassword(
+    projectId: string,
+    currentPassword: string,
+    nextPassword: string,
+  ): Promise<ProjectSummary> {
+    assertAcceptablePassword(nextPassword)
+    const project = await this.verifyPassword(projectId, currentPassword)
+    return this.protect(project, nextPassword)
+  }
+
+  /** Removes protection after checking the current password; the file becomes plain JSON. */
+  async unprotect(projectId: string, currentPassword: string): Promise<ProjectSummary> {
+    const project = await this.verifyPassword(projectId, currentPassword)
+    const stored = (await this.readStoredProjects()).find((item) => item.projectId === projectId)
+    const target = stored?.path ?? (await this.uniqueProjectPath(project.title))
+    this.keys.delete(projectId)
+    await this.writeAtomically(target, serializeProjectJson(project))
+    return projectSummary(project, basename(target), false)
+  }
+
+  /** Forgets the in-memory key; the class must be unlocked again to open or save it. */
+  lock(projectId: string): void {
+    this.keys.delete(projectId)
+  }
+
+  /**
+   * Serialises a backup copy. Protected classes stay encrypted unless `plain` is requested.
+   */
+  async serializeBackup(project: ClassGraphProject, plain: boolean): Promise<string> {
+    const status = await this.protectionStatus(project.projectId)
+    if (plain || !status.protected) return serializeProjectJson(project)
+    const key = this.keys.get(project.projectId)
+    if (!key) throw lockedError()
+    return encryptProject(project, key)
+  }
+
+  /** Restores a protected backup file into the library, keeping it protected. */
+  async importProtected(text: string, password: string): Promise<ClassGraphProject> {
+    const file = parseProtectedFile(text)
+    if (!file) return this.importText(text)
+    const { project, key } = await unlockProtectedFile(file, password)
+    this.keys.set(project.projectId, key)
     await this.save(project)
     return project
+  }
+
+  /** Restores a plain backup. A protected backup needs its password (CG-2015). */
+  async importText(text: string): Promise<ClassGraphProject> {
+    if (parseProtectedFile(text)) {
+      throw protectionError(
+        'CG-2015',
+        'this backup is password protected; enter its password to restore it',
+      )
+    }
+    const project = parseProjectJson(text)
+    await this.save(project)
+    return project
+  }
+
+  private async verifyPassword(projectId: string, password: string): Promise<ClassGraphProject> {
+    const stored = (await this.readStoredProjects()).find((item) => item.projectId === projectId)
+    if (!stored?.protectedFile) {
+      throw protectionError('CG-2019', 'this class does not have a password')
+    }
+    const { project } = await unlockProtectedFile(stored.protectedFile, password)
+    return project
+  }
+
+  /**
+   * Makes every safety copy of this class match its protection: plain copies are deleted, and
+   * copies encrypted with the previous password are re-encrypted with the new one. Copies are
+   * found by project ID, so folders from before a rename are included.
+   */
+  private async secureBackups(
+    projectId: string,
+    previousKey: ProjectKey | undefined,
+    nextKey: ProjectKey,
+  ): Promise<void> {
+    if (!(await exists(this.backupsDirectory))) return
+    const marker = `[${shortProjectKey(projectId)}]`
+    for (const folder of await readdir(this.backupsDirectory)) {
+      if (!folder.endsWith(marker)) continue
+      const directory = join(this.backupsDirectory, folder)
+      for (const entry of await readdir(directory)) {
+        const path = join(directory, entry)
+        let file: ProtectedProjectFile | null
+        try {
+          file = parseProtectedFile(await readFile(path, 'utf8'))
+        } catch {
+          continue
+        }
+        if (!file) {
+          await rm(path, { force: true })
+          continue
+        }
+        if (!previousKey || file.projectId !== projectId) continue
+        try {
+          await this.writeAtomically(
+            path,
+            encryptProject(decryptProject(file, previousKey), nextKey),
+          )
+        } catch {
+          // A copy made under some other earlier password is left as it is.
+        }
+      }
+    }
+  }
+
+  async importFile(path: string): Promise<ClassGraphProject> {
+    return this.importText(await readFile(path, 'utf8'))
   }
 
   async migrateFromLegacy(legacyDirectory: string): Promise<number> {
@@ -281,7 +504,7 @@ export class FileProjectStore {
         try {
           const project = parseProjectJson(await readFile(join(directory, entry), 'utf8'))
           const current = await this.readStoredProjects()
-          if (!current.some((item) => item.project.projectId === project.projectId)) {
+          if (!current.some((item) => item.projectId === project.projectId)) {
             await this.save(project)
             migrated += 1
           }
@@ -302,7 +525,11 @@ export class FileProjectStore {
   async list(): Promise<ProjectLibrarySnapshot> {
     const stored = await this.readStoredProjects()
     const summaries = stored
-      .map((item) => projectSummary(item.project, item.fileName))
+      .map((item) =>
+        item.project
+          ? projectSummary(item.project, item.fileName, item.protectedFile !== undefined)
+          : lockedSummary(item),
+      )
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
 
     const manifest = await this.readManifest()

@@ -130,6 +130,14 @@ function requiredPositiveInteger(record: Record<string, unknown>, key: string): 
   return value
 }
 
+function expectPassword(record: Record<string, unknown>, key: string): string {
+  const value = record[key]
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`CG-1001 ${key} must be a non-empty string`)
+  }
+  return value
+}
+
 function optionalBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
   const value = record[key]
   if (value === undefined) return undefined
@@ -264,6 +272,83 @@ export async function dispatchClassGraphApi(
       return jsonResponse(200, {
         project: await projectStore.load(expectString(record, 'projectId')),
       })
+    }
+
+    if (path.startsWith('/api/protection/') || path === '/api/projects/unlock') {
+      if (!projectStore) throw new Error('CG-2010 local project storage is not enabled')
+    }
+
+    if (method === 'POST' && path === '/api/projects/unlock') {
+      const record = expectRecord(parseJsonBody(body))
+      return jsonResponse(200, {
+        project: await projectStore!.unlock(
+          expectString(record, 'projectId'),
+          expectPassword(record, 'password'),
+        ),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/protection/status') {
+      const record = expectRecord(parseJsonBody(body))
+      return jsonResponse(200, {
+        protection: await projectStore!.protectionStatus(expectString(record, 'projectId')),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/protection/enable') {
+      const record = expectRecord(parseJsonBody(body))
+      const project = parseProjectFromRequest(record)
+      await projectStore!.protect(project, expectPassword(record, 'password'))
+      return jsonResponse(200, { protection: { protected: true, unlocked: true } })
+    }
+
+    if (method === 'POST' && path === '/api/protection/change') {
+      const record = expectRecord(parseJsonBody(body))
+      await projectStore!.changePassword(
+        expectString(record, 'projectId'),
+        expectPassword(record, 'currentPassword'),
+        expectPassword(record, 'newPassword'),
+      )
+      return jsonResponse(200, { protection: { protected: true, unlocked: true } })
+    }
+
+    if (method === 'POST' && path === '/api/protection/disable') {
+      const record = expectRecord(parseJsonBody(body))
+      await projectStore!.unprotect(
+        expectString(record, 'projectId'),
+        expectPassword(record, 'currentPassword'),
+      )
+      return jsonResponse(200, { protection: { protected: false, unlocked: false } })
+    }
+
+    if (method === 'POST' && path === '/api/protection/lock') {
+      const record = expectRecord(parseJsonBody(body))
+      projectStore!.lock(expectString(record, 'projectId'))
+      return jsonResponse(200, { locked: true })
+    }
+
+    if (method === 'POST' && path === '/api/protection/import') {
+      const record = expectRecord(parseJsonBody(body))
+      return jsonResponse(200, {
+        project: await projectStore!.importProtected(
+          expectString(record, 'fileText'),
+          expectPassword(record, 'password'),
+        ),
+      })
+    }
+
+    if (method === 'POST' && path === '/api/export/backup') {
+      const record = expectRecord(parseJsonBody(body))
+      const project = parseProjectFromRequest(record)
+      const plain = optionalBoolean(record, 'plain') === true
+      const contents = projectStore
+        ? await projectStore.serializeBackup(project, plain)
+        : serializeProjectJson(project)
+      return downloadResponse(
+        contents,
+        'application/json; charset=utf-8',
+        `${safeExportStem(project.title)}.classgraph.json`,
+      )
     }
 
     if (method === 'GET' && path === '/api/assistance/status') {
@@ -559,9 +644,9 @@ export async function dispatchClassGraphApi(
     }
 
     if (method === 'POST' && path === '/api/import') {
-      const project = parseProjectJson(body ?? '')
-      await projectStore?.save(project)
-      return jsonResponse(200, { project })
+      if (projectStore)
+        return jsonResponse(200, { project: await projectStore.importText(body ?? '') })
+      return jsonResponse(200, { project: parseProjectJson(body ?? '') })
     }
 
     if (method === 'POST' && path === '/api/export') {
