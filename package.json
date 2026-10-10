@@ -22,8 +22,7 @@
     "package:unpack": "npm run build:desktop && electron-builder --dir",
     "package:win": "npm run build:desktop && electron-builder --win --x64",
     "package:mac": "npm run build:desktop && electron-builder --mac",
-    "package:linux": "npm run build:desktop && electron-builder --linux --x64",
-    "discover": "esbuild src/agent/discover-cli.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/discover.mjs --log-level=warning && node dist/discover.mjs"
+    "package:linux": "npm run build:desktop && electron-builder --linux --x64"
   },
   "dependencies": {
     "docx": "9.7.1",

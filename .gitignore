@@ -8,4 +8,3 @@ coverage/
 !.env.example
 .desktop-build/
 release/
-.claude/logs/
