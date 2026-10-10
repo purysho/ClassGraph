@@ -7,6 +7,11 @@ import {
   checkUrl,
   compactMessages,
   defineTool,
+  discover,
+  keywords,
+  parseAwesomeList,
+  rankEntries,
+  renderReport,
   detectInjection,
   mapPool,
   ModelRouter,
@@ -309,5 +314,34 @@ describe('safety helpers', () => {
     expect(
       uncitedSources('see [1](https://a.com/x) and https://b.com.', ['https://a.com/x']),
     ).toEqual(['https://b.com'])
+  })
+})
+
+describe('discovery', () => {
+  const md = `# List\n## MCP Servers\n- [Git MCP](https://github.com/x/git-mcp) - MCP server for git repos\n- [Other](https://o.dev) - unrelated thing\n## Legal\n* **[LexTool](https://lex.dev)** — contract review agent\n`
+
+  it('parses awesome lists with sections', () => {
+    const entries = parseAwesomeList(md, 'test')
+    expect(entries).toHaveLength(3)
+    expect(entries[2]).toMatchObject({
+      name: 'LexTool',
+      section: 'Legal',
+      description: 'contract review agent',
+    })
+  })
+
+  it('ranks by keyword relevance and builds a report offline', async () => {
+    const ranked = rankEntries(parseAwesomeList(md, 't'), keywords('git mcp')).map((e) => e.name)
+    expect(ranked).toEqual(['Git MCP', 'Other'])
+    const report = await discover({
+      description: 'contract legal review',
+      categories: ['legal'],
+      offline: true,
+      fetchText: (url) =>
+        url.endsWith('README.md') ? Promise.resolve(md) : Promise.reject(new Error('404')),
+    })
+    const text = renderReport(report)
+    expect(text).toContain('[LexTool](https://lex.dev)')
+    expect(report.live).toHaveLength(0)
   })
 })

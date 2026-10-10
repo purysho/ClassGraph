@@ -97,3 +97,40 @@ console.log(result.final.text, budget.costUsd, tracer.summary())
 - robots.txt / site terms checks for `fetch_url`, audit log retention and export, licence tracking for sources
 - A model-based injection classifier to back up the regex heuristics
 - CLI / UI to inspect traces and approve `ask` decisions
+
+## Discovery: finding research, MCP servers, repos and tools
+
+`discovery.ts` builds a report of resources that fit a project. It ranks entries from curated
+lists by keyword match against the project's README and `package.json`, and also queries live
+sources.
+
+- **Curated lists** (`CATALOG`):
+  - alvinreal/awesome-opensource-ai
+  - ai-for-developers/awesome-ai-coding-tools
+  - camoverride/lit
+  - owainlewis/awesome-artificial-intelligence
+  - affaan-m/ecc
+  - punkpeye/awesome-mcp-servers
+  - lawglance/lawglance
+  - harvard-lil/olaw
+  - lawve-ai/awesome-legal-skills
+  - Also added: modelcontextprotocol/servers, hesreallyhim/awesome-claude-code, anthropics/skills
+- **Live search:**
+  - arXiv API for papers
+  - the official MCP Registry
+  - GitHub repository search (set `GITHUB_TOKEN`; unauthenticated calls are heavily rate limited)
+
+How it runs:
+
+- **Automatically:** `.claude/settings.json` registers a `SessionStart` hook. On a project's first
+  session, if `docs/DISCOVERY.md` doesn't exist, the hook builds the report in the background.
+- **Manually:** `/discover [categories | description]` refreshes the report and asks Claude to add
+  vetted recommendations.
+- **From the CLI:** `npm run discover -- [--category mcp,legal] [--offline] [--out path] ["description"]`.
+
+To use it in every new project, copy `.claude/` and `src/agent/` into your project template.
+You can also point a user-level `SessionStart` hook in `~/.claude/settings.json` at the bundled
+`dist/discover.mjs`; that file is a single self-contained bundle with no dependencies.
+
+Everything in the report is third-party content. Vet licences, maintenance and security before
+adopting anything, and take particular care with MCP servers.
